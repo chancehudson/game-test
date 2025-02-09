@@ -1,8 +1,11 @@
 use macroquad::prelude::*;
 
 mod game;
+mod player;
 
 use game::GameState;
+pub use game::Actor;
+pub use player::Player;
 
 #[macroquad::main("BasicShapes")]
 async fn main() {

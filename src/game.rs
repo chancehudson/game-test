@@ -1,53 +1,83 @@
 use macroquad::prelude::*;
 
-trait Actor {
-    fn move_x(&mut self, dx: f32, solids: &Vec<Rect>);
-    fn move_y(&mut self, dx: f32, solids: &Vec<Rect>);
-}
+use super::Player;
 
-pub struct Player {
-    position: Vec2,
-    velocity: Vec2,
-    size: Vec2,
-}
+// in pixels per second per second
+const GRAVITY_ACCEL: f32 = 700.0;
 
-impl Actor for Player {
-    fn move_x(&mut self, dx: f32, solids: &Vec<Rect>) {
-        let to_pos = self.position.x + dx;
-        let sign = dx.signum();
-        let dx_abs = dx.abs();
-        let mut moved = 0.;
+pub trait Actor {
+    fn position_mut(&mut self) -> &mut Vec2;
+    fn velocity_mut(&mut self) -> &mut Vec2;
+    fn rect(&self) -> Rect;
 
-        self.position.x += dx;
+    fn render(&self);
+    fn step_physics(&mut self, step_len: f32, solids: &Vec<Rect>) {
+        self.velocity_mut().y += GRAVITY_ACCEL * step_len;
+        let dx = self.velocity_mut().x * step_len;
+        let dy = self.velocity_mut().y * step_len;
+        self.move_x(dx, solids);
+        self.move_y(dy, solids);
+    }
+
+    fn move_x(&mut self, dx: f32, _solids: &Vec<Rect>) {
+        self.position_mut().x += dx;
     }
 
     fn move_y(&mut self, dy: f32, solids: &Vec<Rect>) {
-        let to_pos = self.position.y + dy;
         let sign = dy.signum();
         let dy_abs = dy.abs();
         let mut moved = 0.;
 
         // if the character is jumping we don't care about collisions
         if dy.is_sign_negative() {
-            self.position.y += dy;
+            let position = self.position_mut();
+            position.y += dy;
             return;
         }
         while moved < dy_abs + 1. {
-            let new_player_rect = Rect::new(self.position.x, self.position.y + sign * moved, self.size.x, self.size.y);
+            let mut new_player_rect = self.rect();
+            new_player_rect.y += sign * moved;
+
             for solid in solids {
                 if let Some(overlap) = solid.intersect(new_player_rect) {
                     // only collide if we're at the top of the platform
                     if overlap.h < 1. && overlap.y == solid.y {
                         // we've collided, stop
-                        self.velocity.y = 0.0;
-                        self.position.y = new_player_rect.y - sign;
+                        let position = self.position_mut();
+                        position.y = new_player_rect.y - sign;
+                        let velocity = self.velocity_mut();
+                        velocity.y = 0.0;
                         return;
                     }
                 }
             }
             moved += 1.;
         }
-        self.position.y += dy;
+        let position = self.position_mut();
+        position.y += dy;
+    }
+}
+
+pub struct Item {
+    position: Vec2,
+    velocity: Vec2,
+    size: Vec2,
+}
+
+impl Actor for Item {
+    fn rect(&self) -> Rect {
+        Rect::new(self.position.x, self.position.y, self.size.x, self.size.y)
+    }
+
+    fn position_mut(&mut self) -> &mut Vec2 {
+        &mut self.position
+    }
+    fn velocity_mut(&mut self) -> &mut Vec2 {
+        &mut self.velocity
+    }
+
+    fn render(&self) {
+        draw_rectangle(self.position.x, self.position.y, self.size.x, self.size.y, PINK);
     }
 }
 
@@ -59,19 +89,23 @@ pub struct Map {
 pub struct GameState {
     player: Player,
     active_map: Map,
+    actors: Vec<Box<dyn Actor>>,
     last_step: f64,
 }
 
 impl GameState {
     pub fn new() -> Self {
+        let player =
+             Player { position: Vec2::new(0., 0.), velocity: Vec2::new(0., 0.), size: Vec2::new(30., 30.) };
         GameState {
-            player: Player { position: Vec2::new(0., 0.), velocity: Vec2::new(0., 0.), size: Vec2::new(30., 30.) },
+            player,
             active_map: Map { solids: vec![
                 Rect::new(0., 50., 100., 100.),
                 Rect::new(0., 250., 1000., 100.),
                 Rect::new(0., 400., 1000., 100.),
                 Rect::new(0., 5000., 100000., 100.),
             ] },
+            actors: vec![],
             last_step: 0.0,
         }
     }
@@ -87,34 +121,36 @@ impl GameState {
         });
     }
 
-    pub fn render_player(&mut self) {
-        draw_circle(self.player.position.x + self.player.size.x / 2., self.player.position.y + self.player.size.y /2., self.player.size.x/2., GREEN);
-    }
-
     pub fn input(&mut self, step_len: f32) {
-        let accel_rate = 9.0 * step_len;
-        let decel_rate = 13.0 * step_len;
+        const ACCEL_RATE: f32 = 700.0;
+        const DECEL_RATE: f32 = 800.0;
+        const MAX_VELOCITY: f32 = 500.0;
         if is_key_down(KeyCode::Right) {
-            self.player.velocity.x += accel_rate;
+            self.player.velocity.x += ACCEL_RATE * step_len;
+            if self.player.velocity.x < 0.0 {
+                self.player.velocity.x += DECEL_RATE * step_len;
+            }
         } else if is_key_down(KeyCode::Left) {
-            self.player.velocity.x -= accel_rate;
+            self.player.velocity.x -= ACCEL_RATE * step_len;
+            if self.player.velocity.x > 0.0 {
+                self.player.velocity.x -= DECEL_RATE * step_len;
+            }
         } else if self.player.velocity.x.abs() > 0.0 {
-            self.player.velocity.x = self.player.velocity.move_towards(Vec2::ZERO, decel_rate).x;
+            self.player.velocity.x = self.player.velocity.move_towards(Vec2::ZERO, DECEL_RATE * step_len).x;
         }
 
-        if is_key_pressed(KeyCode::Space) {
-            // check if we're standing on a platform first
-            self.player.velocity.y = -6.0;
+        if is_key_down(KeyCode::Down) && is_key_pressed(KeyCode::Space) && self.player.velocity.y == 0. {
+            self.player.position.y += 2.0;
+        } else if is_key_pressed(KeyCode::Space) {
+            // TODO: check if we're standing on a platform first
+            self.player.velocity.y = -300.0;
         }
-        self.player.velocity = self.player.velocity.clamp(Vec2::new(-2.0, -2.0), Vec2::new(2.0, 2.0));
-    }
 
-    pub fn step_physics(&mut self, step_len: f32) {
-        // in meters per second per second
-        const GRAVITY_ACCEL: f32 = 5.0;
-        self.player.velocity.y += GRAVITY_ACCEL * step_len;
-        self.player.move_x(self.player.velocity.x, &self.active_map.solids);
-        self.player.move_y(self.player.velocity.y, &self.active_map.solids);
+        if is_key_pressed(KeyCode::Z) {
+            // drop an item
+            self.actors.push(Box::new(Item { position: self.player.position.clone(), velocity: Vec2::new(0., -1.), size: Vec2::new(10., 10.) }));
+        }
+        self.player.velocity = self.player.velocity.clamp(Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY), Vec2::new(MAX_VELOCITY, MAX_VELOCITY));
     }
 
     pub fn render_map(&self) {
@@ -128,10 +164,19 @@ impl GameState {
         let step_len = (time - self.last_step) as f32;
         self.last_step = time;
 
-        self.step_physics(step_len);
+        // step the physics
+        for actor in &mut self.actors {
+            actor.step_physics(step_len, &self.active_map.solids);
+        }
+        self.player.step_physics(step_len, &self.active_map.solids);
+
+        // begin rendering
         self.render_camera();
         self.render_map();
-        self.render_player();
         self.input(step_len);
+        self.player.render();
+        for actor in &self.actors {
+            actor.render();
+        }
     }
 }
