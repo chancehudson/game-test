@@ -1,6 +1,7 @@
 use macroquad::prelude::*;
 
 use super::Player;
+use super::Map;
 
 // in pixels per second per second
 const GRAVITY_ACCEL: f32 = 700.0;
@@ -11,40 +12,50 @@ pub trait Actor {
     fn rect(&self) -> Rect;
 
     fn render(&self);
-    fn step_physics(&mut self, step_len: f32, solids: &Vec<Rect>) {
+    fn step_physics(&mut self, step_len: f32, map: &Map) {
         self.velocity_mut().y += GRAVITY_ACCEL * step_len;
         let dx = self.velocity_mut().x * step_len;
         let dy = self.velocity_mut().y * step_len;
-        self.move_x(dx, solids);
-        self.move_y(dy, solids);
+        self.move_x(dx, &map);
+        self.move_y(dy, &map);
     }
 
-    fn move_x(&mut self, dx: f32, _solids: &Vec<Rect>) {
+    fn move_x(&mut self, dx: f32, map: &Map) {
+        let rect = self.rect();
         self.position_mut().x += dx;
+        if self.position_mut().x + rect.w > map.size.x {
+            self.position_mut().x = map.size.x - rect.w;
+            self.velocity_mut().x = 0.;
+        } else if self.position_mut().x < 0. {
+            self.position_mut().x = 0.;
+            self.velocity_mut().x = 0.;
+        }
     }
 
-    fn move_y(&mut self, dy: f32, solids: &Vec<Rect>) {
+    fn move_y(&mut self, dy: f32, map: &Map) {
         let sign = dy.signum();
         let dy_abs = dy.abs();
         let mut moved = 0.;
+        let min_y = -self.rect().h;
+        let max_y = map.size.y - self.rect().h;
 
         // if the character is jumping we don't care about collisions
         if dy.is_sign_negative() {
             let position = self.position_mut();
-            position.y += dy;
+            position.y = (position.y + dy).clamp(min_y, max_y);
             return;
         }
         while moved < dy_abs + 1. {
             let mut new_player_rect = self.rect();
             new_player_rect.y += sign * moved;
 
-            for solid in solids {
+            for solid in &map.solids {
                 if let Some(overlap) = solid.intersect(new_player_rect) {
                     // only collide if we're at the top of the platform
                     if overlap.h < 1. && overlap.y == solid.y {
                         // we've collided, stop
                         let position = self.position_mut();
-                        position.y = new_player_rect.y - sign;
+                        position.y = (new_player_rect.y - sign).clamp(min_y, max_y);
                         let velocity = self.velocity_mut();
                         velocity.y = 0.0;
                         return;
@@ -54,7 +65,8 @@ pub trait Actor {
             moved += 1.;
         }
         let position = self.position_mut();
-        position.y += dy;
+        // position.y += dy;
+        position.y = (position.y + dy).clamp(min_y, max_y);
     }
 }
 
@@ -81,11 +93,6 @@ impl Actor for Item {
     }
 }
 
-/// We'll separate solids and visuals
-pub struct Map {
-    solids: Vec<Rect>,
-}
-
 pub struct GameState {
     player: Player,
     active_map: Map,
@@ -94,17 +101,12 @@ pub struct GameState {
 }
 
 impl GameState {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         let player =
              Player { position: Vec2::new(0., 0.), velocity: Vec2::new(0., 0.), size: Vec2::new(30., 30.) };
         GameState {
             player,
-            active_map: Map { solids: vec![
-                Rect::new(0., 50., 100., 100.),
-                Rect::new(0., 250., 1000., 100.),
-                Rect::new(0., 400., 1000., 100.),
-                Rect::new(0., 5000., 100000., 100.),
-            ] },
+            active_map: Map::new().await,
             actors: vec![],
             last_step: 0.0,
         }
@@ -113,12 +115,13 @@ impl GameState {
     // center on the player, except if we're at the edge of a map
     // then lock the camera viewport edge to the edge of the map
     pub fn render_camera(&mut self) {
-        let zoom = 0.002;
-        set_camera(&Camera2D {
-            target: self.player.position,
-            zoom: vec2(zoom, zoom * screen_width() / screen_height()),
-            ..Default::default()
-        });
+        let half_screen = Vec2::new(screen_width()/2., screen_height()/2.);
+        let camera = Camera2D::from_display_rect(
+            Rect::new(
+                (self.player.position.x - half_screen.x).clamp(0., self.active_map.size.x - screen_width()),
+                (self.player.position.y + half_screen.y).clamp(0., self.active_map.size.y + 40.), // 40 is the padding at the bottom
+                screen_width(), -screen_height()));
+        set_camera(&camera);
     }
 
     pub fn input(&mut self, step_len: f32) {
@@ -148,15 +151,9 @@ impl GameState {
 
         if is_key_pressed(KeyCode::Z) {
             // drop an item
-            self.actors.push(Box::new(Item { position: self.player.position.clone(), velocity: Vec2::new(0., -1.), size: Vec2::new(10., 10.) }));
+            self.actors.push(Box::new(Item { position: self.player.position.clone(), velocity: Vec2::new(0., -200.), size: Vec2::new(10., 10.) }));
         }
         self.player.velocity = self.player.velocity.clamp(Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY), Vec2::new(MAX_VELOCITY, MAX_VELOCITY));
-    }
-
-    pub fn render_map(&self) {
-        for solid in &self.active_map.solids {
-            draw_rectangle(solid.x, solid.y, solid.w, solid.h, BLUE);
-        }
     }
 
     pub fn render(&mut self) {
@@ -166,13 +163,13 @@ impl GameState {
 
         // step the physics
         for actor in &mut self.actors {
-            actor.step_physics(step_len, &self.active_map.solids);
+            actor.step_physics(step_len, &self.active_map);
         }
-        self.player.step_physics(step_len, &self.active_map.solids);
+        self.player.step_physics(step_len, &self.active_map);
 
         // begin rendering
         self.render_camera();
-        self.render_map();
+        self.active_map.render(step_len, self.player.position);
         self.input(step_len);
         self.player.render();
         for actor in &self.actors {
