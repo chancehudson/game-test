@@ -2,16 +2,17 @@ use macroquad::prelude::*;
 
 use super::Player;
 use super::Map;
+use super::Item;
 
 // in pixels per second per second
-const GRAVITY_ACCEL: f32 = 700.0;
+const GRAVITY_ACCEL: f32 = 1200.0;
 
 pub trait Actor {
     fn position_mut(&mut self) -> &mut Vec2;
     fn velocity_mut(&mut self) -> &mut Vec2;
     fn rect(&self) -> Rect;
 
-    fn render(&self);
+    fn render(&mut self);
     fn step_physics(&mut self, step_len: f32, map: &Map) {
         self.velocity_mut().y += GRAVITY_ACCEL * step_len;
         let dx = self.velocity_mut().x * step_len;
@@ -70,29 +71,6 @@ pub trait Actor {
     }
 }
 
-pub struct Item {
-    position: Vec2,
-    velocity: Vec2,
-    size: Vec2,
-}
-
-impl Actor for Item {
-    fn rect(&self) -> Rect {
-        Rect::new(self.position.x, self.position.y, self.size.x, self.size.y)
-    }
-
-    fn position_mut(&mut self) -> &mut Vec2 {
-        &mut self.position
-    }
-    fn velocity_mut(&mut self) -> &mut Vec2 {
-        &mut self.velocity
-    }
-
-    fn render(&self) {
-        draw_rectangle(self.position.x, self.position.y, self.size.x, self.size.y, PINK);
-    }
-}
-
 pub struct GameState {
     player: Player,
     active_map: Map,
@@ -102,8 +80,7 @@ pub struct GameState {
 
 impl GameState {
     pub async fn new() -> Self {
-        let player =
-             Player { position: Vec2::new(0., 0.), velocity: Vec2::new(0., 0.), size: Vec2::new(30., 30.) };
+        let player = Player::new();
         GameState {
             player,
             active_map: Map::new().await,
@@ -151,7 +128,11 @@ impl GameState {
 
         if is_key_pressed(KeyCode::Z) {
             // drop an item
-            self.actors.push(Box::new(Item { position: self.player.position.clone(), velocity: Vec2::new(0., -200.), size: Vec2::new(10., 10.) }));
+            self.actors.push(
+                Box::new(
+                    Item::new("assets/stick.png", self.player.position.clone(), Vec2::new(0., -200.))
+                )
+            );
         }
         self.player.velocity = self.player.velocity.clamp(Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY), Vec2::new(MAX_VELOCITY, MAX_VELOCITY));
     }
@@ -172,7 +153,7 @@ impl GameState {
         self.active_map.render(step_len, self.player.position);
         self.input(step_len);
         self.player.render();
-        for actor in &self.actors {
+        for actor in &mut self.actors {
             actor.render();
         }
     }
