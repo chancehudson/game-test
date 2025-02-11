@@ -1,4 +1,5 @@
-use std::{collections::HashMap, fs};
+use std::collections::HashMap;
+use std::fs;
 use std::sync::Mutex;
 
 use macroquad::prelude::*;
@@ -7,6 +8,9 @@ use once_cell::sync::Lazy;
 static ASSET_BUFFER: Lazy<Mutex<HashMap<String, Texture2D>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
+/// Singleton hashmap that stores all assets in memory
+/// Textures are keyed by their path relative to the assets directory
+/// e.g. assets/stick.png
 pub struct AssetBuffer {
     pub assets: HashMap<String, Texture2D>,
 }
@@ -50,7 +54,8 @@ impl AssetBuffer {
         if let Some(texture) = ASSET_BUFFER.lock().unwrap().get(name).cloned() {
             texture
         } else {
-            panic!("Texture not found: {name}");
+            Texture2D::empty()
+            // panic!("Texture not found: {name}");
         }
     }
 }

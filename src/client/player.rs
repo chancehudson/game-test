@@ -1,9 +1,9 @@
 use macroquad::prelude::*;
 
-use crate::game::GameState;
-
 use super::Actor;
 use super::AnimatedEntity;
+use super::Renderable;
+use super::MapData;
 
 const MAX_VELOCITY: f32 = 500.0;
 
@@ -25,6 +25,21 @@ impl Player {
     }
 }
 
+impl Renderable for Player {
+    fn render(&mut self, step_len: f32) {
+        if is_key_down(KeyCode::Right) {
+            self.texture.flip_x = true;
+        } else if is_key_down(KeyCode::Left) {
+            self.texture.flip_x = false;
+        }
+        self.texture.position = self.position;
+        self.texture.set_animation(0); // Set to first animation (e.g., idle)
+        self.texture.update();        // Update animation frame
+        self.texture.draw();          // Draw current frame
+        // draw_circle(self.position.x + self.size.x / 2., self.position.y + self.size.y /2., self.size.x/2., GREEN);
+    }
+}
+
 impl Actor for Player {
     fn rect(&self) -> Rect {
         Rect::new(self.position.x, self.position.y, self.size.x, self.size.y)
@@ -38,21 +53,8 @@ impl Actor for Player {
         &mut self.velocity
     }
 
-    fn step_physics(&mut self, step_len: f32, map: &crate::Map) {
+    fn step_physics(&mut self, step_len: f32, map: &MapData) {
         self.step_physics_default(step_len, map);
         self.velocity = self.velocity.clamp(Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY), Vec2::new(MAX_VELOCITY, MAX_VELOCITY));
-    }
-
-    fn render(&mut self, step_len: f32) {
-        if is_key_down(KeyCode::Right) {
-            self.texture.flip_x = true;
-        } else if is_key_down(KeyCode::Left) {
-            self.texture.flip_x = false;
-        }
-        self.texture.position = self.position;
-        self.texture.set_animation(0); // Set to first animation (e.g., idle)
-        self.texture.update();        // Update animation frame
-        self.texture.draw();          // Draw current frame
-        // draw_circle(self.position.x + self.size.x / 2., self.position.y + self.size.y /2., self.size.x/2., GREEN);
     }
 }

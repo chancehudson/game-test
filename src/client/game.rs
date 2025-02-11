@@ -5,11 +5,16 @@ use super::Map;
 use super::Item;
 use super::InputHandler;
 use super::Actor;
+use super::Renderable;
+
+pub trait GameStateTrait: Actor + Renderable {}
+impl GameStateTrait for Item {}
+impl GameStateTrait for Player {}
 
 pub struct GameState {
     pub player: Player,
     pub active_map: Map,
-    pub actors: Vec<Box<dyn Actor>>,
+    pub actors: Vec<Box<dyn GameStateTrait>>,
     pub last_step: f64,
 }
 
@@ -48,9 +53,9 @@ impl GameState {
 
         // step the physics
         for actor in &mut self.actors {
-            actor.step_physics(step_len, &self.active_map);
+            actor.step_physics(step_len, &self.active_map.data);
         }
-        self.player.step_physics(step_len, &self.active_map);
+        self.player.step_physics(step_len, &self.active_map.data);
 
         // begin rendering
         self.render_camera();

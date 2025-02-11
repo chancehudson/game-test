@@ -1,6 +1,7 @@
-use macroquad::prelude::*;
+use macroquad::prelude::Vec2;
+use macroquad::prelude::Rect;
 
-use super::Map;
+use super::MapData;
 
 // in pixels per second per second
 const GRAVITY_ACCEL: f32 = 1200.0;
@@ -10,13 +11,11 @@ pub trait Actor {
     fn velocity_mut(&mut self) -> &mut Vec2;
     fn rect(&self) -> Rect;
 
-    fn render(&mut self, step_len: f32);
-
-    fn step_physics(&mut self, step_len: f32, map: &Map) {
+    fn step_physics(&mut self, step_len: f32, map: &MapData) {
         self.step_physics_default(step_len, map);
     }
 
-    fn step_physics_default(&mut self, step_len: f32, map: &Map) {
+    fn step_physics_default(&mut self, step_len: f32, map: &MapData) {
         self.velocity_mut().y += GRAVITY_ACCEL * step_len;
         let dx = self.velocity_mut().x * step_len;
         let dy = self.velocity_mut().y * step_len;
@@ -24,7 +23,7 @@ pub trait Actor {
         self.move_y(dy, &map);
     }
 
-    fn move_x(&mut self, dx: f32, map: &Map) {
+    fn move_x(&mut self, dx: f32, map: &MapData) {
         let rect = self.rect();
         self.position_mut().x += dx;
         if self.position_mut().x + rect.w > map.size.x {
@@ -36,7 +35,7 @@ pub trait Actor {
         }
     }
 
-    fn move_y(&mut self, dy: f32, map: &Map) {
+    fn move_y(&mut self, dy: f32, map: &MapData) {
         let sign = dy.signum();
         let dy_abs = dy.abs();
         let mut moved = 0.;
@@ -53,10 +52,11 @@ pub trait Actor {
             let mut new_player_rect = self.rect();
             new_player_rect.y += sign * moved;
 
-            for solid in &map.solids {
-                if let Some(overlap) = solid.intersect(new_player_rect) {
+            for solid in &map.platforms {
+                let solid_rect = Rect::new(solid.position.x, solid.position.y, solid.size.x, solid.size.y);
+                if let Some(overlap) = solid_rect.intersect(new_player_rect) {
                     // only collide if we're at the top of the platform
-                    if overlap.h < 1. && overlap.y == solid.y {
+                    if overlap.h < 1. && overlap.y == solid_rect.y {
                         // we've collided, stop
                         let position = self.position_mut();
                         position.y = (new_player_rect.y - sign).clamp(min_y, max_y);
