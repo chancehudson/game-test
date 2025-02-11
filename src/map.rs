@@ -1,25 +1,70 @@
 use macroquad::prelude::*;
+use serde::Deserialize;
+use json5::Deserializer;
 
+use super::AssetBuffer;
+
+// Custom deserializer for Vec2
+fn deserialize_vec2<'de, D>(deserializer: D) -> Result<Vec2, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let arr: [f32; 2] = Deserialize::deserialize(deserializer)?;
+    Ok(Vec2::new(arr[0], arr[1]))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Portal {
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub position: Vec2,
+    pub to: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Platform {
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub position: Vec2,
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub size: Vec2,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MapData {
+    pub name: String,
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub spawn_location: Vec2,
+    background: String,
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub size: Vec2,
+    pub portals: Vec<Portal>,
+    pub platforms: Vec<Platform>,
+}
 
 /// We'll separate solids and visuals
 pub struct Map {
     pub solids: Vec<Rect>,
-    background_texture: Texture2D,
+    pub spawn_location: Vec2,
+    pub background_texture: Texture2D,
+    pub data: MapData,
     pub size: Vec2,
 }
 
 impl Map {
-    pub async fn new() -> Self {
+    pub async fn new(name: &str) -> Self {
+        let data_str = std::fs::read_to_string(format!("maps/{name}.json5")).unwrap();
+        let data = json5::from_str::<MapData>(&data_str).unwrap();
         Self {
-            size: Vec2::new(1500., 1000.),
-            background_texture: load_texture("assets/sky_background.png").await.unwrap(),
-            solids: vec![
-                Rect::new(0., 50., 1000., 100.),
-                Rect::new(0., 250., 1000., 100.),
-                Rect::new(0., 400., 1000., 100.),
-                Rect::new(0., 5000., 100000., 100.),
-                Rect::new(0., 1000., 1500., 10.)
-            ]
+            spawn_location: data.spawn_location,
+            background_texture: AssetBuffer::texture(&data.background),
+            solids: data.platforms.iter().map(|p| Rect::new(p.position.x, p.position.y, p.size.x, p.size.y)).collect::<_>(),
+            size: data.size,
+            data,
+        }
+    }
+
+    pub fn render_portals(&self) {
+        for portal in &self.data.portals {
+            draw_rectangle(portal.position.x, portal.position.y - 150., 150., 150., RED);
         }
     }
 
@@ -47,5 +92,6 @@ impl Map {
 
         draw_text("IT WORKS!", 20.0, 80.0, 30.0, DARKGRAY);
 
+        self.render_portals();
     }
 }

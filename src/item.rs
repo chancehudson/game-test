@@ -1,5 +1,7 @@
 use macroquad::prelude::*;
 
+use crate::game::GameState;
+
 use super::Sprite;
 use super::Actor;
 
@@ -34,7 +36,7 @@ impl Actor for Item {
         &mut self.velocity
     }
 
-    fn render(&mut self) {
+    fn render(&mut self, _step_len: f32) {
         let time = get_time() as f32;
         // the bobbing/floating animation
         let y_offset = (time * 4.).sin() * 3.0;

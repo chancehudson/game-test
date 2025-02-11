@@ -1,7 +1,11 @@
 use macroquad::prelude::*;
 
+use crate::game::GameState;
+
 use super::Actor;
 use super::AnimatedEntity;
+
+const MAX_VELOCITY: f32 = 500.0;
 
 pub struct Player {
     pub texture: AnimatedEntity,
@@ -34,7 +38,12 @@ impl Actor for Player {
         &mut self.velocity
     }
 
-    fn render(&mut self) {
+    fn step_physics(&mut self, step_len: f32, map: &crate::Map) {
+        self.step_physics_default(step_len, map);
+        self.velocity = self.velocity.clamp(Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY), Vec2::new(MAX_VELOCITY, MAX_VELOCITY));
+    }
+
+    fn render(&mut self, step_len: f32) {
         if is_key_down(KeyCode::Right) {
             self.texture.flip_x = true;
         } else if is_key_down(KeyCode::Left) {

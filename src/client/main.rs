@@ -1,20 +1,14 @@
 use macroquad::prelude::*;
 
-mod game;
-mod player;
-mod map;
-mod sprite;
-mod item;
-mod asset_buffer;
-
-use game::GameState;
-pub use asset_buffer::AssetBuffer;
-pub use item::Item;
-pub use game::Actor;
-pub use player::Player;
-pub use map::Map;
-pub use sprite::Sprite;
-pub use sprite::AnimatedEntity;
+pub use game_test::GameState;
+pub use game_test::Actor;
+pub use game_test::InputHandler;
+pub use game_test::AssetBuffer;
+pub use game_test::Item;
+pub use game_test::Player;
+pub use game_test::Map;
+pub use game_test::Sprite;
+pub use game_test::AnimatedEntity;
 
 #[macroquad::main("BasicShapes")]
 async fn main() -> anyhow::Result<()> {
