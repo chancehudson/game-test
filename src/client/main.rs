@@ -1,27 +1,30 @@
 use macroquad::prelude::*;
 
+pub use game_test::action::Action;
+pub use game_test::action::PlayerAction;
+pub use game_test::action::Response;
 pub use game_test::Actor;
 pub use game_test::MapData;
 
 mod asset_buffer;
 mod game;
-mod input_handler;
-mod sprite;
-mod network;
-mod renderable;
 mod item;
+mod login;
 mod map;
+mod network;
 mod player;
+mod renderable;
+mod sprite;
 
-pub use renderable::Renderable;
-pub use player::Player;
-pub use map::Map;
-pub use item::Item;
-pub use sprite::Sprite;
-pub use sprite::AnimatedEntity;
-pub use game::GameState;
-pub use input_handler::InputHandler;
 pub use asset_buffer::AssetBuffer;
+pub use game::GameState;
+pub use item::Item;
+use login::LoginScreen;
+pub use map::Map;
+pub use player::Player;
+pub use renderable::Renderable;
+pub use sprite::AnimatedEntity;
+pub use sprite::Sprite;
 
 const SERVER_URL: &'static str = "ws://localhost:1351/socket";
 
@@ -35,17 +38,63 @@ async fn main() -> anyhow::Result<()> {
     let fps_render_interval = 1.0;
     let mut next_fps_render = 0.0;
     let mut fps = 0.0;
+    let mut login_screen = LoginScreen::new();
+    let mut last_action = get_player_action();
     loop {
         if let Some(msg) = connection.try_receive()? {
-            println!("Received message: {:?}", msg);
+            println!("{:?}", msg);
+            match msg {
+                Response::PlayerLoggedIn(player_id) => {
+                    println!("logged in player id {player_id}");
+                    game.authenticated = true
+                }
+                Response::LoginError(err) => {
+                    login_screen.error_message = Some(err);
+                }
+                Response::PlayerState(state) => {
+                    game.player.experience = state.experience;
+                }
+                Response::PlayerBody(body) => {
+                    game.player.position = Vec2::new(body.position.0, body.position.1);
+                    game.player.velocity = Vec2::new(body.velocity.0, body.velocity.1);
+                }
+                Response::Log(msg) => {
+                    println!("server message: {msg}");
+                }
+                _ => {}
+            }
+        }
+        if !game.authenticated {
+            clear_background(RED);
+            let (login, create) = login_screen.draw();
+            if login {
+                connection
+                    .send(&Action::LoginPlayer(login_screen.username.clone()))
+                    .unwrap_or_else(|e| {
+                        login_screen.error_message = Some(e.to_string());
+                    });
+            } else if create {
+                connection
+                    .send(&Action::CreatePlayer(login_screen.username.clone()))
+                    .unwrap_or_else(|e| {
+                        login_screen.error_message = Some(e.to_string());
+                    });
+            }
+            next_frame().await;
+            continue;
+        }
+        let new_action = get_player_action();
+        if last_action != new_action {
+            last_action = new_action.clone();
+            connection.send(&Action::SetPlayerAction(new_action))?;
         }
         clear_background(RED);
         // game will handle setting the appropriate camera
-        game.render();
+        game.render(&mut last_action);
 
         if is_key_pressed(KeyCode::A) {
             println!("Sending message...");
-            connection.send("Hello, world!".to_string())?;
+            // connection.send("Hello, world!".to_string())?;
         }
 
         set_default_camera();
@@ -59,5 +108,16 @@ async fn main() -> anyhow::Result<()> {
             AssetBuffer::reload_assets().await?;
         }
         next_frame().await
+    }
+}
+
+fn get_player_action() -> PlayerAction {
+    PlayerAction {
+        enter_portal: is_key_down(KeyCode::Up),
+        move_left: is_key_down(KeyCode::Left),
+        move_right: is_key_down(KeyCode::Right),
+        jump: is_key_pressed(KeyCode::Space) && !is_key_down(KeyCode::Down),
+        pickup: is_key_pressed(KeyCode::Z),
+        downward_jump: is_key_pressed(KeyCode::Space) && is_key_down(KeyCode::Down),
     }
 }

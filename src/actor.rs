@@ -1,5 +1,5 @@
-use macroquad::prelude::Vec2;
 use macroquad::prelude::Rect;
+use macroquad::prelude::Vec2;
 
 use super::MapData;
 
@@ -53,7 +53,12 @@ pub trait Actor {
             new_player_rect.y += sign * moved;
 
             for solid in &map.platforms {
-                let solid_rect = Rect::new(solid.position.x, solid.position.y, solid.size.x, solid.size.y);
+                let solid_rect = Rect::new(
+                    solid.position.x,
+                    solid.position.y,
+                    solid.size.x,
+                    solid.size.y,
+                );
                 if let Some(overlap) = solid_rect.intersect(new_player_rect) {
                     // only collide if we're at the top of the platform
                     if overlap.h < 1. && overlap.y == solid_rect.y {

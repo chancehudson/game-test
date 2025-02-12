@@ -2,13 +2,14 @@ use macroquad::prelude::*;
 
 use super::Actor;
 use super::AnimatedEntity;
-use super::Renderable;
 use super::MapData;
+use super::Renderable;
 
 const MAX_VELOCITY: f32 = 500.0;
 
 pub struct Player {
     pub texture: AnimatedEntity,
+    pub experience: u64,
     pub position: Vec2,
     pub velocity: Vec2,
     pub size: Vec2,
@@ -17,6 +18,7 @@ pub struct Player {
 impl Player {
     pub fn new() -> Self {
         Self {
+            experience: 0,
             texture: AnimatedEntity::new("assets/robo.png", 97.0, 117.0, 17),
             position: Vec2::new(100., 100.),
             velocity: Vec2::new(0., 0.),
@@ -34,9 +36,9 @@ impl Renderable for Player {
         }
         self.texture.position = self.position;
         self.texture.set_animation(0); // Set to first animation (e.g., idle)
-        self.texture.update();        // Update animation frame
-        self.texture.draw();          // Draw current frame
-        // draw_circle(self.position.x + self.size.x / 2., self.position.y + self.size.y /2., self.size.x/2., GREEN);
+        self.texture.update(); // Update animation frame
+        self.texture.draw(); // Draw current frame
+                             // draw_circle(self.position.x + self.size.x / 2., self.position.y + self.size.y /2., self.size.x/2., GREEN);
     }
 }
 
@@ -55,6 +57,9 @@ impl Actor for Player {
 
     fn step_physics(&mut self, step_len: f32, map: &MapData) {
         self.step_physics_default(step_len, map);
-        self.velocity = self.velocity.clamp(Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY), Vec2::new(MAX_VELOCITY, MAX_VELOCITY));
+        self.velocity = self.velocity.clamp(
+            Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY),
+            Vec2::new(MAX_VELOCITY, MAX_VELOCITY),
+        );
     }
 }

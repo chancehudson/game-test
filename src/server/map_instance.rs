@@ -1,38 +1,33 @@
-use std::time::SystemTime;
+use std::collections::HashMap;
 
-use super::timestamp;
+use super::Actor;
 use super::MapData;
 use super::Player;
-use super::Actor;
 
 pub struct MapInstance {
     pub map: MapData,
-    pub players: Vec<Player>,
+    pub player_ids: Vec<String>,
     pub actors: Vec<Box<dyn Actor>>,
-    pub last_step: f32,
 }
 
 impl MapInstance {
     pub fn new(map: MapData) -> Self {
         Self {
             map,
-            players: vec![],
+            player_ids: vec![],
             actors: vec![],
-            last_step: timestamp(),
         }
     }
 
-    pub fn step(&mut self) {
-        let time = timestamp();
-        let step_len = time - self.last_step;
-        self.last_step = time;
-
+    pub fn step(&mut self, players: &mut HashMap<String, Player>, step_len: f32) {
         // step the physics
         for actor in &mut self.actors {
             actor.step_physics(step_len, &self.map);
         }
-        for player in &mut self.players {
-            player.step_physics(step_len, &self.map);
+        for id in &mut self.player_ids {
+            if let Some(player) = players.get_mut(id) {
+                player.step_physics(step_len, &self.map);
+            }
         }
     }
 }

@@ -1,5 +1,5 @@
-use macroquad::prelude::Vec2;
 use macroquad::prelude::Rect;
+use macroquad::prelude::Vec2;
 
 use super::Actor;
 use super::MapData;
@@ -7,15 +7,17 @@ use super::MapData;
 const MAX_VELOCITY: f32 = 500.0;
 
 pub struct Player {
+    pub id: String,
     pub position: Vec2,
     pub velocity: Vec2,
     pub size: Vec2,
 }
 
 impl Player {
-    pub fn new() -> Self {
+    pub fn new(id: String) -> Self {
         Self {
-            position: Vec2::new(100., 0.),
+            id,
+            position: Vec2::new(0., 0.),
             velocity: Vec2::new(0., 0.),
             size: Vec2::new(97., 117.),
         }
@@ -37,6 +39,9 @@ impl Actor for Player {
 
     fn step_physics(&mut self, step_len: f32, map: &MapData) {
         self.step_physics_default(step_len, map);
-        self.velocity = self.velocity.clamp(Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY), Vec2::new(MAX_VELOCITY, MAX_VELOCITY));
+        self.velocity = self.velocity.clamp(
+            Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY),
+            Vec2::new(MAX_VELOCITY, MAX_VELOCITY),
+        );
     }
 }
