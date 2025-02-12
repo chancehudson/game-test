@@ -163,12 +163,10 @@ async fn handle_action<'a>(
         }
         Action::SetPlayerAction(player_action) => {
             if let Some(player_id) = state.socket_player_map.get(&socket_id) {
-                if let Some(existing_action) = state.player_actions.get_mut(player_id) {
-                    existing_action.update(player_action);
+                if let Some(player) = state.players.get_mut(player_id) {
+                    player.action.update(player_action);
                 } else {
-                    state
-                        .player_actions
-                        .insert(player_id.clone(), player_action);
+                    println!("player not found");
                 }
             }
         }

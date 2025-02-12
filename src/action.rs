@@ -58,6 +58,19 @@ pub struct PlayerAction {
     pub downward_jump: bool,
 }
 
+impl Default for PlayerAction {
+    fn default() -> Self {
+        Self {
+            move_left: false,
+            move_right: false,
+            enter_portal: false,
+            jump: false,
+            pickup: false,
+            downward_jump: false,
+        }
+    }
+}
+
 impl PlayerAction {
     pub fn update(&mut self, other_new: Self) {
         self.move_left = other_new.move_left;
@@ -76,7 +89,8 @@ impl PlayerAction {
         }
     }
 
-    pub fn step_action(&mut self, actor: &mut dyn Actor, step_len: f32) {
+    pub fn step_action(&self, actor: &mut dyn Actor, step_len: f32) -> Self {
+        let mut out = self.clone();
         if self.move_right {
             let velocity = actor.velocity_mut();
             velocity.x += ACCEL_RATE * step_len;
@@ -95,15 +109,16 @@ impl PlayerAction {
         }
 
         if self.downward_jump && actor.velocity_mut().y == 0. {
+            out.downward_jump = false;
             let position = actor.position_mut();
             position.y += 2.0;
-            self.downward_jump = false;
         } else if self.jump {
-            self.jump = false;
+            out.jump = false;
             let velocity = actor.velocity_mut();
             // TODO: check if we're standing on a platform first
             velocity.y = -300.0;
         }
+        out
 
         // if is_key_pressed(KeyCode::Z) {
         //     // drop an item

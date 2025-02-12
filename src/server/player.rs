@@ -3,6 +3,7 @@ use macroquad::prelude::Vec2;
 
 use super::Actor;
 use super::MapData;
+use game_test::action::PlayerAction;
 
 const MAX_VELOCITY: f32 = 500.0;
 
@@ -11,6 +12,7 @@ pub struct Player {
     pub position: Vec2,
     pub velocity: Vec2,
     pub size: Vec2,
+    pub action: PlayerAction,
 }
 
 impl Player {
@@ -20,6 +22,7 @@ impl Player {
             position: Vec2::new(0., 0.),
             velocity: Vec2::new(0., 0.),
             size: Vec2::new(97., 117.),
+            action: PlayerAction::default(),
         }
     }
 }

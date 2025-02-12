@@ -22,7 +22,6 @@ pub struct GlobalState<'a> {
     pub player_socket_map: HashMap<String, String>,
     pub server: &'a network::Server,
     pub players: HashMap<String, Player>,
-    pub player_actions: HashMap<String, PlayerAction>,
 }
 
 impl<'a> GlobalState<'a> {
@@ -49,7 +48,6 @@ impl<'a> GlobalState<'a> {
         }
         println!("Done loading maps!");
         Ok(Self {
-            player_actions: HashMap::new(),
             server,
             db,
             players: HashMap::new(),
@@ -87,10 +85,9 @@ impl<'a> GlobalState<'a> {
 
     pub fn step(&mut self, step_len: f32) {
         // TODO: in parallel
-        for (key, val) in self.player_actions.iter_mut() {
-            if let Some(player) = self.players.get_mut(key) {
-                val.step_action(player, step_len);
-            }
+        for (_, val) in self.players.iter_mut() {
+            let new_action = val.action.clone().step_action(val, step_len);
+            val.action = new_action;
         }
         for map_instance in self.map_instances.values_mut() {
             map_instance.step(&mut self.players, step_len);
