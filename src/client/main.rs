@@ -28,7 +28,7 @@ pub use sprite::Sprite;
 
 const SERVER_URL: &'static str = "ws://localhost:1351/socket";
 
-#[macroquad::main("BasicShapes")]
+#[macroquad::main("Untitled Game")]
 async fn main() -> anyhow::Result<()> {
     AssetBuffer::init().await.unwrap();
     println!("Opening server connection...");
@@ -40,6 +40,7 @@ async fn main() -> anyhow::Result<()> {
     let mut fps = 0.0;
     let mut login_screen = LoginScreen::new();
     let mut last_action = get_player_action();
+    let mut last_server_update = 0.0;
     loop {
         if let Some(msg) = connection.try_receive()? {
             println!("{:?}", msg);
@@ -56,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
                     game.active_map = Map::new(&state.current_map).await;
                 }
                 Response::PlayerBody(body) => {
+                    last_server_update = get_time();
                     game.player.position = Vec2::new(body.position.0, body.position.1);
                     game.player.velocity = Vec2::new(body.velocity.0, body.velocity.1);
                 }
@@ -108,6 +110,9 @@ async fn main() -> anyhow::Result<()> {
             fps = get_fps().into();
         }
         draw_text(&format!("fps: {fps}"), 0., 20., 19., BLACK);
+        if get_time() - last_server_update > 3.0 {
+            draw_text(&format!("server out of sync!"), 0., 40., 19., RED);
+        }
         if is_key_pressed(KeyCode::R) {
             AssetBuffer::reload_assets().await?;
         }

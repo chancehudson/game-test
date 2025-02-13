@@ -4,6 +4,7 @@ use super::Actor;
 use super::MapData;
 use super::Player;
 
+// spawn regions, rect with a type of mob to spawn?
 pub struct MapInstance {
     pub map: MapData,
     // pub player_ids: HashMap<String, ()>,
