@@ -1,5 +1,5 @@
-use macroquad::prelude::Vec2;
 use macroquad::prelude::Rect;
+use macroquad::prelude::Vec2;
 
 use super::Actor;
 
@@ -11,7 +11,7 @@ pub struct Item {
 }
 
 impl Item {
-    pub fn new(texture_name: &str, position: Vec2, velocity: Vec2) -> Self {
+    pub fn new(position: Vec2, velocity: Vec2) -> Self {
         Self {
             position,
             velocity,
@@ -31,5 +31,4 @@ impl Actor for Item {
     fn velocity_mut(&mut self) -> &mut Vec2 {
         &mut self.velocity
     }
-
 }

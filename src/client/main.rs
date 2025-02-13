@@ -53,10 +53,14 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Response::PlayerState(state) => {
                     game.player.experience = state.experience;
+                    game.active_map = Map::new(&state.current_map).await;
                 }
                 Response::PlayerBody(body) => {
                     game.player.position = Vec2::new(body.position.0, body.position.1);
                     game.player.velocity = Vec2::new(body.velocity.0, body.velocity.1);
+                }
+                Response::ChangeMap(new_map) => {
+                    game.active_map = Map::new(&new_map).await;
                 }
                 Response::Log(msg) => {
                     println!("server message: {msg}");

@@ -1,0 +1,14 @@
+{
+    name: "crab_beach",
+    size: [1500, 1000],
+    spawn_location: [100, 500],
+    background: "assets/rainbow.png",
+    portals: [
+        { position: [0, 450], to: "welcome" },
+        { position: [0, 1000], to: "welcome" },
+    ],
+    platforms: [
+        { position: [0, 450], size: [1000, 100] },
+        { position: [0, 1000], size: [1500, 10] },
+    ],
+}

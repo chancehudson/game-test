@@ -1,9 +1,11 @@
 use macroquad::prelude::Rect;
 use macroquad::prelude::Vec2;
 
+use game_test::action::PlayerAction;
+
 use super::Actor;
 use super::MapData;
-use game_test::action::PlayerAction;
+use super::PlayerRecord;
 
 const MAX_VELOCITY: f32 = 500.0;
 
@@ -13,16 +15,18 @@ pub struct Player {
     pub velocity: Vec2,
     pub size: Vec2,
     pub action: PlayerAction,
+    pub record: PlayerRecord,
 }
 
 impl Player {
-    pub fn new(id: String) -> Self {
+    pub fn new(record: PlayerRecord) -> Self {
         Self {
-            id,
+            id: record.id.clone(),
             position: Vec2::new(0., 0.),
             velocity: Vec2::new(0., 0.),
             size: Vec2::new(97., 117.),
             action: PlayerAction::default(),
+            record,
         }
     }
 }

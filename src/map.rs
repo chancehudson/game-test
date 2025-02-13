@@ -1,3 +1,4 @@
+use macroquad::prelude::Rect;
 use macroquad::prelude::Vec2;
 use serde::Deserialize;
 
@@ -15,6 +16,16 @@ pub struct Portal {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub position: Vec2,
     pub to: String,
+}
+
+impl Portal {
+    pub fn center(&self) -> Vec2 {
+        self.position - Vec2::new(50., 50.)
+    }
+
+    pub fn rect(&self) -> Rect {
+        Rect::new(self.position.x, self.position.y - 150., 150., 150.)
+    }
 }
 
 #[derive(Debug, Deserialize)]

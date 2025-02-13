@@ -8,7 +8,7 @@ use redb::WriteTransaction;
 use serde::Deserialize;
 use serde::Serialize;
 
-pub const PLAYER_TABLE: TableDefinition<String, &[u8]> = TableDefinition::new("players");
+pub const PLAYER_TABLE: TableDefinition<String, Vec<u8>> = TableDefinition::new("players");
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PlayerRecord {
@@ -23,7 +23,7 @@ impl PlayerRecord {
     pub fn save(&self, tx: &mut WriteTransaction, player_id: String) -> Result<(), redb::Error> {
         let mut table = tx.open_table(PLAYER_TABLE)?;
         let bytes = bincode::serialize(self).unwrap();
-        table.insert(player_id, bytes.as_slice())?;
+        table.insert(player_id, bytes)?;
         Ok(())
     }
 
@@ -31,7 +31,7 @@ impl PlayerRecord {
     pub fn load(tx: &mut ReadTransaction, player_id: String) -> Result<Option<Self>, redb::Error> {
         let table = tx.open_table(PLAYER_TABLE)?;
         if let Some(bytes) = table.get(player_id)? {
-            let player = bincode::deserialize(bytes.value()).unwrap();
+            let player = bincode::deserialize(bytes.value().as_slice()).unwrap();
             Ok(Some(player))
         } else {
             Ok(None)
@@ -46,7 +46,7 @@ impl PlayerRecord {
         let table = tx.open_table(PLAYER_TABLE)?;
         for v in table.iter()? {
             let (_key, data) = v?;
-            let player: Self = bincode::deserialize(data.value()).unwrap();
+            let player: Self = bincode::deserialize(data.value().as_slice()).unwrap();
             if player.username == username {
                 return Ok(Some(player));
             }

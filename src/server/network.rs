@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::sync::RwLock;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -10,6 +9,7 @@ use game_test::action::Response;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
+use tokio::sync::RwLock;
 use tungstenite::Message;
 
 use super::Action;
@@ -36,8 +36,8 @@ impl Server {
         })
     }
 
-    pub async fn send(&self, socket_id: &String, res: Response) -> anyhow::Result<()> {
-        if let Some(sender) = self.socket_sender.write().unwrap().get_mut(socket_id) {
+    pub async fn send(&self, socket_id: &str, res: Response) -> anyhow::Result<()> {
+        if let Some(sender) = self.socket_sender.write().await.get_mut(socket_id) {
             sender.send(res).await?;
         }
         Ok(())
@@ -61,7 +61,7 @@ impl Server {
         let (sendv, mut recv) = mpsc::channel::<Response>(64);
         self.socket_sender
             .write()
-            .unwrap()
+            .await
             .insert(socket_id.clone(), sendv);
         loop {
             tokio::select! {
@@ -81,7 +81,8 @@ impl Server {
                             let msg = msg?;
                             if msg.is_binary() {
                                 let action = bincode::deserialize::<Action>(&msg.clone().into_data())?;
-                                self.action_queue.write().unwrap().push_back((socket_id.clone(), action));
+                                println!("{:?}", action);
+                                self.action_queue.write().await.push_back((socket_id.clone(), action));
                             } else if msg.is_close() {
                                 break;
                             }

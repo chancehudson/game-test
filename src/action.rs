@@ -22,6 +22,7 @@ pub enum Response {
     // current_map_id, experience
     PlayerState(PlayerState),
     PlayerBody(PlayerBody),
+    ChangeMap(String),
     LoginError(String),
     Tick(),
     Log(String),

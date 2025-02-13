@@ -19,7 +19,11 @@ impl Map {
         Self {
             spawn_location: data.spawn_location,
             background_texture: AssetBuffer::texture(&data.background),
-            solids: data.platforms.iter().map(|p| Rect::new(p.position.x, p.position.y, p.size.x, p.size.y)).collect::<_>(),
+            solids: data
+                .platforms
+                .iter()
+                .map(|p| Rect::new(p.position.x, p.position.y, p.size.x, p.size.y))
+                .collect::<_>(),
             size: data.size,
             data,
         }
@@ -27,7 +31,8 @@ impl Map {
 
     pub fn render_portals(&self) {
         for portal in &self.data.portals {
-            draw_rectangle(portal.position.x, portal.position.y - 150., 150., 150., RED);
+            let r = portal.rect();
+            draw_rectangle(r.x, r.y, r.w, r.h, RED);
         }
     }
 
@@ -36,19 +41,32 @@ impl Map {
         set_default_camera();
 
         let scale = Vec2::new(1.1, 1.1);
-        let offset_x = (player_pos.x.clamp(0., self.size.x) / self.size.x) * (scale.x - 1.0) * screen_width();
-        let offset_y = (player_pos.y.clamp(0., self.size.y) / self.size.y) * (scale.y - 1.0) * screen_height();
-        draw_texture_ex(&self.background_texture, -offset_x, -offset_y, WHITE, DrawTextureParams {
-            dest_size: Some(vec2(scale.x * screen_width(), scale.y * screen_height())),
-            ..Default::default()
-        });
+        let offset_x =
+            (player_pos.x.clamp(0., self.size.x) / self.size.x) * (scale.x - 1.0) * screen_width();
+        let offset_y =
+            (player_pos.y.clamp(0., self.size.y) / self.size.y) * (scale.y - 1.0) * screen_height();
+        draw_texture_ex(
+            &self.background_texture,
+            -offset_x,
+            -offset_y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(scale.x * screen_width(), scale.y * screen_height())),
+                ..Default::default()
+            },
+        );
         pop_camera_state();
 
         for solid in &self.solids {
             draw_rectangle(solid.x, solid.y, solid.w, solid.h, BLUE);
         }
 
-        draw_circle(screen_width() - 300.0, screen_height() - 300.0, 15.0, YELLOW);
+        draw_circle(
+            screen_width() - 300.0,
+            screen_height() - 300.0,
+            15.0,
+            YELLOW,
+        );
         // custom rendering
         draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
         draw_rectangle(screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, GREEN);
