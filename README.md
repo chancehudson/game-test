@@ -2,6 +2,16 @@
 
 A multiplayer 2d platformer.
 
+## Run
+
+In 2 separate windows:
+
+`cargo run --bin=server`
+
+`cargo run --bin=client`
+
+<!--
+
 ## Game ideas
 
 Maplestory + runescape
@@ -18,3 +28,5 @@ Skill trees:
 - brewing
 - magic
 - farming
+
+-->
