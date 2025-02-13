@@ -32,7 +32,7 @@ impl Sprite {
             col as f32 * self.width,
             row as f32 * self.height,
             self.width,
-            self.height
+            self.height,
         );
 
         draw_texture_ex(
@@ -75,7 +75,7 @@ impl AnimatedEntity {
             position: Vec2::new(0.0, 0.0),
             current_frame: 0,
             frame_timer: 0.0,
-            animation_fps: 8.0,
+            animation_fps: 2.0,
             frames_per_animation,
             current_animation: 0,
         }
@@ -91,7 +91,8 @@ impl AnimatedEntity {
 
     pub fn draw(&self) {
         let frame = self.current_animation * self.frames_per_animation + self.current_frame;
-        self.sprite.draw_frame(frame, self.position.x, self.position.y, self.flip_x);
+        self.sprite
+            .draw_frame(frame, self.position.x, self.position.y, self.flip_x);
     }
 
     // Change the current animation (e.g., walking, jumping)

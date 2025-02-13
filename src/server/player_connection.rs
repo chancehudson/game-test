@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 pub struct PlayerConnection {
     // socket id keyed to player
-    pub socket_player_map: HashMap<String, String>,
+    socket_player_map: HashMap<String, String>,
     // player id keyed to socket
-    pub player_socket_map: HashMap<String, String>,
+    player_socket_map: HashMap<String, String>,
 }
 
 impl PlayerConnection {

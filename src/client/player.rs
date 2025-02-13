@@ -19,10 +19,10 @@ impl Player {
     pub fn new() -> Self {
         Self {
             experience: 0,
-            texture: AnimatedEntity::new("assets/robo.png", 97.0, 117.0, 17),
+            texture: AnimatedEntity::new("assets/banana.png", 52.0, 52.0, 2),
             position: Vec2::new(100., 100.),
             velocity: Vec2::new(0., 0.),
-            size: Vec2::new(97., 117.),
+            size: Vec2::new(52., 52.),
         }
     }
 }
@@ -30,9 +30,9 @@ impl Player {
 impl Renderable for Player {
     fn render(&mut self, step_len: f32) {
         if is_key_down(KeyCode::Right) {
-            self.texture.flip_x = true;
-        } else if is_key_down(KeyCode::Left) {
             self.texture.flip_x = false;
+        } else if is_key_down(KeyCode::Left) {
+            self.texture.flip_x = true;
         }
         self.texture.position = self.position;
         self.texture.set_animation(0); // Set to first animation (e.g., idle)

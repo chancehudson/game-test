@@ -83,38 +83,56 @@ pub static MAP_INSTANCES: LazyLock<RwLock<HashMap<String, MapInstance>>> = LazyL
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    //#########################
+    // Websocket core loop
     // start the websocket server loop in it's own thread
     let server = Arc::new(network::Server::new().await?);
     SERVER
         .set(server.clone())
         .map_err(|_| anyhow::anyhow!("Server was already initialized"))?;
     let server_cloned = server.clone();
-    let _: tokio::task::JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+    tokio::spawn(async move {
         while let Ok((stream, _)) = server_cloned.listener.accept().await {
             let server_cloned = server_cloned.clone();
-            let _: tokio::task::JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
-                server_cloned.accept_connection(stream).await?;
-                Ok(())
+            tokio::spawn(async move {
+                server_cloned.accept_connection(stream).await;
             });
         }
-        Ok(())
     });
+
+    //#########################
+    // Game core loop
     let mut last_step = timestamp();
     let mut last_broadcast = timestamp();
-
     loop {
         let time = timestamp();
         let step_len = time - last_step;
         last_step = time;
 
+        // handle inputs from the clients
         while let Some((socket_id, action)) = server.action_queue.write().await.pop_front() {
-            handle_action(socket_id, action).await?;
+            if let Err(e) = handle_action(socket_id, action.clone()).await {
+                println!("failed to handle action: {:?} {:?}", action, e);
+            }
         }
+
+        // step the game state
         step(step_len).await?;
 
         DB_HANDLER.write().await.commit().await?;
-        // send positions as needed
+
+        // send position updates as needed
+        // TODO: in background thread
         if timestamp() - last_broadcast > 1.0 {
+            println!(
+                "action queue len: {}",
+                server.action_queue.read().await.len()
+            );
+            println!(
+                "socket sender count: {}",
+                server.socket_sender.read().await.keys().len()
+            );
+
             last_broadcast = timestamp();
             for (id, player) in PLAYERS.read().await.iter() {
                 let r = Response::PlayerBody(game_test::action::PlayerBody {
@@ -135,6 +153,10 @@ async fn login_player(record: PlayerRecord) {
         .insert(record.id.clone(), Player::new(record));
 }
 
+async fn logout_player(player_id: &str) {
+    PLAYERS.write().await.remove(player_id);
+}
+
 pub async fn send_to_player(player_id: &str, res: Response) {
     if let Some(socket_id) = PLAYER_CONNS
         .read()
@@ -145,6 +167,13 @@ pub async fn send_to_player(player_id: &str, res: Response) {
         if let Err(e) = SERVER.get().unwrap().send(&socket_id, res.clone()).await {
             println!("Error sending to player {player_id}: {:?}", e);
             println!("message: {:?}", res);
+            if e.to_string() == "channel closed" {
+                let player_id = player_id.to_string();
+                // do this async or we deadlock
+                tokio::spawn(async move {
+                    logout_player(&player_id).await;
+                });
+            }
         }
     }
 }
@@ -158,7 +187,12 @@ pub async fn step(step_len: f32) -> anyhow::Result<()> {
             player.action.enter_portal = false;
             // determine if the player is overlapping a portal
             let map_instances = MAP_INSTANCES.read().await;
-            let map = map_instances.get(&player.record.current_map).unwrap();
+            let map = map_instances.get(&player.record.current_map);
+            if map.is_none() {
+                println!("Player {} is on unknown map!", player.record.username);
+                continue;
+            }
+            let map = map.unwrap();
             for portal in &map.map.portals {
                 if portal
                     .rect()
@@ -183,7 +217,12 @@ pub async fn step(step_len: f32) -> anyhow::Result<()> {
     }
     for player in PLAYERS.write().await.values_mut() {
         let map_instances = MAP_INSTANCES.read().await;
-        let map = map_instances.get(&player.record.current_map).unwrap();
+        let map = map_instances.get(&player.record.current_map);
+        if map.is_none() {
+            println!("Player {} is on unknown map!", player.record.username);
+            continue;
+        }
+        let map = map.unwrap();
         player.step_physics(step_len, &map.map);
     }
     for map_instance in MAP_INSTANCES.write().await.values_mut() {

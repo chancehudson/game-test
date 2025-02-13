@@ -31,7 +31,10 @@ impl Connection {
                             break;
                         }
                     }
-                    Err(_) => break,
+                    Err(e) => {
+                        println!("websocket incoming message error: {:?}", e);
+                        break;
+                    }
                 }
             }
         });
