@@ -2,6 +2,7 @@ use macroquad::prelude::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::Mob;
 use crate::Actor;
 
 const ACCEL_RATE: f32 = 700.0;
@@ -21,7 +22,9 @@ pub enum Response {
     PlayerLoggedIn(String),
     // current_map_id, experience
     PlayerState(PlayerState),
+    MapState(Vec<Mob>),
     PlayerBody(PlayerBody),
+    MobChange(u64, Option<Vec2>), // id, new moving_to
     ChangeMap(String),
     LoginError(String),
     Tick(),
@@ -47,6 +50,7 @@ pub struct PlayerState {
 pub struct PlayerBody {
     pub position: (f32, f32),
     pub velocity: (f32, f32),
+    pub size: (f32, f32),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -1,11 +1,14 @@
+use game_test::Actor;
 use macroquad::prelude::*;
 
 use super::AssetBuffer;
 use super::MapData;
+use game_test::Mob;
 
 /// We'll separate solids and visuals
 pub struct Map {
     pub solids: Vec<Rect>,
+    pub entities: Vec<Mob>,
     pub spawn_location: Vec2,
     pub background_texture: Texture2D,
     pub data: MapData,
@@ -25,6 +28,7 @@ impl Map {
                 .map(|p| Rect::new(p.position.x, p.position.y, p.size.x, p.size.y))
                 .collect::<_>(),
             size: data.size,
+            entities: vec![],
             data,
         }
     }
@@ -33,6 +37,12 @@ impl Map {
         for portal in &self.data.portals {
             let r = portal.rect();
             draw_rectangle(r.x, r.y, r.w, r.h, RED);
+        }
+    }
+
+    pub fn step_physics(&mut self, step_len: f32) {
+        for entity in self.entities.iter_mut() {
+            entity.step_physics(step_len, &self.data);
         }
     }
 
@@ -59,6 +69,16 @@ impl Map {
 
         for solid in &self.solids {
             draw_rectangle(solid.x, solid.y, solid.w, solid.h, BLUE);
+        }
+
+        for entity in &self.entities {
+            draw_rectangle(
+                entity.position.x,
+                entity.position.y,
+                entity.size.x,
+                entity.size.y,
+                PURPLE,
+            );
         }
 
         draw_circle(

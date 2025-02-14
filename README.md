@@ -6,7 +6,7 @@ A multiplayer 2d platformer.
 
 In 2 separate windows:
 
-`cargo run --bin=server`
+`cargo run --bin=server --features=server`
 
 `cargo run --bin=client`
 
@@ -16,7 +16,7 @@ In 2 separate windows:
 
 Maplestory + runescape
 
-Maplestory with resources and crafting. 
+Maplestory with resources and crafting.
 
 Skill trees:
 

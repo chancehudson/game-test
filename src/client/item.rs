@@ -1,8 +1,8 @@
 use macroquad::prelude::*;
 
-use super::Sprite;
 use super::Actor;
 use super::Renderable;
+use super::Sprite;
 
 /// Represents an item on the ground
 pub struct Item {
@@ -28,7 +28,8 @@ impl Renderable for Item {
         let time = get_time() as f32;
         // the bobbing/floating animation
         let y_offset = (time * 4.).sin() * 3.0;
-        self.sprite.draw_frame(0, self.position.x, self.position.y + y_offset, false);
+        self.sprite
+            .draw_frame(0, self.position.x, self.position.y + y_offset, false);
     }
 }
 
@@ -43,5 +44,4 @@ impl Actor for Item {
     fn velocity_mut(&mut self) -> &mut Vec2 {
         &mut self.velocity
     }
-
 }

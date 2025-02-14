@@ -60,12 +60,23 @@ async fn main() -> anyhow::Result<()> {
                     last_server_update = get_time();
                     game.player.position = Vec2::new(body.position.0, body.position.1);
                     game.player.velocity = Vec2::new(body.velocity.0, body.velocity.1);
+                    game.player.size = Vec2::new(body.size.0, body.size.1);
                 }
                 Response::ChangeMap(new_map) => {
                     game.active_map = Map::new(&new_map).await;
                 }
                 Response::Log(msg) => {
                     println!("server message: {msg}");
+                }
+                Response::MapState(entities) => {
+                    game.active_map.entities = entities;
+                }
+                Response::MobChange(id, moving_to) => {
+                    for mob in game.active_map.entities.iter_mut() {
+                        if mob.id == id {
+                            mob.moving_to = moving_to;
+                        }
+                    }
                 }
                 _ => {}
             }

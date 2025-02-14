@@ -2,18 +2,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::OnceLock;
-use std::time::SystemTime;
 
-use db::DBHandler;
-use nanoid::nanoid;
-use once_cell::sync::Lazy;
-
-pub use game_test::action::Action;
-pub use game_test::action::PlayerState;
-pub use game_test::action::Response;
-pub use game_test::Actor;
-pub use game_test::MapData;
 use macroquad::prelude::Vec2;
+use nanoid::nanoid;
+
+use game_test::action::Action;
+use game_test::action::PlayerState;
+use game_test::action::Response;
+use game_test::timestamp;
+use game_test::Actor;
+use game_test::MapData;
 
 mod db;
 mod item;
@@ -22,6 +20,7 @@ mod network;
 mod player;
 mod player_connection;
 
+use db::DBHandler;
 pub use db::PlayerRecord;
 use db::WriteRequest;
 pub use db::PLAYER_TABLE;
@@ -29,25 +28,6 @@ use map_instance::MapInstance;
 pub use player::Player;
 pub use player_connection::PlayerConnection;
 use tokio::sync::RwLock;
-
-static START_TIMESTAMP_MS: Lazy<u128> = Lazy::new(|| {
-    SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis()
-});
-
-/// TODO: rework this whole thing
-pub fn timestamp() -> f32 {
-    let now_ms: u128 = SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let diff = now_ms - *START_TIMESTAMP_MS;
-    // we assume diff is representable in an f64
-    // convert to seconds
-    (diff as f32) / 1000.0
-}
 
 pub static SERVER: OnceLock<Arc<network::Server>> = OnceLock::new();
 pub static DB_HANDLER: LazyLock<RwLock<DBHandler>> =
@@ -135,11 +115,20 @@ async fn main() -> anyhow::Result<()> {
 
             last_broadcast = timestamp();
             for (id, player) in PLAYERS.read().await.iter() {
-                let r = Response::PlayerBody(game_test::action::PlayerBody {
-                    position: (player.position.x, player.position.y),
-                    velocity: (player.velocity.x, player.velocity.y),
-                });
-                send_to_player(&id, r).await;
+                {
+                    let r = Response::PlayerBody(game_test::action::PlayerBody {
+                        position: (player.position.x, player.position.y),
+                        velocity: (player.velocity.x, player.velocity.y),
+                        size: (player.size.x, player.size.y),
+                    });
+                    send_to_player(&id, r).await;
+                }
+                {
+                    if let Some(map) = MAP_INSTANCES.read().await.get(&player.record.current_map) {
+                        let r = Response::MapState(map.mobs.clone());
+                        send_to_player(&id, r).await;
+                    }
+                }
             }
         }
     }

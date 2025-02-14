@@ -24,7 +24,7 @@ impl Player {
             id: record.id.clone(),
             position: Vec2::new(0., 0.),
             velocity: Vec2::new(0., 0.),
-            size: Vec2::new(97., 117.),
+            size: Vec2::new(52., 52.),
             action: PlayerAction::default(),
             record,
         }

@@ -65,6 +65,7 @@ impl GameState {
 
         // begin rendering
         self.render_camera();
+        self.active_map.step_physics(step_len);
         self.active_map.render(step_len, self.player.position);
         self.player.render(step_len);
         for actor in &mut self.actors {
