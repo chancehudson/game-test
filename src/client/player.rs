@@ -1,3 +1,4 @@
+use game_test::action::PlayerAction;
 use macroquad::prelude::*;
 
 use super::Actor;
@@ -8,31 +9,37 @@ use super::Renderable;
 const MAX_VELOCITY: f32 = 500.0;
 
 pub struct Player {
+    pub id: String,
     pub texture: AnimatedEntity,
     pub experience: u64,
     pub position: Vec2,
     pub velocity: Vec2,
     pub size: Vec2,
+    pub action: Option<PlayerAction>,
 }
 
 impl Player {
-    pub fn new() -> Self {
+    pub fn new(id: String) -> Self {
         Self {
+            id,
             experience: 0,
             texture: AnimatedEntity::new("assets/banana.png", 52.0, 52.0, 2),
             position: Vec2::new(100., 100.),
             velocity: Vec2::new(0., 0.),
             size: Vec2::new(52., 52.),
+            action: None,
         }
     }
 }
 
 impl Renderable for Player {
-    fn render(&mut self, step_len: f32) {
-        if is_key_down(KeyCode::Right) {
-            self.texture.flip_x = false;
-        } else if is_key_down(KeyCode::Left) {
-            self.texture.flip_x = true;
+    fn render(&mut self, _step_len: f32) {
+        if let Some(action) = self.action.as_ref() {
+            if action.move_right {
+                self.texture.flip_x = false;
+            } else if action.move_left {
+                self.texture.flip_x = true;
+            }
         }
         self.texture.position = self.position;
         self.texture.set_animation(0); // Set to first animation (e.g., idle)
@@ -57,6 +64,9 @@ impl Actor for Player {
 
     fn step_physics(&mut self, step_len: f32, map: &MapData) {
         self.step_physics_default(step_len, map);
+        if let Some(action) = self.action.clone() {
+            action.step_action(self, step_len);
+        }
         self.velocity = self.velocity.clamp(
             Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY),
             Vec2::new(MAX_VELOCITY, MAX_VELOCITY),

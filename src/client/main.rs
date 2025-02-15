@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     println!("Opening server connection...");
     let mut connection = network::Connection::open(SERVER_URL)?;
     println!("Connected!");
-    let mut game = GameState::new().await;
+    let mut game = None; // GameState::new().await;
     let fps_render_interval = 1.0;
     let mut next_fps_render = 0.0;
     let mut fps = 0.0;
@@ -47,41 +47,67 @@ async fn main() -> anyhow::Result<()> {
             match msg {
                 Response::PlayerLoggedIn(player_id) => {
                     println!("logged in player id {player_id}");
-                    game.authenticated = true
+                    game = Some(GameState::new(player_id).await);
                 }
                 Response::LoginError(err) => {
                     login_screen.error_message = Some(err);
                 }
                 Response::PlayerState(state) => {
-                    game.player.experience = state.experience;
-                    game.active_map = Map::new(&state.current_map).await;
+                    if let Some(game) = &mut game {
+                        game.player.experience = state.experience;
+                        game.active_map = Map::new(&state.current_map).await;
+                    }
                 }
-                Response::PlayerBody(body) => {
-                    last_server_update = get_time();
-                    game.player.position = Vec2::new(body.position.0, body.position.1);
-                    game.player.velocity = Vec2::new(body.velocity.0, body.velocity.1);
-                    game.player.size = Vec2::new(body.size.0, body.size.1);
+                Response::PlayerChange(body) => {
+                    if let Some(game) = &mut game {
+                        if body.id == game.player.id {
+                            last_server_update = get_time();
+                            game.player.position = body.position;
+                            game.player.velocity = body.velocity;
+                            game.player.size = body.size;
+                        } else {
+                            if let Some(player) = game.players.get_mut(&body.id) {
+                                player.position = body.position;
+                                player.velocity = body.velocity;
+                                player.size = body.size;
+                                player.action = body.action;
+                            } else {
+                                let mut player = Player::new(body.id.clone());
+                                player.position = body.position;
+                                player.velocity = body.velocity;
+                                player.size = body.size;
+                                player.action = body.action;
+                                game.players.insert(body.id.clone(), player);
+                            }
+                        }
+                    }
                 }
                 Response::ChangeMap(new_map) => {
-                    game.active_map = Map::new(&new_map).await;
+                    if let Some(game) = &mut game {
+                        game.active_map = Map::new(&new_map).await;
+                    }
                 }
                 Response::Log(msg) => {
                     println!("server message: {msg}");
                 }
                 Response::MapState(entities) => {
-                    game.active_map.entities = entities;
+                    if let Some(game) = &mut game {
+                        game.active_map.entities = entities;
+                    }
                 }
                 Response::MobChange(id, moving_to) => {
-                    for mob in game.active_map.entities.iter_mut() {
-                        if mob.id == id {
-                            mob.moving_to = moving_to;
+                    if let Some(game) = &mut game {
+                        for mob in game.active_map.entities.iter_mut() {
+                            if mob.id == id {
+                                mob.moving_to = moving_to;
+                            }
                         }
                     }
                 }
                 _ => {}
             }
         }
-        if !game.authenticated {
+        if game.is_none() {
             clear_background(RED);
             let (login, create) = login_screen.draw();
             if login {
@@ -100,19 +126,16 @@ async fn main() -> anyhow::Result<()> {
             next_frame().await;
             continue;
         }
+        let game = game.as_mut().unwrap();
         let new_action = get_player_action();
         if last_action != new_action {
+            game.player.action = Some(new_action.clone());
             last_action = new_action.clone();
             connection.send(&Action::SetPlayerAction(new_action))?;
         }
         clear_background(RED);
         // game will handle setting the appropriate camera
         game.render(&mut last_action);
-
-        if is_key_pressed(KeyCode::A) {
-            println!("Sending message...");
-            // connection.send("Hello, world!".to_string())?;
-        }
 
         set_default_camera();
         // render ui components

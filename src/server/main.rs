@@ -115,14 +115,7 @@ async fn main() -> anyhow::Result<()> {
 
             last_broadcast = timestamp();
             for (id, player) in PLAYERS.read().await.iter() {
-                {
-                    let r = Response::PlayerBody(game_test::action::PlayerBody {
-                        position: (player.position.x, player.position.y),
-                        velocity: (player.velocity.x, player.velocity.y),
-                        size: (player.size.x, player.size.y),
-                    });
-                    send_to_player(&id, r).await;
-                }
+                send_to_player(&id, Response::PlayerChange(player.body())).await;
                 {
                     if let Some(map) = MAP_INSTANCES.read().await.get(&player.record.current_map) {
                         let r = Response::MapState(map.mobs.clone());
@@ -312,6 +305,27 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
                 .await
             {
                 if let Some(player) = PLAYERS.write().await.get_mut(&player_id) {
+                    // if the player has begun moving or stopped moving broadcast
+                    // to the rest of the map
+                    if player.action.move_left != player_action.move_left
+                        || player.action.move_right != player_action.move_right
+                    {
+                        let active_map = player.record.current_map.clone();
+                        let player_id = player.id.clone();
+                        let mut body = player.body();
+                        body.action = Some(player_action.clone());
+                        tokio::spawn(async move {
+                            for (id, player_int) in PLAYERS.read().await.iter() {
+                                if player_int.record.current_map == active_map && id != &player_id {
+                                    send_to_player(
+                                        &player_int.id,
+                                        Response::PlayerChange(body.clone()),
+                                    )
+                                    .await;
+                                }
+                            }
+                        });
+                    }
                     player.action.update(player_action);
                 }
             }

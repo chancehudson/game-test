@@ -2,9 +2,10 @@ use macroquad::prelude::Rect;
 use macroquad::prelude::Vec2;
 
 use game_test::action::PlayerAction;
+use game_test::action::PlayerBody;
+use game_test::Actor;
+use game_test::MapData;
 
-use super::Actor;
-use super::MapData;
 use super::PlayerRecord;
 
 const MAX_VELOCITY: f32 = 500.0;
@@ -27,6 +28,16 @@ impl Player {
             size: Vec2::new(52., 52.),
             action: PlayerAction::default(),
             record,
+        }
+    }
+
+    pub fn body(&self) -> PlayerBody {
+        PlayerBody {
+            id: self.id.clone(),
+            position: self.position,
+            velocity: self.velocity,
+            size: self.size,
+            action: None,
         }
     }
 }

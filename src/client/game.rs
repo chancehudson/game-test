@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use game_test::action::PlayerAction;
 use macroquad::prelude::*;
 
@@ -12,23 +14,23 @@ impl GameStateTrait for Item {}
 impl GameStateTrait for Player {}
 
 pub struct GameState {
-    pub authenticated: bool,
     pub player: Player,
     pub active_map: Map,
     pub actors: Vec<Box<dyn GameStateTrait>>,
+    pub players: HashMap<String, Player>,
     pub last_step: f64,
 }
 
 impl GameState {
-    pub async fn new() -> Self {
-        let mut player = Player::new();
+    pub async fn new(id: String) -> Self {
+        let mut player = Player::new(id);
         let active_map = Map::new("welcome").await;
         player.position = active_map.spawn_location;
         GameState {
-            authenticated: false,
             player,
             active_map,
             actors: vec![],
+            players: HashMap::new(),
             last_step: 0.0,
         }
     }
@@ -47,19 +49,17 @@ impl GameState {
         set_camera(&camera);
     }
 
-    pub fn step_action(&mut self, action: &mut PlayerAction, step_len: f32) {
-        action.step_action(&mut self.player, step_len);
-    }
-
     pub fn render(&mut self, player_action: &mut PlayerAction) {
         let time = get_time();
         let step_len = (time - self.last_step) as f32;
         self.last_step = time;
 
-        self.step_action(player_action, step_len);
         // step the physics
         for actor in &mut self.actors {
             actor.step_physics(step_len, &self.active_map.data);
+        }
+        for player in self.players.values_mut() {
+            player.step_physics(step_len, &self.active_map.data);
         }
         self.player.step_physics(step_len, &self.active_map.data);
 
@@ -68,6 +68,9 @@ impl GameState {
         self.active_map.step_physics(step_len);
         self.active_map.render(step_len, self.player.position);
         self.player.render(step_len);
+        for player in self.players.values_mut() {
+            player.render(step_len);
+        }
         for actor in &mut self.actors {
             actor.render(step_len);
         }

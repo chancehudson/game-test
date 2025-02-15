@@ -23,8 +23,8 @@ pub enum Response {
     // current_map_id, experience
     PlayerState(PlayerState),
     MapState(Vec<Mob>),
-    PlayerBody(PlayerBody),
     MobChange(u64, Option<Vec2>), // id, new moving_to
+    PlayerChange(PlayerBody),
     ChangeMap(String),
     LoginError(String),
     Tick(),
@@ -48,9 +48,11 @@ pub struct PlayerState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerBody {
-    pub position: (f32, f32),
-    pub velocity: (f32, f32),
-    pub size: (f32, f32),
+    pub id: String,
+    pub position: Vec2,
+    pub velocity: Vec2,
+    pub size: Vec2,
+    pub action: Option<PlayerAction>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

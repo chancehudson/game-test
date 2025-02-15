@@ -42,7 +42,7 @@ impl Actor for Mob {
         let accel_rate = 700.0;
         if self.moving_to.is_none() {
             #[cfg(feature = "server")]
-            if rand::rng().random_bool(0.00001) {
+            if rand::rng().random_bool(0.000001) {
                 self.move_start = timestamp();
                 self.moving_to = Some(Vec2::new(
                     rand::rng().random_range(0.0..map.size.x),
