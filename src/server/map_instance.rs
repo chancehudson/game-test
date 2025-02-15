@@ -2,23 +2,32 @@ use std::collections::HashMap;
 
 use macroquad::prelude::Vec2;
 
+use game_test::action::PlayerAction;
 use game_test::action::Response;
 use game_test::map::MapData;
 use game_test::timestamp;
 use game_test::Mob;
 
+use crate::send_to_player_err;
+use crate::PlayerRecord;
+use crate::STATE;
+
 use super::send_to_player;
 use super::Actor;
 use super::Player;
-use super::PLAYERS;
+use super::WriteRequest;
+use super::DB_HANDLER;
 
-// spawn regions, rect with a type of mob to spawn?
+/// A distinct instance of a map. Each map is it's own game instance
+/// responsible for player communication, mob management, and physics.
 pub struct MapInstance {
     mob_counter: u64,
     pub map: MapData,
     // pub player_ids: HashMap<String, ()>,
     pub actors: Vec<Box<dyn Actor + Sync + Send>>,
+    pub players: HashMap<String, Player>,
     pub mobs: Vec<Mob>,
+    last_broadcast: f32,
 }
 
 impl MapInstance {
@@ -26,13 +35,98 @@ impl MapInstance {
         Self {
             mob_counter: 0, // TODO: give each map it's own region of distinct id's
             map,
-            // player_ids: HashMap::new(),
             actors: vec![],
+            players: HashMap::new(),
             mobs: vec![],
+            last_broadcast: 0.,
         }
     }
 
-    pub fn step(&mut self, _players: &mut HashMap<String, Player>, step_len: f32) {
+    pub async fn broadcast(&self, r: Response, exclude: Option<&str>) {
+        for player_notif in self.players.values() {
+            let player_notif_id = player_notif.id.clone();
+            if let Some(exclude) = exclude {
+                if exclude == &player_notif_id {
+                    continue;
+                }
+            }
+            let r = r.clone();
+            let map_name = self.map.name.clone();
+            // TODO: figure out this stupid fucking borrow cycle nonsense
+            tokio::spawn(async move {
+                if let Err(e) = send_to_player_err(&player_notif_id, r).await {
+                    println!("Error broadcasting on map {}: {:?}", map_name, e);
+                }
+            });
+        }
+    }
+
+    /// insert our new player into the map and send the current state
+    pub async fn add_player(&mut self, player_record: PlayerRecord) {
+        let mut player = Player::new(player_record);
+        player.position = self.map.spawn_location;
+        player.position.y -= player.size.y / 2.;
+
+        let player_id = player.id.clone();
+        let body = player.body();
+        // send new player position to themselves
+        tokio::spawn(async move {
+            send_to_player(&player_id, Response::PlayerChange(body)).await;
+        });
+        let player_id = player.id.clone();
+        // send the map state to the new player
+        let map_state = Response::MapState(self.mobs.clone());
+        tokio::spawn(async move {
+            send_to_player(&player_id, map_state).await;
+        });
+        let player_id = player.id.clone();
+        // send other player positions to the new player
+        for other_player in self.players.values() {
+            let body = other_player.body();
+            let player_id = player_id.clone();
+            tokio::spawn(async move {
+                send_to_player(&player_id, Response::PlayerChange(body)).await;
+            });
+        }
+        // notify other players of the new player
+        self.broadcast(Response::PlayerChange(player.body()), None)
+            .await;
+        self.players.insert(player_id, player);
+    }
+
+    pub async fn remove_player(&mut self, player_id: &str) {
+        self.players.remove(player_id);
+        self.broadcast(Response::PlayerRemoved(player_id.to_string()), None)
+            .await;
+    }
+
+    pub async fn set_player_action(&mut self, player_id: &str, player_action: PlayerAction) {
+        let player = self.players.get_mut(player_id);
+        if player.is_none() {
+            println!("Player is not on this map: {player_id} !");
+            return;
+        }
+        let player = player.unwrap();
+        // if the player has begun moving or stopped moving broadcast
+        // to the rest of the map
+        let mut player_change = None;
+        if player.action.move_left != player_action.move_left
+            || player.action.move_right != player_action.move_right
+            || player.action.jump != player_action.jump
+            || player.action.downward_jump != player_action.downward_jump
+        {
+            let mut body = player.body();
+            body.action = Some(player_action.clone());
+            player_change = Some(Response::PlayerChange(body.clone()));
+        }
+        player.action.update(player_action);
+        // broadcast the change after stepping
+        if let Some(player_change) = player_change {
+            self.broadcast(player_change, Some(player_id)).await;
+        }
+    }
+
+    pub async fn step(&mut self, step_len: f32) {
         for spawn in &self.map.mob_spawns {
             if timestamp() - spawn.last_spawn < 10.0 {
                 continue;
@@ -59,27 +153,78 @@ impl MapInstance {
                 });
             }
         }
+        // step our mobs and send any relevant changes to the players
+        let mut mob_changes = vec![];
         for mob in &mut self.mobs {
             let is_moving = mob.moving_to.is_none();
             mob.step_physics(step_len, &self.map);
             if is_moving != mob.moving_to.is_none() {
                 // send to player
-                let map_name = self.map.name.clone();
-                let mob = mob.clone();
-                tokio::spawn(async move {
-                    for (id, player) in PLAYERS.read().await.iter() {
-                        if player.record.current_map != map_name {
-                            continue;
-                        }
-                        let r = Response::MobChange(mob.id, mob.moving_to);
-                        send_to_player(&id, r).await;
-                    }
-                });
+                mob_changes.push(Response::MobChange(mob.id, mob.moving_to));
             }
         }
-        // step the physics
+        for player in self.players.values() {
+            let player_id = player.id.clone();
+            let mob_changes = mob_changes.clone();
+            tokio::spawn(async move {
+                for change in mob_changes {
+                    send_to_player(&player_id, change).await;
+                }
+            });
+        }
         for actor in &mut self.actors {
             actor.step_physics(step_len, &self.map);
+        }
+        // TODO: in parallel
+        for player in self.players.values_mut() {
+            let new_action = player.action.clone().step_action(player, step_len);
+            player.action = new_action;
+            if player.action.enter_portal {
+                player.action.enter_portal = false;
+                // determine if the player is overlapping a portal
+                for portal in &self.map.portals {
+                    if portal
+                        .rect()
+                        .contains(player.position + Vec2::new(15., 15.))
+                    {
+                        // user is moving
+                        let player_id = player.id.clone();
+                        let to_map = portal.to.clone();
+                        let mut new_record = player.record.clone();
+                        new_record.current_map = to_map.clone();
+                        DB_HANDLER.write().await.write(WriteRequest {
+                            table: "players".to_string(),
+                            key: player.id.clone(),
+                            // TODO: handle this unwrap more cleanly
+                            value: bincode::serialize(&new_record).unwrap(),
+                            callback: Some(Box::pin(async move {
+                                STATE.player_change_map(&player_id, &to_map).await;
+                                send_to_player(&player_id, Response::ChangeMap(to_map)).await;
+                            })),
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+        for player in self.players.values_mut() {
+            player.step_physics(step_len, &self.map);
+        }
+
+        if timestamp() - self.last_broadcast > 1.0 {
+            self.last_broadcast = timestamp();
+            for player in self.players.values() {
+                let player_id1 = player.id.clone();
+                let player_id2 = player.id.clone();
+                let body = player.body();
+                let map_state = Response::MapState(self.mobs.clone());
+                tokio::spawn(async move {
+                    send_to_player(&player_id1, Response::PlayerChange(body)).await;
+                });
+                tokio::spawn(async move {
+                    send_to_player(&player_id2, map_state).await;
+                });
+            }
         }
     }
 }

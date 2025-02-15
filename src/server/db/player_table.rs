@@ -8,6 +8,8 @@ use redb::WriteTransaction;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::DB_HANDLER;
+
 pub const PLAYER_TABLE: TableDefinition<String, Vec<u8>> = TableDefinition::new("players");
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -33,6 +35,17 @@ impl PlayerRecord {
         if let Some(bytes) = table.get(player_id)? {
             let player = bincode::deserialize(bytes.value().as_slice()).unwrap();
             Ok(Some(player))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn player_by_id(player_id: String) -> anyhow::Result<Option<Self>> {
+        let read_tx = DB_HANDLER.read().await.db.begin_read()?;
+        let table = read_tx.open_table(PLAYER_TABLE)?;
+        if let Some(v) = table.get(player_id)? {
+            let player_record: Self = bincode::deserialize(v.value().as_slice()).unwrap();
+            Ok(Some(player_record))
         } else {
             Ok(None)
         }

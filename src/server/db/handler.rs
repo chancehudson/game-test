@@ -65,7 +65,9 @@ impl DBHandler {
         }
         write_tx.commit()?;
         for cb in callbacks {
-            cb.await;
+            tokio::spawn(async move {
+                cb.await;
+            });
         }
         Ok(())
     }

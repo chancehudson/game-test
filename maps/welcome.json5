@@ -1,7 +1,7 @@
 {
     name: "welcome",
     size: [1500, 1000],
-    spawn_location: [100, 500],
+    spawn_location: [100, 200],
     background: "assets/sky_background.png",
     portals: [
         { position: [0, 250], to: "crab_beach" },

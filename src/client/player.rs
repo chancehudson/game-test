@@ -65,7 +65,7 @@ impl Actor for Player {
     fn step_physics(&mut self, step_len: f32, map: &MapData) {
         self.step_physics_default(step_len, map);
         if let Some(action) = self.action.clone() {
-            action.step_action(self, step_len);
+            self.action = Some(action.step_action(self, step_len));
         }
         self.velocity = self.velocity.clamp(
             Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY),

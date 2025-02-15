@@ -24,18 +24,12 @@ pub enum Response {
     PlayerState(PlayerState),
     MapState(Vec<Mob>),
     MobChange(u64, Option<Vec2>), // id, new moving_to
+    PlayerRemoved(String),
     PlayerChange(PlayerBody),
     ChangeMap(String),
     LoginError(String),
     Tick(),
     Log(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Movement {
-    Left,
-    Right,
-    Jump,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

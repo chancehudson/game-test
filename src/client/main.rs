@@ -82,9 +82,16 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
                 }
+                Response::PlayerRemoved(player_id) => {
+                    if let Some(game) = &mut game {
+                        game.players.remove(&player_id);
+                    }
+                }
                 Response::ChangeMap(new_map) => {
                     if let Some(game) = &mut game {
                         game.active_map = Map::new(&new_map).await;
+                        game.players.clear();
+                        game.actors.clear();
                     }
                 }
                 Response::Log(msg) => {
