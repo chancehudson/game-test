@@ -26,6 +26,7 @@ pub enum Response {
     MobChange(u64, Option<Vec2>), // id, new moving_to
     PlayerRemoved(String),
     PlayerChange(PlayerBody),
+    PlayerData(PlayerState), // data about another player
     ChangeMap(String),
     LoginError(String),
     Tick(),

@@ -1,3 +1,4 @@
+use game_test::action::PlayerState;
 use macroquad::prelude::Rect;
 use macroquad::prelude::Vec2;
 
@@ -38,6 +39,15 @@ impl Player {
             velocity: self.velocity,
             size: self.size,
             action: None,
+        }
+    }
+
+    pub fn state(&self) -> PlayerState {
+        PlayerState {
+            id: self.id.clone(),
+            username: self.record.username.clone(),
+            current_map: self.record.current_map.clone(),
+            experience: self.record.experience,
         }
     }
 }

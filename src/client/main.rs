@@ -56,6 +56,18 @@ async fn main() -> anyhow::Result<()> {
                     if let Some(game) = &mut game {
                         game.player.experience = state.experience;
                         game.active_map = Map::new(&state.current_map).await;
+                        game.player.username = state.username;
+                    }
+                }
+                Response::PlayerData(state) => {
+                    if let Some(game) = &mut game {
+                        if let Some(player) = game.players.get_mut(&state.id) {
+                            player.username = state.username;
+                        } else {
+                            let mut player = Player::new(state.id.clone());
+                            player.username = state.username;
+                            game.players.insert(state.id.clone(), player);
+                        }
                     }
                 }
                 Response::PlayerChange(body) => {

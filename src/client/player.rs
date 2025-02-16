@@ -1,5 +1,6 @@
-use game_test::action::PlayerAction;
 use macroquad::prelude::*;
+
+use game_test::action::PlayerAction;
 
 use super::Actor;
 use super::AnimatedEntity;
@@ -16,6 +17,7 @@ pub struct Player {
     pub velocity: Vec2,
     pub size: Vec2,
     pub action: Option<PlayerAction>,
+    pub username: String,
 }
 
 impl Player {
@@ -28,6 +30,7 @@ impl Player {
             velocity: Vec2::new(0., 0.),
             size: Vec2::new(52., 52.),
             action: None,
+            username: "".to_string(),
         }
     }
 }
@@ -46,6 +49,27 @@ impl Renderable for Player {
         self.texture.update(); // Update animation frame
         self.texture.draw(); // Draw current frame
                              // draw_circle(self.position.x + self.size.x / 2., self.position.y + self.size.y /2., self.size.x/2., GREEN);
+        {
+            let username_font_size = 15;
+            let username_size = measure_text(&self.username, None, username_font_size, 1.0);
+            let padding = 10.;
+            let x = self.position.x + self.size.x / 2. - username_size.width / 2.;
+            let y = self.position.y + self.size.y + padding;
+            draw_rectangle(
+                x - padding / 2.,
+                y - padding / 2.,
+                username_size.width + padding,
+                username_size.height + padding,
+                BLACK,
+            );
+            draw_text(
+                &self.username,
+                x,
+                y + username_size.height,
+                username_font_size.into(),
+                WHITE,
+            );
+        }
     }
 }
 

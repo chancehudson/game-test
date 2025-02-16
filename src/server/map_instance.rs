@@ -83,13 +83,22 @@ impl MapInstance {
         // send other player positions to the new player
         for other_player in self.players.values() {
             let body = other_player.body();
+            let state = other_player.state();
+            {
+                let player_id = player_id.clone();
+                tokio::spawn(async move {
+                    send_to_player(&player_id, Response::PlayerChange(body)).await;
+                });
+            }
             let player_id = player_id.clone();
             tokio::spawn(async move {
-                send_to_player(&player_id, Response::PlayerChange(body)).await;
+                send_to_player(&player_id, Response::PlayerData(state)).await;
             });
         }
         // notify other players of the new player
         self.broadcast(Response::PlayerChange(player.body()), None)
+            .await;
+        self.broadcast(Response::PlayerData(player.state()), None)
             .await;
         self.players.insert(player_id, player);
     }
