@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use nanoid::nanoid;
 
@@ -81,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
         }
 
         DB_HANDLER.write().await.commit().await?;
+        tokio::time::sleep(Duration::from_millis(10)).await;
     }
 }
 
@@ -112,6 +114,13 @@ pub async fn send_to_player(player_id: &str, res: Response) {
 
 async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> {
     match action {
+        Action::Ping => {
+            SERVER
+                .get()
+                .unwrap()
+                .send(&socket_id, Response::Pong)
+                .await?;
+        }
         Action::LoginPlayer(name) => {
             if let Some(player) =
                 PlayerRecord::player_by_name(&mut DB_HANDLER.read().await.db.begin_read()?, &name)?

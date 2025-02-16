@@ -29,7 +29,7 @@ impl Server {
     pub async fn new() -> Result<Self> {
         let action_queue = RwLock::new(VecDeque::new());
 
-        let addr = "127.0.0.1:1351";
+        let addr = "0.0.0.0:1351";
         let try_socket = TcpListener::bind(addr).await;
         let listener = try_socket.expect("Failed to bind");
 

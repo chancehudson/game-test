@@ -15,6 +15,7 @@ pub enum Action {
     // provide a username
     LoginPlayer(String),
     SetPlayerAction(PlayerAction),
+    Ping,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +32,7 @@ pub enum Response {
     LoginError(String),
     Tick(),
     Log(String),
+    Pong,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

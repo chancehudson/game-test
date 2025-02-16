@@ -25,7 +25,6 @@ impl GameState {
     pub async fn new(id: String) -> Self {
         let mut player = Player::new(id);
         let active_map = Map::new("welcome").await;
-        player.position = active_map.spawn_location;
         GameState {
             player,
             active_map,
@@ -40,9 +39,9 @@ impl GameState {
     pub fn render_camera(&mut self) {
         let half_screen = Vec2::new(screen_width() / 2., screen_height() / 2.);
         let camera = Camera2D::from_display_rect(Rect::new(
-            (self.player.position.x - half_screen.x)
+            (self.player.position().x - half_screen.x)
                 .clamp(0., self.active_map.size.x - screen_width()),
-            (self.player.position.y + half_screen.y).clamp(0., self.active_map.size.y + 40.), // 40 is the padding at the bottom
+            (self.player.position().y + half_screen.y).clamp(0., self.active_map.size.y + 40.), // 40 is the padding at the bottom
             screen_width(),
             -screen_height(),
         ));
@@ -66,7 +65,7 @@ impl GameState {
         // begin rendering
         self.render_camera();
         self.active_map.step_physics(step_len);
-        self.active_map.render(step_len, self.player.position);
+        self.active_map.render(step_len, self.player.position());
         self.player.render(step_len);
         for player in self.players.values_mut() {
             player.render(step_len);

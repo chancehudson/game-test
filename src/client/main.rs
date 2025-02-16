@@ -1,3 +1,4 @@
+use game_test::timestamp;
 use macroquad::prelude::*;
 
 pub use game_test::action::Action;
@@ -26,7 +27,7 @@ pub use renderable::Renderable;
 pub use sprite::AnimatedEntity;
 pub use sprite::Sprite;
 
-const SERVER_URL: &'static str = "ws://localhost:1351/socket";
+const SERVER_URL: &'static str = "ws://127.0.0.1:1351/socket";
 
 #[macroquad::main("Untitled Game")]
 async fn main() -> anyhow::Result<()> {
@@ -41,10 +42,19 @@ async fn main() -> anyhow::Result<()> {
     let mut login_screen = LoginScreen::new();
     let mut last_action = get_player_action();
     let mut last_server_update = 0.0;
+    let mut last_ping_timestamp = 0.0;
+    let mut server_latency = 0.0;
     loop {
+        if timestamp() - last_ping_timestamp > 5.0 {
+            last_ping_timestamp = timestamp();
+            connection.send(&Action::Ping)?;
+        }
         if let Some(msg) = connection.try_receive()? {
             println!("{:?}", msg);
             match msg {
+                Response::Pong => {
+                    server_latency = timestamp() - last_ping_timestamp;
+                }
                 Response::PlayerLoggedIn(player_id) => {
                     println!("logged in player id {player_id}");
                     game = Some(GameState::new(player_id).await);
@@ -74,18 +84,24 @@ async fn main() -> anyhow::Result<()> {
                     if let Some(game) = &mut game {
                         if body.id == game.player.id {
                             last_server_update = get_time();
-                            game.player.position = body.position;
+                            if game.player.position.is_none() {
+                                game.player.position = Some(body.position);
+                            } else if game.player.position.unwrap() != body.position {
+                                let diff = game.player.position.unwrap() - body.position;
+                                game.player.position = Some(body.position);
+                                game.player.position_err = diff;
+                            }
                             game.player.velocity = body.velocity;
                             game.player.size = body.size;
                         } else {
                             if let Some(player) = game.players.get_mut(&body.id) {
-                                player.position = body.position;
+                                player.position = Some(body.position);
                                 player.velocity = body.velocity;
                                 player.size = body.size;
                                 player.action = body.action;
                             } else {
                                 let mut player = Player::new(body.id.clone());
-                                player.position = body.position;
+                                player.position = Some(body.position);
                                 player.velocity = body.velocity;
                                 player.size = body.size;
                                 player.action = body.action;
@@ -104,6 +120,8 @@ async fn main() -> anyhow::Result<()> {
                         game.active_map = Map::new(&new_map).await;
                         game.players.clear();
                         game.actors.clear();
+                        game.player.position = None;
+                        game.player.position_err = Vec2::ZERO;
                     }
                 }
                 Response::Log(msg) => {
@@ -169,6 +187,13 @@ async fn main() -> anyhow::Result<()> {
         if is_key_pressed(KeyCode::R) {
             AssetBuffer::reload_assets().await?;
         }
+        draw_text(
+            &format!("server latency: {} ms", server_latency * 1000.0),
+            0.,
+            100.,
+            15.,
+            RED,
+        );
         next_frame().await
     }
 }
