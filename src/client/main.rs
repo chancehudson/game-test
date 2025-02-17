@@ -1,4 +1,3 @@
-use game_test::timestamp;
 use macroquad::prelude::*;
 
 pub use game_test::action::Action;
@@ -20,7 +19,6 @@ mod sprite;
 pub use asset_buffer::AssetBuffer;
 pub use game::GameState;
 pub use item::Item;
-use login::LoginScreen;
 pub use map::Map;
 pub use player::Player;
 pub use renderable::Renderable;
@@ -33,139 +31,29 @@ const SERVER_URL: &'static str = "ws://127.0.0.1:1351/socket";
 async fn main() -> anyhow::Result<()> {
     AssetBuffer::init().await.unwrap();
     println!("Opening server connection...");
-    let mut connection = network::Connection::open(SERVER_URL)?;
+    let connection = network::Connection::open(SERVER_URL)?;
     println!("Connected!");
-    let mut game = None; // GameState::new().await;
+    let mut game = GameState::new(connection).await;
     let fps_render_interval = 1.0;
     let mut next_fps_render = 0.0;
     let mut fps = 0.0;
-    let mut login_screen = LoginScreen::new();
     let mut last_action = get_player_action();
-    let mut last_server_update = 0.0;
-    let mut last_ping_timestamp = 0.0;
-    let mut server_latency = 0.0;
     loop {
-        if timestamp() - last_ping_timestamp > 5.0 {
-            last_ping_timestamp = timestamp();
-            connection.send(&Action::Ping)?;
+        if let Err(e) = game.handle_msg().await {
+            println!("Error handling message: {:?}", e);
         }
-        if let Some(msg) = connection.try_receive()? {
-            println!("{:?}", msg);
-            match msg {
-                Response::Pong => {
-                    server_latency = timestamp() - last_ping_timestamp;
-                }
-                Response::PlayerLoggedIn(state) => {
-                    println!("logged in player id {}", state.id);
-                    let mut new_game = GameState::new(state.id.clone()).await;
-                    new_game.player.experience = state.experience;
-                    new_game.active_map = Map::new(&state.current_map).await;
-                    new_game.player.username = state.username;
-                    game = Some(new_game);
-                }
-                Response::LoginError(err) => {
-                    login_screen.error_message = Some(err);
-                }
-                Response::PlayerData(state) => {
-                    if let Some(game) = &mut game {
-                        if let Some(player) = game.players.get_mut(&state.id) {
-                            player.username = state.username;
-                        } else {
-                            let mut player = Player::new(state.id.clone());
-                            player.username = state.username;
-                            game.players.insert(state.id.clone(), player);
-                        }
-                    }
-                }
-                Response::PlayerChange(body) => {
-                    if let Some(game) = &mut game {
-                        if body.id == game.player.id {
-                            last_server_update = get_time();
-                            game.player.position = body.position;
-                            game.player.velocity = body.velocity;
-                            game.player.size = body.size;
-                        } else {
-                            if let Some(player) = game.players.get_mut(&body.id) {
-                                player.position = body.position;
-                                player.velocity = body.velocity;
-                                player.size = body.size;
-                                player.action = body.action;
-                            } else {
-                                let mut player = Player::new(body.id.clone());
-                                player.position = body.position;
-                                player.velocity = body.velocity;
-                                player.size = body.size;
-                                player.action = body.action;
-                                game.players.insert(body.id.clone(), player);
-                            }
-                        }
-                    }
-                }
-                Response::PlayerRemoved(player_id) => {
-                    if let Some(game) = &mut game {
-                        game.players.remove(&player_id);
-                    }
-                }
-                Response::ChangeMap(new_map) => {
-                    if let Some(game) = &mut game {
-                        game.active_map = Map::new(&new_map).await;
-                        game.players.clear();
-                        game.actors.clear();
-                        game.player.position = Vec2::ZERO;
-                    }
-                }
-                Response::Log(msg) => {
-                    println!("server message: {msg}");
-                }
-                Response::MapState(entities) => {
-                    if let Some(game) = &mut game {
-                        game.active_map.entities = entities;
-                    }
-                }
-                Response::MobChange(id, moving_to) => {
-                    if let Some(game) = &mut game {
-                        for mob in game.active_map.entities.iter_mut() {
-                            if mob.id == id {
-                                mob.moving_to = moving_to;
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        if game.is_none() {
-            clear_background(RED);
-            let (login, create) = login_screen.draw();
-            if login {
-                connection
-                    .send(&Action::LoginPlayer(login_screen.username.clone()))
-                    .unwrap_or_else(|e| {
-                        login_screen.error_message = Some(e.to_string());
-                    });
-            } else if create {
-                connection
-                    .send(&Action::CreatePlayer(login_screen.username.clone()))
-                    .unwrap_or_else(|e| {
-                        login_screen.error_message = Some(e.to_string());
-                    });
-            }
-            next_frame().await;
-            continue;
-        }
-        let game = game.as_mut().unwrap();
+        game.render().await;
+
         let mut new_action = get_player_action();
         if last_action != new_action {
-            new_action.position = Some(game.player.position());
-            new_action.velocity = Some(game.player.velocity);
-            game.player.action = Some(new_action.clone());
-            last_action = new_action.clone();
-            connection.send(&Action::SetPlayerAction(new_action))?;
+            if let Some(player) = &mut game.player {
+                new_action.position = Some(player.position());
+                new_action.velocity = Some(player.velocity);
+                player.action = Some(new_action.clone());
+                last_action = new_action.clone();
+                game.connection.send(&Action::SetPlayerAction(new_action))?;
+            }
         }
-        clear_background(RED);
-        // game will handle setting the appropriate camera
-        game.render();
-
         set_default_camera();
         // render ui components
         if get_time() > next_fps_render {
@@ -173,18 +61,15 @@ async fn main() -> anyhow::Result<()> {
             fps = get_fps().into();
         }
         draw_text(&format!("fps: {fps}"), 0., 20., 19., BLACK);
-        if get_time() - last_server_update > 3.0 {
-            draw_text(&format!("server out of sync!"), 0., 40., 19., RED);
-        }
         if is_key_pressed(KeyCode::R) {
             AssetBuffer::reload_assets().await?;
         }
         draw_text(
-            &format!("server latency: {} ms", server_latency * 1000.0),
+            &format!("latency: {} ms", 0.0 * 1000.0),
             0.,
-            100.,
+            40.,
             15.,
-            RED,
+            BLACK,
         );
         next_frame().await
     }
