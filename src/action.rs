@@ -20,9 +20,8 @@ pub enum Action {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Response {
-    PlayerLoggedIn(String),
     // current_map_id, experience
-    PlayerState(PlayerState),
+    PlayerLoggedIn(PlayerState),
     MapState(Vec<Mob>),
     MobChange(u64, Option<Vec2>), // id, new moving_to
     PlayerRemoved(String),
@@ -52,8 +51,10 @@ pub struct PlayerBody {
     pub action: Option<PlayerAction>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerAction {
+    pub position: Option<Vec2>,
+    pub velocity: Option<Vec2>,
     pub move_left: bool,
     pub move_right: bool,
     pub enter_portal: bool,
@@ -62,9 +63,22 @@ pub struct PlayerAction {
     pub downward_jump: bool,
 }
 
+impl PartialEq for PlayerAction {
+    fn eq(&self, other: &Self) -> bool {
+        self.move_left == other.move_left
+            && self.move_right == other.move_right
+            && self.enter_portal == other.enter_portal
+            && self.jump == other.jump
+            && self.pickup == other.pickup
+            && self.downward_jump == other.downward_jump
+    }
+}
+
 impl Default for PlayerAction {
     fn default() -> Self {
         Self {
+            velocity: None,
+            position: None,
             move_left: false,
             move_right: false,
             enter_portal: false,
@@ -77,6 +91,8 @@ impl Default for PlayerAction {
 
 impl PlayerAction {
     pub fn update(&mut self, other_new: Self) {
+        self.velocity = other_new.velocity;
+        self.position = other_new.position;
         self.move_left = other_new.move_left;
         self.move_right = other_new.move_right;
         if other_new.enter_portal {
@@ -95,6 +111,8 @@ impl PlayerAction {
 
     pub fn step_action(&self, actor: &mut dyn Actor, step_len: f32) -> Self {
         let mut out = self.clone();
+        out.position = None;
+        out.velocity = None;
         if self.move_right {
             let velocity = actor.velocity_mut();
             velocity.x += ACCEL_RATE * step_len;

@@ -23,8 +23,6 @@ use super::DB_HANDLER;
 pub struct MapInstance {
     mob_counter: u64,
     pub map: MapData,
-    // pub player_ids: HashMap<String, ()>,
-    pub actors: Vec<Box<dyn Actor + Sync + Send>>,
     pub players: HashMap<String, Player>,
     pub mobs: Vec<Mob>,
     last_broadcast: f32,
@@ -35,7 +33,6 @@ impl MapInstance {
         Self {
             mob_counter: 0, // TODO: give each map it's own region of distinct id's
             map,
-            actors: vec![],
             players: HashMap::new(),
             mobs: vec![],
             last_broadcast: 0.,
@@ -116,19 +113,13 @@ impl MapInstance {
             return;
         }
         let player = player.unwrap();
-        // if the player has begun moving or stopped moving broadcast
-        // to the rest of the map
-        let mut player_change = None;
-        if player.action.move_left != player_action.move_left
-            || player.action.move_right != player_action.move_right
-            || player.action.jump != player_action.jump
-            || player.action.downward_jump != player_action.downward_jump
-        {
-            let mut body = player.body();
-            body.action = Some(player_action.clone());
-            player_change = Some(Response::PlayerChange(body.clone()));
-        }
-        player.action.update(player_action);
+        // broadcast input changes to the rest of the map
+        player.position = player_action.position.unwrap();
+        player.velocity = player_action.velocity.unwrap();
+        player.action.update(player_action.clone());
+        let mut body = player.body();
+        body.action = Some(player.action.clone());
+        let player_change = Some(Response::PlayerChange(body.clone()));
         // broadcast the change after stepping
         if let Some(player_change) = player_change {
             self.broadcast(player_change, Some(player_id)).await;
@@ -181,15 +172,11 @@ impl MapInstance {
                 }
             });
         }
-        for actor in &mut self.actors {
-            actor.step_physics(step_len, &self.map);
-        }
         // TODO: in parallel
         for player in self.players.values_mut() {
-            let new_action = player.action.clone().step_action(player, step_len);
-            player.action = new_action;
-            if player.action.enter_portal {
-                player.action.enter_portal = false;
+            let enter_portal = player.action.enter_portal;
+            player.action = player.action.clone().step_action(player, step_len);
+            if enter_portal {
                 // determine if the player is overlapping a portal
                 for portal in &self.map.portals {
                     if portal
@@ -216,22 +203,17 @@ impl MapInstance {
                 }
             }
         }
-        for player in self.players.values_mut() {
-            player.step_physics(step_len, &self.map);
-        }
+        // for player in self.players.values_mut() {
+        //     player.step_physics(step_len, &self.map);
+        // }
 
         if timestamp() - self.last_broadcast > 1.0 {
             self.last_broadcast = timestamp();
             for player in self.players.values() {
-                let player_id1 = player.id.clone();
-                let player_id2 = player.id.clone();
-                let body = player.body();
+                let player_id = player.id.clone();
                 let map_state = Response::MapState(self.mobs.clone());
                 tokio::spawn(async move {
-                    send_to_player(&player_id1, Response::PlayerChange(body)).await;
-                });
-                tokio::spawn(async move {
-                    send_to_player(&player_id2, map_state).await;
+                    send_to_player(&player_id, map_state).await;
                 });
             }
         }

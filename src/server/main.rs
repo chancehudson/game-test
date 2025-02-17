@@ -134,14 +134,9 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
                 SERVER
                     .get()
                     .unwrap()
-                    .send(&socket_id, Response::PlayerLoggedIn(player.id.clone()))
-                    .await?;
-                SERVER
-                    .get()
-                    .unwrap()
                     .send(
                         &socket_id,
-                        Response::PlayerState(PlayerState {
+                        Response::PlayerLoggedIn(PlayerState {
                             id: player.id.clone(),
                             username: player.username.clone(),
                             current_map: player.current_map,
@@ -182,15 +177,9 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
                     SERVER
                         .get()
                         .unwrap()
-                        .send(&socket_id, Response::PlayerLoggedIn(player_id))
-                        .await
-                        .unwrap();
-                    SERVER
-                        .get()
-                        .unwrap()
                         .send(
                             &socket_id,
-                            Response::PlayerState(PlayerState {
+                            Response::PlayerLoggedIn(PlayerState {
                                 id: player.id.clone(),
                                 username: player.username.clone(),
                                 current_map: player.current_map,

@@ -13,8 +13,7 @@ pub struct Player {
     pub id: String,
     pub texture: AnimatedEntity,
     pub experience: u64,
-    pub position: Option<Vec2>,
-    pub position_err: Vec2,
+    pub position: Vec2,
     pub velocity: Vec2,
     pub size: Vec2,
     pub action: Option<PlayerAction>,
@@ -27,8 +26,7 @@ impl Player {
             id,
             experience: 0,
             texture: AnimatedEntity::new("assets/banana.png", 52.0, 52.0, 2),
-            position: None,
-            position_err: Vec2::new(0., 0.),
+            position: Vec2::ZERO,
             velocity: Vec2::new(0., 0.),
             size: Vec2::new(52., 52.),
             action: None,
@@ -37,7 +35,7 @@ impl Player {
     }
 
     pub fn position(&self) -> Vec2 {
-        self.position.unwrap_or(Vec2::ZERO) + self.position_err
+        self.position
     }
 }
 
@@ -90,11 +88,7 @@ impl Actor for Player {
     }
 
     fn position_mut(&mut self) -> &mut Vec2 {
-        if let Some(position) = &mut self.position {
-            position
-        } else {
-            &mut self.position_err
-        }
+        &mut self.position
     }
 
     fn velocity_mut(&mut self) -> &mut Vec2 {
@@ -105,9 +99,6 @@ impl Actor for Player {
         self.step_physics_default(step_len, map);
         if let Some(action) = self.action.clone() {
             self.action = Some(action.step_action(self, step_len));
-        }
-        if self.position_err != Vec2::ZERO {
-            self.position_err = self.position_err.move_towards(Vec2::ZERO, 1000. * step_len);
         }
         self.velocity = self.velocity.clamp(
             Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY),

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use game_test::action::PlayerAction;
 use macroquad::prelude::*;
 
 use super::Actor;
@@ -23,7 +22,7 @@ pub struct GameState {
 
 impl GameState {
     pub async fn new(id: String) -> Self {
-        let mut player = Player::new(id);
+        let player = Player::new(id);
         let active_map = Map::new("welcome").await;
         GameState {
             player,
@@ -48,7 +47,7 @@ impl GameState {
         set_camera(&camera);
     }
 
-    pub fn render(&mut self, player_action: &mut PlayerAction) {
+    pub fn render(&mut self) {
         let time = get_time();
         let step_len = (time - self.last_step) as f32;
         self.last_step = time;

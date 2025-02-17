@@ -55,19 +55,16 @@ async fn main() -> anyhow::Result<()> {
                 Response::Pong => {
                     server_latency = timestamp() - last_ping_timestamp;
                 }
-                Response::PlayerLoggedIn(player_id) => {
-                    println!("logged in player id {player_id}");
-                    game = Some(GameState::new(player_id).await);
+                Response::PlayerLoggedIn(state) => {
+                    println!("logged in player id {}", state.id);
+                    let mut new_game = GameState::new(state.id.clone()).await;
+                    new_game.player.experience = state.experience;
+                    new_game.active_map = Map::new(&state.current_map).await;
+                    new_game.player.username = state.username;
+                    game = Some(new_game);
                 }
                 Response::LoginError(err) => {
                     login_screen.error_message = Some(err);
-                }
-                Response::PlayerState(state) => {
-                    if let Some(game) = &mut game {
-                        game.player.experience = state.experience;
-                        game.active_map = Map::new(&state.current_map).await;
-                        game.player.username = state.username;
-                    }
                 }
                 Response::PlayerData(state) => {
                     if let Some(game) = &mut game {
@@ -84,24 +81,18 @@ async fn main() -> anyhow::Result<()> {
                     if let Some(game) = &mut game {
                         if body.id == game.player.id {
                             last_server_update = get_time();
-                            if game.player.position.is_none() {
-                                game.player.position = Some(body.position);
-                            } else if game.player.position.unwrap() != body.position {
-                                let diff = game.player.position.unwrap() - body.position;
-                                game.player.position = Some(body.position);
-                                game.player.position_err = diff;
-                            }
+                            game.player.position = body.position;
                             game.player.velocity = body.velocity;
                             game.player.size = body.size;
                         } else {
                             if let Some(player) = game.players.get_mut(&body.id) {
-                                player.position = Some(body.position);
+                                player.position = body.position;
                                 player.velocity = body.velocity;
                                 player.size = body.size;
                                 player.action = body.action;
                             } else {
                                 let mut player = Player::new(body.id.clone());
-                                player.position = Some(body.position);
+                                player.position = body.position;
                                 player.velocity = body.velocity;
                                 player.size = body.size;
                                 player.action = body.action;
@@ -120,8 +111,7 @@ async fn main() -> anyhow::Result<()> {
                         game.active_map = Map::new(&new_map).await;
                         game.players.clear();
                         game.actors.clear();
-                        game.player.position = None;
-                        game.player.position_err = Vec2::ZERO;
+                        game.player.position = Vec2::ZERO;
                     }
                 }
                 Response::Log(msg) => {
@@ -164,15 +154,17 @@ async fn main() -> anyhow::Result<()> {
             continue;
         }
         let game = game.as_mut().unwrap();
-        let new_action = get_player_action();
+        let mut new_action = get_player_action();
         if last_action != new_action {
+            new_action.position = Some(game.player.position());
+            new_action.velocity = Some(game.player.velocity);
             game.player.action = Some(new_action.clone());
             last_action = new_action.clone();
             connection.send(&Action::SetPlayerAction(new_action))?;
         }
         clear_background(RED);
         // game will handle setting the appropriate camera
-        game.render(&mut last_action);
+        game.render();
 
         set_default_camera();
         // render ui components
@@ -200,6 +192,8 @@ async fn main() -> anyhow::Result<()> {
 
 fn get_player_action() -> PlayerAction {
     PlayerAction {
+        velocity: None,
+        position: None,
         enter_portal: is_key_down(KeyCode::Up),
         move_left: is_key_down(KeyCode::Left),
         move_right: is_key_down(KeyCode::Right),
