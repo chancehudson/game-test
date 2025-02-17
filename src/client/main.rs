@@ -27,7 +27,15 @@ pub use sprite::Sprite;
 
 const SERVER_URL: &'static str = "ws://127.0.0.1:1351/socket";
 
-#[macroquad::main("Untitled Game")]
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "Untitled Game".to_owned(),
+        sample_count: 0,
+        ..Default::default()
+    }
+}
+
+#[macroquad::main(window_conf)]
 async fn main() -> anyhow::Result<()> {
     AssetBuffer::init().await.unwrap();
     println!("Opening server connection...");
@@ -60,16 +68,30 @@ async fn main() -> anyhow::Result<()> {
             next_fps_render = get_time() + fps_render_interval;
             fps = get_fps().into();
         }
-        draw_text(&format!("fps: {fps}"), 0., 20., 19., BLACK);
+        draw_text_ex(
+            &format!("fps: {fps}"),
+            0.,
+            20.,
+            TextParams {
+                font: AssetBuffer::font("helvetica_light"),
+                font_size: 15,
+                color: BLACK,
+                ..Default::default()
+            },
+        );
         if is_key_pressed(KeyCode::R) {
             AssetBuffer::reload_assets().await?;
         }
-        draw_text(
+        draw_text_ex(
             &format!("latency: {} ms", 0.0 * 1000.0),
             0.,
             40.,
-            15.,
-            BLACK,
+            TextParams {
+                font: AssetBuffer::font("helvetica_light"),
+                font_size: 15,
+                color: BLACK,
+                ..Default::default()
+            },
         );
         next_frame().await
     }

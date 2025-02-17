@@ -1,13 +1,14 @@
 use macroquad::prelude::*;
 
 use game_test::action::PlayerAction;
+use game_test::actor::MAX_VELOCITY;
+
+use crate::AssetBuffer;
 
 use super::Actor;
 use super::AnimatedEntity;
 use super::MapData;
 use super::Renderable;
-
-const MAX_VELOCITY: f32 = 500.0;
 
 pub struct Player {
     pub id: String,
@@ -54,8 +55,13 @@ impl Renderable for Player {
         self.texture.draw(); // Draw current frame
                              // draw_circle(self.position.x + self.size.x / 2., self.position.y + self.size.y /2., self.size.x/2., GREEN);
         {
-            let username_font_size = 15;
-            let username_size = measure_text(&self.username, None, username_font_size, 1.0);
+            let username_font_size = 12;
+            let username_size = measure_text(
+                &self.username,
+                AssetBuffer::font("helvetica_light"),
+                username_font_size,
+                1.0,
+            );
             let padding = 10.;
             let x = self.position().x + self.size.x / 2. - username_size.width / 2.;
             let y = self.position().y + self.size.y + padding;
@@ -66,13 +72,24 @@ impl Renderable for Player {
                 username_size.height + padding,
                 BLACK,
             );
-            draw_text(
+            draw_text_ex(
                 &self.username,
                 x,
                 y + username_size.height,
-                username_font_size.into(),
-                WHITE,
+                TextParams {
+                    font: AssetBuffer::font("helvetica_light"),
+                    font_size: username_font_size,
+                    color: WHITE,
+                    ..Default::default()
+                },
             );
+            // draw_text(
+            //     &self.username,
+            //     x,
+            //     y + username_size.height,
+            //     username_font_size.into(),
+            //     WHITE,
+            // );
         }
     }
 }
@@ -100,9 +117,6 @@ impl Actor for Player {
         if let Some(action) = self.action.clone() {
             self.action = Some(action.step_action(self, step_len));
         }
-        self.velocity = self.velocity.clamp(
-            Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY),
-            Vec2::new(MAX_VELOCITY, MAX_VELOCITY),
-        );
+        self.velocity = self.velocity.clamp(-1.0 * MAX_VELOCITY, MAX_VELOCITY);
     }
 }

@@ -138,7 +138,7 @@ impl PlayerAction {
             out.jump = false;
             let velocity = actor.velocity_mut();
             // TODO: check if we're standing on a platform first
-            velocity.y = -300.0;
+            velocity.y = -400.0;
         }
         out
 

@@ -4,7 +4,8 @@ use macroquad::prelude::Vec2;
 use super::MapData;
 
 // in pixels per second per second
-const GRAVITY_ACCEL: f32 = 1200.0;
+pub const GRAVITY_ACCEL: f32 = 1200.0;
+pub const MAX_VELOCITY: Vec2 = Vec2::new(300.0, 400.0);
 
 pub trait Actor {
     fn position_mut(&mut self) -> &mut Vec2;

@@ -1,4 +1,5 @@
 use game_test::action::PlayerState;
+use game_test::actor::MAX_VELOCITY;
 use macroquad::prelude::Rect;
 use macroquad::prelude::Vec2;
 
@@ -8,8 +9,6 @@ use game_test::Actor;
 use game_test::MapData;
 
 use super::PlayerRecord;
-
-const MAX_VELOCITY: f32 = 500.0;
 
 pub struct Player {
     pub id: String,
@@ -67,9 +66,6 @@ impl Actor for Player {
 
     fn step_physics(&mut self, step_len: f32, map: &MapData) {
         self.step_physics_default(step_len, map);
-        self.velocity = self.velocity.clamp(
-            Vec2::new(-MAX_VELOCITY, -MAX_VELOCITY),
-            Vec2::new(MAX_VELOCITY, MAX_VELOCITY),
-        );
+        self.velocity = self.velocity.clamp(-1.0 * MAX_VELOCITY, MAX_VELOCITY);
     }
 }
