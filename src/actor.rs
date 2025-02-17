@@ -1,24 +1,25 @@
 use macroquad::prelude::Rect;
 use macroquad::prelude::Vec2;
 
+use super::engine::TICK_LEN;
 use super::MapData;
 
 // in pixels per second per second
-const GRAVITY_ACCEL: f32 = 1200.0;
+const GRAVITY_ACCEL: f64 = 1200.0;
 
 pub trait Actor {
     fn position_mut(&mut self) -> &mut Vec2;
     fn velocity_mut(&mut self) -> &mut Vec2;
     fn rect(&self) -> Rect;
 
-    fn step_physics(&mut self, step_len: f32, map: &MapData) {
-        self.step_physics_default(step_len, map);
+    fn step_physics(&mut self, map: &MapData) {
+        self.step_physics_default(map);
     }
 
-    fn step_physics_default(&mut self, step_len: f32, map: &MapData) {
-        self.velocity_mut().y += GRAVITY_ACCEL * step_len;
-        let dx = self.velocity_mut().x * step_len;
-        let dy = self.velocity_mut().y * step_len;
+    fn step_physics_default(&mut self, map: &MapData) {
+        self.velocity_mut().y += (GRAVITY_ACCEL * TICK_LEN) as f32;
+        let dx = self.velocity_mut().x * TICK_LEN as f32;
+        let dy = self.velocity_mut().y * TICK_LEN as f32;
         self.move_x(dx, &map);
         self.move_y(dy, &map);
     }

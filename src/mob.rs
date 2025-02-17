@@ -6,6 +6,8 @@ use serde::Serialize;
 #[cfg(feature = "server")]
 use rand::Rng;
 
+use crate::engine::TICK_LEN;
+
 #[cfg(feature = "server")]
 use super::timestamp;
 use super::Actor;
@@ -21,7 +23,7 @@ pub struct Mob {
     pub max_velocity: f32,
 
     pub moving_to: Option<Vec2>,
-    pub move_start: f32,
+    pub move_start: f64,
 }
 
 impl Actor for Mob {
@@ -37,7 +39,7 @@ impl Actor for Mob {
         &mut self.velocity
     }
 
-    fn step_physics(&mut self, step_len: f32, map: &MapData) {
+    fn step_physics(&mut self, map: &MapData) {
         // simple logic to control the mob
         let accel_rate = 700.0;
         if self.moving_to.is_none() {
@@ -51,24 +53,24 @@ impl Actor for Mob {
             }
             self.velocity.x = self
                 .velocity
-                .move_towards(Vec2::ZERO, accel_rate * step_len)
+                .move_towards(Vec2::ZERO, (accel_rate * TICK_LEN) as f32)
                 .x;
-            self.step_physics_default(step_len, map);
+            self.step_physics_default(map);
             return;
         }
         let moving_to = self.moving_to.clone().unwrap();
         let move_left = self.position.x > moving_to.x;
         let move_right = self.position.x < moving_to.x;
         if move_right {
-            self.velocity_mut().x += accel_rate * step_len;
+            self.velocity_mut().x += (accel_rate * TICK_LEN) as f32;
             self.velocity.x = self.velocity.x.clamp(-self.max_velocity, self.max_velocity);
         } else if move_left {
-            self.velocity_mut().x -= accel_rate * step_len;
+            self.velocity_mut().x -= (accel_rate * TICK_LEN) as f32;
             self.velocity.x = self.velocity.x.clamp(-self.max_velocity, self.max_velocity);
         } else if self.velocity.x.abs() > 0.0 {
             self.velocity.x = self
                 .velocity
-                .move_towards(Vec2::ZERO, accel_rate * step_len)
+                .move_towards(Vec2::ZERO, (accel_rate * TICK_LEN) as f32)
                 .x;
         }
         if (self.position.x - moving_to.x).abs() < 10.0 {
@@ -78,6 +80,6 @@ impl Actor for Mob {
         if timestamp() - self.move_start > 10.0 {
             self.moving_to = None;
         }
-        self.step_physics_default(step_len, map);
+        self.step_physics_default(map);
     }
 }

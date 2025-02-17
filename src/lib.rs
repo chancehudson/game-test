@@ -1,32 +1,30 @@
 use once_cell::sync::Lazy;
-use std::time::SystemTime;
+use std::time::Instant;
 
 pub mod action;
 pub mod actor;
+pub mod engine;
 pub mod map;
 pub mod mob;
+pub mod player;
 
 pub use mob::Mob;
 
 pub use actor::Actor;
 pub use map::MapData;
 
-static START_TIMESTAMP_MS: Lazy<u128> = Lazy::new(|| {
-    SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis()
-});
+static START_INSTANT: Lazy<Instant> = Lazy::new(|| Instant::now());
 
-/// TODO: rework this whole thing
-pub fn timestamp() -> f32 {
-    let start_timestamp_ms = *START_TIMESTAMP_MS;
-    let now_ms: u128 = SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let diff = now_ms - start_timestamp_ms;
-    // we assume diff is representable in an f64
-    // convert to seconds
-    (diff as f32) / 1000.0
+pub fn timestamp() -> f64 {
+    time_since_instant(*START_INSTANT)
+}
+
+pub fn time_since_instant(i: Instant) -> f64 {
+    let diff_duration = Instant::now().duration_since(i);
+    let diff_millis = diff_duration.as_millis();
+    (diff_millis as f64) / 1000.0
+}
+
+pub fn time_since(t: f64) -> f32 {
+    (timestamp() - t) as f32
 }

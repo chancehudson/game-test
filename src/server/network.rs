@@ -135,7 +135,20 @@ impl Server {
                             if msg.is_binary() {
                                 let action = bincode::deserialize::<Action>(&msg.clone().into_data())?;
                                 println!("{:?}", action);
-                                self.action_queue.write().await.push_back((socket_id.to_string(), action));
+                                if let Action::TimeSync(id) = action {
+                                    // if we're doing a time sync we respond immediately to avoid delays
+                                    // in queues/channels
+                                    // TODO: prevent spam here
+                                    let guard = super::STATE.current_tick.read().await;
+                                    let r = bincode::serialize(&Response::TimeSync(
+                                        id,
+                                        guard.0,
+                                        game_test::timestamp() - guard.1
+                                    ))?;
+                                    write.send(Message::binary(r)).await?;
+                                } else {
+                                    self.action_queue.write().await.push_back((socket_id.to_string(), action));
+                                }
                             } else if msg.is_close() {
                                 self.cleanup_connection(socket_id, recv).await;
                                 break;

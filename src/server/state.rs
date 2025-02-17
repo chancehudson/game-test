@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use game_test::action::PlayerAction;
+use game_test::timestamp;
 use game_test::MapData;
 use tokio::sync::RwLock;
 
@@ -9,6 +10,7 @@ use super::PlayerRecord;
 
 pub struct State {
     // name keyed to instance
+    pub current_tick: RwLock<(u64, f64)>,
     pub map_instances: HashMap<String, RwLock<MapInstance>>,
     pub player_id_map_name: RwLock<HashMap<String, String>>,
 }
@@ -37,8 +39,18 @@ impl State {
         }
         println!("Done loading maps!");
         Self {
+            current_tick: RwLock::new((0, timestamp())),
             map_instances,
             player_id_map_name: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub async fn tick(&self) {
+        let mut guard = self.current_tick.write().await;
+        guard.0 += 1;
+        guard.1 = timestamp();
+        for map_instance in self.map_instances.values() {
+            map_instance.write().await.tick().await;
         }
     }
 

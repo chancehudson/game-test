@@ -5,6 +5,7 @@ use std::sync::LazyLock;
 use std::sync::OnceLock;
 use std::time::Duration;
 
+use game_test::engine::TICK_LEN;
 use nanoid::nanoid;
 
 use game_test::action::Action;
@@ -18,7 +19,6 @@ mod db;
 mod item;
 mod map_instance;
 mod network;
-mod player;
 mod player_connection;
 mod state;
 
@@ -27,7 +27,6 @@ pub use db::PlayerRecord;
 use db::WriteRequest;
 pub use db::PLAYER_TABLE;
 use map_instance::MapInstance;
-pub use player::Player;
 pub use player_connection::PlayerConnection;
 use tokio::sync::RwLock;
 
@@ -63,26 +62,23 @@ async fn main() -> anyhow::Result<()> {
 
     //#########################
     // Game core loop
-    let mut last_step = timestamp();
+    let mut last_tick = timestamp();
     loop {
-        let time = timestamp();
-        let step_len = time - last_step;
-        last_step = time;
-
         // handle inputs from the clients
         while let Some((socket_id, action)) = server.action_queue.write().await.pop_front() {
             if let Err(e) = handle_action(socket_id, action.clone()).await {
                 println!("failed to handle action: {:?} {:?}", action, e);
             }
         }
-
-        // step the game state
-        for map_instance in STATE.map_instances.values() {
-            map_instance.write().await.step(step_len).await;
+        // TODO: correct for variances in tick length
+        let now = timestamp();
+        if now - last_tick >= TICK_LEN {
+            // println!("{} tick len", now - last_tick);
+            last_tick = now;
+            STATE.tick().await;
         }
 
         DB_HANDLER.write().await.commit().await?;
-        tokio::time::sleep(Duration::from_millis(10)).await;
     }
 }
 
@@ -134,14 +130,9 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
                 SERVER
                     .get()
                     .unwrap()
-                    .send(&socket_id, Response::PlayerLoggedIn(player.id.clone()))
-                    .await?;
-                SERVER
-                    .get()
-                    .unwrap()
                     .send(
                         &socket_id,
-                        Response::PlayerState(PlayerState {
+                        Response::PlayerLoggedIn(PlayerState {
                             id: player.id.clone(),
                             username: player.username.clone(),
                             current_map: player.current_map,
@@ -182,15 +173,9 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
                     SERVER
                         .get()
                         .unwrap()
-                        .send(&socket_id, Response::PlayerLoggedIn(player_id))
-                        .await
-                        .unwrap();
-                    SERVER
-                        .get()
-                        .unwrap()
                         .send(
                             &socket_id,
-                            Response::PlayerState(PlayerState {
+                            Response::PlayerLoggedIn(PlayerState {
                                 id: player.id.clone(),
                                 username: player.username.clone(),
                                 current_map: player.current_map,
@@ -212,6 +197,7 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
                 STATE.set_player_action(&player_id, player_action).await;
             }
         }
+        _ => {}
     }
     Ok(())
 }

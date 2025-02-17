@@ -12,7 +12,7 @@ where
     Ok(Vec2::new(arr[0], arr[1]))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Portal {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub position: Vec2,
@@ -29,7 +29,7 @@ impl Portal {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Platform {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub position: Vec2,
@@ -37,7 +37,7 @@ pub struct Platform {
     pub size: Vec2,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MobSpawn {
     /// point at which we stop spawning
     pub max_count: usize,
@@ -47,10 +47,10 @@ pub struct MobSpawn {
     pub size: Vec2,
     pub mob_type: u64,
     #[serde(default)]
-    pub last_spawn: f32,
+    pub last_spawn: u64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct MapData {
     pub name: String,
     #[serde(deserialize_with = "deserialize_vec2")]

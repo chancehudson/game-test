@@ -40,13 +40,7 @@ impl Map {
         }
     }
 
-    pub fn step_physics(&mut self, step_len: f32) {
-        for entity in self.entities.iter_mut() {
-            entity.step_physics(step_len, &self.data);
-        }
-    }
-
-    pub fn render(&self, _step_len: f32, player_pos: Vec2) {
+    pub fn render(&self, player_pos: Vec2) {
         push_camera_state();
         set_default_camera();
 
