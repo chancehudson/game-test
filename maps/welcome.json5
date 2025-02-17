@@ -7,6 +7,9 @@
         { position: [400, 50], to: "crab_beach" },
         { position: [0, 1000], to: "crab_beach" },
     ],
+    npc: [
+        { position: [700, 900], size: [100,100], asset: "assets/flower.png" }
+    ],
     platforms: [
         { position: [0, 1000], size: [3000, 25] },
         { position: [1000, 950], size: [100, 25] },

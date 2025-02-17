@@ -65,12 +65,14 @@ impl Renderable for Player {
             let padding = 10.;
             let x = self.position().x + self.size.x / 2. - username_size.width / 2.;
             let y = self.position().y + self.size.y + padding;
+            let mut color = BLACK;
+            color.a = 0.5;
             draw_rectangle(
                 x - padding / 2.,
                 y - padding / 2.,
                 username_size.width + padding,
                 username_size.height + padding,
-                BLACK,
+                color,
             );
             draw_text_ex(
                 &self.username,

@@ -3,6 +3,7 @@
     size: [1500, 1000],
     spawn_location: [100, 400],
     background: "assets/rainbow.png",
+    npc: [],
     portals: [
         { position: [0, 450], to: "welcome" },
         { position: [0, 1000], to: "welcome" },

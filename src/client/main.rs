@@ -31,6 +31,7 @@ fn window_conf() -> Conf {
     Conf {
         window_title: "Untitled Game".to_owned(),
         sample_count: 0,
+        high_dpi: true,
         ..Default::default()
     }
 }
@@ -79,9 +80,6 @@ async fn main() -> anyhow::Result<()> {
                 ..Default::default()
             },
         );
-        if is_key_pressed(KeyCode::R) {
-            AssetBuffer::reload_assets().await?;
-        }
         draw_text_ex(
             &format!("latency: {} ms", 0.0 * 1000.0),
             0.,
@@ -90,6 +88,17 @@ async fn main() -> anyhow::Result<()> {
                 font: AssetBuffer::font("helvetica_light"),
                 font_size: 15,
                 color: BLACK,
+                ..Default::default()
+            },
+        );
+        show_mouse(false);
+        draw_texture_ex(
+            &AssetBuffer::texture("assets/pointer.png"),
+            mouse_position().0,
+            mouse_position().1,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(Vec2::new(30., 30.)),
                 ..Default::default()
             },
         );

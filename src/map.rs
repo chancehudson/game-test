@@ -13,6 +13,15 @@ where
 }
 
 #[derive(Debug, Deserialize)]
+pub struct Npc {
+    pub asset: String,
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub position: Vec2,
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub size: Vec2,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Portal {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub position: Vec2,
@@ -59,6 +68,7 @@ pub struct MapData {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub size: Vec2,
     pub portals: Vec<Portal>,
+    pub npc: Vec<Npc>,
     pub platforms: Vec<Platform>,
     #[serde(default)]
     pub mob_spawns: Vec<MobSpawn>,

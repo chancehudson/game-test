@@ -71,13 +71,30 @@ impl Map {
             draw_rectangle(solid.x, solid.y, solid.w, solid.h, BLUE);
         }
 
+        for npc in &self.data.npc {
+            let sprite = AssetBuffer::texture(&npc.asset);
+            draw_texture_ex(
+                &sprite,
+                npc.position.x,
+                npc.position.y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(npc.size),
+                    ..Default::default()
+                },
+            );
+        }
+
         for entity in &self.entities {
-            draw_rectangle(
+            draw_texture_ex(
+                &AssetBuffer::texture("assets/blob.png"),
                 entity.position.x,
                 entity.position.y,
-                entity.size.x,
-                entity.size.y,
-                PURPLE,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(entity.size),
+                    ..Default::default()
+                },
             );
         }
 

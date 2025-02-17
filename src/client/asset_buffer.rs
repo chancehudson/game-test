@@ -68,15 +68,6 @@ impl AssetBuffer {
         Ok(())
     }
 
-    pub async fn reload_assets() -> anyhow::Result<()> {
-        {
-            // let mut asset_buffer = ASSET_BUFFER.get().unwrap();
-            // asset_buffer.assets.clear();
-            // asset_buffer.fonts.clear();
-        }
-        AssetBuffer::init().await
-    }
-
     pub fn font(name: &str) -> Option<&Font> {
         ASSET_BUFFER.get().unwrap().fonts.get(name)
     }
