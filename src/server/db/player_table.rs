@@ -1,16 +1,11 @@
-use std::fmt::Debug;
-
 use anyhow::Result;
-use redb::ReadTransaction;
-use redb::ReadableTable;
-use redb::TableDefinition;
-use redb::WriteTransaction;
+use nanoid::nanoid;
 use serde::Deserialize;
 use serde::Serialize;
+use sled::transaction::ConflictableTransactionError;
+use sled::Transactional;
 
 use crate::DB_HANDLER;
-
-pub const PLAYER_TABLE: TableDefinition<String, Vec<u8>> = TableDefinition::new("players");
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PlayerRecord {
@@ -21,45 +16,81 @@ pub struct PlayerRecord {
 }
 
 impl PlayerRecord {
-    // Save a player to the database
-    pub fn save(&self, tx: &mut WriteTransaction, player_id: String) -> Result<(), redb::Error> {
-        let mut table = tx.open_table(PLAYER_TABLE)?;
-        let bytes = bincode::serialize(self).unwrap();
-        table.insert(player_id, bytes)?;
+    pub async fn create(username: String) -> Result<Self> {
+        let player_id = nanoid!();
+        let player = Self {
+            id: player_id.clone(),
+            username,
+            current_map: "welcome".to_string(),
+            experience: 0,
+        };
+        let username_tree = DB_HANDLER.db.open_tree("usernames")?;
+        let player_tree = DB_HANDLER.db.open_tree("players")?;
+        (&username_tree, &player_tree)
+            .transaction(|(username_tree, player_tree)| {
+                if let None = username_tree.get(player.username.clone().into_bytes())? {
+                    username_tree.insert(
+                        player.username.clone().into_bytes(),
+                        player.id.clone().into_bytes(),
+                    )?;
+                    player_tree.insert(
+                        player.id.clone().into_bytes(),
+                        bincode::serialize(&player).unwrap(),
+                    )?;
+                    Ok(())
+                } else {
+                    Err(ConflictableTransactionError::Abort(
+                        "username already exists",
+                    ))
+                }
+            })
+            .map_err(|e| anyhow::anyhow!("Failed to create player: {}", e))?;
+        Ok(player)
+    }
+
+    pub async fn change_map(player_id: String, from_map: &str, to_map: &str) -> Result<()> {
+        let tree = DB_HANDLER.db.open_tree("players")?;
+        tree.transaction(move |player_tree| {
+            if let Some(player) = player_tree.get(&player_id)? {
+                let mut player: PlayerRecord = bincode::deserialize(player.as_ref()).unwrap();
+                if player.current_map != from_map {
+                    return Err(ConflictableTransactionError::Abort(format!(
+                        "player not in map: {from_map}"
+                    )));
+                }
+                player.current_map = to_map.to_string();
+                player_tree.insert(
+                    player_id.clone().into_bytes(),
+                    bincode::serialize(&player).unwrap(),
+                )?;
+                Ok(())
+            } else {
+                Err(ConflictableTransactionError::Abort(
+                    "user not found".to_string(),
+                ))
+            }
+        })
+        .map_err(|e| anyhow::anyhow!("Failed to change player map: {}", e))?;
         Ok(())
     }
 
     // Load a player from the database
-    pub fn load(tx: &mut ReadTransaction, player_id: String) -> Result<Option<Self>, redb::Error> {
-        let table = tx.open_table(PLAYER_TABLE)?;
-        if let Some(bytes) = table.get(player_id)? {
-            let player = bincode::deserialize(bytes.value().as_slice()).unwrap();
+    pub async fn player_by_id(player_id: String) -> Result<Option<Self>> {
+        let tree = DB_HANDLER.db.open_tree("players")?;
+        if let Some(bytes) = tree.get(player_id)? {
+            let player = bincode::deserialize(bytes.as_ref())?;
             Ok(Some(player))
         } else {
             Ok(None)
         }
     }
 
-    pub async fn player_by_id(player_id: String) -> anyhow::Result<Option<Self>> {
-        let read_tx = DB_HANDLER.read().await.db.begin_read()?;
-        let table = read_tx.open_table(PLAYER_TABLE)?;
-        if let Some(v) = table.get(player_id)? {
-            let player_record: Self = bincode::deserialize(v.value().as_slice()).unwrap();
-            Ok(Some(player_record))
-        } else {
-            Ok(None)
-        }
-    }
-
     /// TODO: use a seperate table to avoid scanning
-    pub fn player_by_name(
-        tx: &mut ReadTransaction,
-        username: &str,
-    ) -> anyhow::Result<Option<Self>> {
-        let table = tx.open_table(PLAYER_TABLE)?;
-        for v in table.iter()? {
-            let (_key, data) = v?;
-            let player: Self = bincode::deserialize(data.value().as_slice()).unwrap();
+    pub async fn player_by_name(username: &str) -> Result<Option<Self>> {
+        let tree = DB_HANDLER.db.open_tree("players")?;
+        for v in tree.iter() {
+            let (_k, v) = v?;
+            let player: Self = bincode::deserialize(v.as_ref())?;
             if player.username == username {
                 return Ok(Some(player));
             }

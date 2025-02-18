@@ -25,15 +25,14 @@ mod state;
 use db::DBHandler;
 pub use db::PlayerRecord;
 use db::WriteRequest;
-pub use db::PLAYER_TABLE;
 use map_instance::MapInstance;
 pub use player::Player;
 pub use player_connection::PlayerConnection;
 use tokio::sync::RwLock;
 
 pub static SERVER: OnceLock<Arc<network::Server>> = OnceLock::new();
-pub static DB_HANDLER: LazyLock<RwLock<DBHandler>> =
-    LazyLock::new(|| RwLock::new(DBHandler::new("./game.redb").unwrap()));
+pub static DB_HANDLER: LazyLock<DBHandler> =
+    LazyLock::new(|| DBHandler::new("./game_data").unwrap());
 pub static PLAYER_CONNS: LazyLock<RwLock<PlayerConnection>> =
     LazyLock::new(|| RwLock::new(PlayerConnection::new()));
 // pub static PLAYERS: LazyLock<RwLock<HashMap<String, Player>>> =
@@ -81,7 +80,6 @@ async fn main() -> anyhow::Result<()> {
             map_instance.write().await.step(step_len).await;
         }
 
-        DB_HANDLER.write().await.commit().await?;
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
 }
@@ -122,9 +120,7 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
                 .await?;
         }
         Action::LoginPlayer(name) => {
-            if let Some(player) =
-                PlayerRecord::player_by_name(&mut DB_HANDLER.read().await.db.begin_read()?, &name)?
-            {
+            if let Some(player) = PlayerRecord::player_by_name(&name).await? {
                 STATE.login_player(player.clone()).await;
                 PLAYER_CONNS
                     .write()
@@ -156,40 +152,39 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
             }
         }
         Action::CreatePlayer(name) => {
-            let player_id = nanoid!();
-            let player = PlayerRecord {
-                id: player_id.clone(),
-                username: name.clone(),
-                current_map: "welcome".to_string(),
-                experience: 0,
-            };
+            let record = PlayerRecord::create(name).await;
+            if record.is_err() {
+                SERVER
+                    .get()
+                    .unwrap()
+                    .send(
+                        &socket_id,
+                        Response::LoginError(record.err().unwrap().to_string()),
+                    )
+                    .await?;
+                return Ok(());
+            }
+            let record = record.unwrap();
             PLAYER_CONNS
                 .write()
                 .await
-                .register_player(socket_id.clone(), player_id.clone())
+                .register_player(socket_id.clone(), record.id.clone())
                 .await;
-            DB_HANDLER.write().await.write(WriteRequest {
-                table: "players".to_string(),
-                key: player_id.clone(),
-                value: bincode::serialize(&player)?,
-                callback: Some(Box::pin(async move {
-                    STATE.login_player(player.clone()).await;
-                    SERVER
-                        .get()
-                        .unwrap()
-                        .send(
-                            &socket_id,
-                            Response::PlayerLoggedIn(PlayerState {
-                                id: player.id.clone(),
-                                username: player.username.clone(),
-                                current_map: player.current_map,
-                                experience: player.experience,
-                            }),
-                        )
-                        .await
-                        .unwrap();
-                })),
-            });
+            STATE.login_player(record.clone()).await;
+            SERVER
+                .get()
+                .unwrap()
+                .send(
+                    &socket_id,
+                    Response::PlayerLoggedIn(PlayerState {
+                        id: record.id.clone(),
+                        username: record.username.clone(),
+                        current_map: record.current_map,
+                        experience: record.experience,
+                    }),
+                )
+                .await
+                .unwrap();
         }
         Action::SetPlayerAction(player_action) => {
             if let Some(player_id) = PLAYER_CONNS

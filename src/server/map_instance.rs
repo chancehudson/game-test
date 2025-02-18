@@ -186,17 +186,19 @@ impl MapInstance {
                         // user is moving
                         let player_id = player.id.clone();
                         let to_map = portal.to.clone();
+                        let from_map = self.map.name.clone();
                         let mut new_record = player.record.clone();
                         new_record.current_map = to_map.clone();
-                        DB_HANDLER.write().await.write(WriteRequest {
-                            table: "players".to_string(),
-                            key: player.id.clone(),
-                            // TODO: handle this unwrap more cleanly
-                            value: bincode::serialize(&new_record).unwrap(),
-                            callback: Some(Box::pin(async move {
+                        tokio::spawn(async move {
+                            if let Err(e) =
+                                PlayerRecord::change_map(player_id.clone(), &from_map, &to_map)
+                                    .await
+                            {
+                                println!("Error changing map: {:?}", e);
+                            } else {
                                 STATE.player_change_map(&player_id, &to_map).await;
                                 send_to_player(&player_id, Response::ChangeMap(to_map)).await;
-                            })),
+                            }
                         });
                         break;
                     }
