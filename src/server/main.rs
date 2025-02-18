@@ -1,11 +1,6 @@
-use std::collections::HashMap;
-use std::collections::VecDeque;
 use std::sync::Arc;
-use std::sync::LazyLock;
 use std::sync::OnceLock;
 use std::time::Duration;
-
-use nanoid::nanoid;
 
 use game_test::action::Action;
 use game_test::action::PlayerState;
@@ -22,23 +17,17 @@ mod player;
 mod player_connection;
 mod state;
 
-use db::DBHandler;
 pub use db::PlayerRecord;
-use db::WriteRequest;
 use map_instance::MapInstance;
 pub use player::Player;
 pub use player_connection::PlayerConnection;
 use tokio::sync::RwLock;
 
+pub static DB: Lazy<sled::Db> = Lazy::new(|| sled::open("./game_data").unwrap());
+
 pub static SERVER: OnceLock<Arc<network::Server>> = OnceLock::new();
-pub static DB_HANDLER: LazyLock<DBHandler> =
-    LazyLock::new(|| DBHandler::new("./game_data").unwrap());
-pub static PLAYER_CONNS: LazyLock<RwLock<PlayerConnection>> =
-    LazyLock::new(|| RwLock::new(PlayerConnection::new()));
-// pub static PLAYERS: LazyLock<RwLock<HashMap<String, Player>>> =
-//     LazyLock::new(|| RwLock::new(HashMap::new()));
-pub static ACTIONS_BY_PLAYER_ID: LazyLock<RwLock<HashMap<String, VecDeque<Action>>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
+pub static PLAYER_CONNS: Lazy<RwLock<PlayerConnection>> =
+    Lazy::new(|| RwLock::new(PlayerConnection::new()));
 pub static STATE: Lazy<state::State> = Lazy::new(|| state::State::new());
 
 #[tokio::main]

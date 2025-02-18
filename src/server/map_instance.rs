@@ -15,8 +15,6 @@ use crate::STATE;
 use super::send_to_player;
 use super::Actor;
 use super::Player;
-use super::WriteRequest;
-use super::DB_HANDLER;
 
 /// A distinct instance of a map. Each map is it's own game instance
 /// responsible for player communication, mob management, and physics.
