@@ -1,0 +1,14 @@
+{
+    id: 0,
+    name: "blue duck",
+    size: [37, 62],
+    max_velocity: 200,
+    standing: {
+        frame_count: 3,
+        sprite_sheet: "assets/duck_blue/standing.png",
+    },
+    walking: {
+        frame_count: 4,
+        sprite_sheet: "assets/duck_blue/walk.png",
+    },
+}

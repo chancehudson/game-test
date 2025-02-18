@@ -8,6 +8,7 @@ use game_test::action::Response;
 use game_test::timestamp;
 use game_test::Actor;
 use once_cell::sync::Lazy;
+use tokio::sync::RwLock;
 
 mod db;
 mod item;
@@ -21,7 +22,6 @@ pub use db::PlayerRecord;
 use map_instance::MapInstance;
 pub use player::Player;
 pub use player_connection::PlayerConnection;
-use tokio::sync::RwLock;
 
 pub static DB: Lazy<sled::Db> = Lazy::new(|| sled::open("./game_data").unwrap());
 

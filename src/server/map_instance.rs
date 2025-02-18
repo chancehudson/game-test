@@ -135,20 +135,12 @@ impl MapInstance {
             let spawn_count = rand::random_range(0..=spawn.max_count);
             for _ in 0..spawn_count {
                 self.mob_counter += 1;
-                self.mobs.push(Mob {
-                    id: self.mob_counter,
-                    mob_type: spawn.mob_type,
-                    position: Vec2::new(
-                        rand::random_range(spawn.position.x..spawn.position.x + spawn.size.x),
-                        rand::random_range(spawn.position.y..spawn.position.y + spawn.size.y),
-                    ),
-                    velocity: Vec2::ZERO,
-                    size: Vec2::new(50., 50.),
-                    max_velocity: 200.,
-
-                    moving_to: None,
-                    move_start: 0.,
-                });
+                let mut mob = Mob::new(self.mob_counter, spawn.mob_type);
+                mob.position = Vec2::new(
+                    rand::random_range(spawn.position.x..spawn.position.x + spawn.size.x),
+                    rand::random_range(spawn.position.y..spawn.position.y + spawn.size.y),
+                );
+                self.mobs.push(mob);
             }
         }
         // step our mobs and send any relevant changes to the players

@@ -7,6 +7,7 @@ use game_test::action::Response;
 
 use crate::login::LoginScreen;
 use crate::network::Connection;
+use crate::renderable::MobRenderable;
 
 use super::Actor;
 use super::Item;
@@ -118,14 +119,17 @@ impl GameState {
                 }
                 Response::MapState(entities) => {
                     if let Some(active_map) = &mut self.active_map {
-                        active_map.entities = entities;
+                        active_map.entities = entities
+                            .into_iter()
+                            .map(|entity| MobRenderable::new(entity))
+                            .collect::<Vec<_>>();
                     }
                 }
                 Response::MobChange(id, moving_to) => {
                     if let Some(active_map) = &mut self.active_map {
                         for mob in active_map.entities.iter_mut() {
-                            if mob.id == id {
-                                mob.moving_to = moving_to;
+                            if mob.mob.id == id {
+                                mob.mob.moving_to = moving_to;
                             }
                         }
                     }

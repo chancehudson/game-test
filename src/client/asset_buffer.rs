@@ -3,6 +3,7 @@ use std::fs;
 
 use macroquad::prelude::*;
 use once_cell::sync::OnceCell;
+use walkdir::WalkDir;
 
 static ASSET_BUFFER: OnceCell<AssetBuffer> = OnceCell::new();
 
@@ -24,8 +25,7 @@ impl AssetBuffer {
             fonts: HashMap::new(),
         };
         println!("Loading assets...");
-        let assets_dir = fs::read_dir("assets")?;
-        for entry in assets_dir {
+        for entry in WalkDir::new("assets") {
             let entry = entry?;
             let path = entry.path();
             let path_str = path.to_str().unwrap();

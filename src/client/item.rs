@@ -15,7 +15,7 @@ pub struct Item {
 impl Item {
     pub fn new(texture_name: &str, position: Vec2, velocity: Vec2) -> Self {
         Self {
-            sprite: Sprite::new(texture_name, 52.0, 52.0),
+            sprite: Sprite::new(texture_name, 1),
             position,
             velocity,
             size: Vec2::new(52., 52.),

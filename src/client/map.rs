@@ -1,14 +1,17 @@
-use game_test::Actor;
 use macroquad::prelude::*;
+
+use game_test::Actor;
+
+use crate::renderable::MobRenderable;
+use crate::Renderable;
 
 use super::AssetBuffer;
 use super::MapData;
-use game_test::Mob;
 
 /// We'll separate solids and visuals
 pub struct Map {
     pub solids: Vec<Rect>,
-    pub entities: Vec<Mob>,
+    pub entities: Vec<MobRenderable>,
     pub spawn_location: Vec2,
     pub background_texture: Texture2D,
     pub data: MapData,
@@ -46,7 +49,7 @@ impl Map {
         }
     }
 
-    pub fn render(&self, _step_len: f32, player_pos: Vec2) {
+    pub fn render(&mut self, step_len: f32, player_pos: Vec2) {
         push_camera_state();
         set_default_camera();
 
@@ -85,17 +88,18 @@ impl Map {
             );
         }
 
-        for entity in &self.entities {
-            draw_texture_ex(
-                &AssetBuffer::texture("assets/blob.png"),
-                entity.position.x,
-                entity.position.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(entity.size),
-                    ..Default::default()
-                },
-            );
+        for entity in &mut self.entities {
+            entity.render(step_len);
+            // draw_texture_ex(
+            //     &AssetBuffer::texture("assets/blob.png"),
+            //     entity.position.x,
+            //     entity.position.y,
+            //     WHITE,
+            //     DrawTextureParams {
+            //         dest_size: Some(entity.size),
+            //         ..Default::default()
+            //     },
+            // );
         }
 
         draw_circle(

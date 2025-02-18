@@ -26,7 +26,7 @@ impl Player {
         Self {
             id,
             experience: 0,
-            texture: AnimatedEntity::new("assets/banana.png", 52.0, 52.0, 2),
+            texture: AnimatedEntity::new("assets/banana.png", 2),
             position: Vec2::ZERO,
             velocity: Vec2::new(0., 0.),
             size: Vec2::new(52., 52.),

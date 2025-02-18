@@ -110,6 +110,7 @@ fn get_player_action() -> PlayerAction {
     PlayerAction {
         velocity: None,
         position: None,
+        attack: is_key_pressed(KeyCode::A),
         enter_portal: is_key_down(KeyCode::Up),
         move_left: is_key_down(KeyCode::Left),
         move_right: is_key_down(KeyCode::Right),

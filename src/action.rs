@@ -55,6 +55,7 @@ pub struct PlayerBody {
 pub struct PlayerAction {
     pub position: Option<Vec2>,
     pub velocity: Option<Vec2>,
+    pub attack: bool,
     pub move_left: bool,
     pub move_right: bool,
     pub enter_portal: bool,
@@ -79,6 +80,7 @@ impl Default for PlayerAction {
         Self {
             velocity: None,
             position: None,
+            attack: false,
             move_left: false,
             move_right: false,
             enter_portal: false,
@@ -95,6 +97,9 @@ impl PlayerAction {
         self.position = other_new.position;
         self.move_left = other_new.move_left;
         self.move_right = other_new.move_right;
+        if other_new.attack {
+            self.attack = true;
+        }
         if other_new.enter_portal {
             self.enter_portal = true;
         }
