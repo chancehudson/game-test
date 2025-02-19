@@ -26,7 +26,7 @@ impl PlayerRecord {
         let player = Self {
             id: player_id.clone(),
             username,
-            current_map: "welcome".to_string(),
+            current_map: "eastwatch".to_string(),
             experience: 0,
         };
         let username_tree = DB.open_tree(USERNAME_TREE)?;

@@ -1,7 +1,7 @@
-use game_test::mob::MOB_DATA;
 use macroquad::prelude::Rect;
 use macroquad::prelude::Vec2;
 
+use game_test::mob::MOB_DATA;
 use game_test::Actor;
 use game_test::MapData;
 use game_test::Mob;
@@ -20,10 +20,16 @@ pub struct MobRenderable {
 impl MobRenderable {
     pub fn new(mob: Mob) -> Self {
         let data = MOB_DATA.get(&mob.mob_type).unwrap();
-        let walking_animation =
-            AnimatedEntity::new(&data.walking.sprite_sheet, data.walking.frame_count);
-        let standing_animation =
-            AnimatedEntity::new(&data.standing.sprite_sheet, data.standing.frame_count);
+        let walking_animation = AnimatedEntity::new(
+            &data.walking.sprite_sheet,
+            data.walking.frame_count,
+            data.walking.fps,
+        );
+        let standing_animation = AnimatedEntity::new(
+            &data.standing.sprite_sheet,
+            data.standing.frame_count,
+            data.standing.fps,
+        );
         Self {
             mob,
             flip_x: false,
@@ -34,7 +40,7 @@ impl MobRenderable {
 }
 
 impl Renderable for MobRenderable {
-    fn render(&mut self, step_len: f32) {
+    fn render(&mut self, _step_len: f32) {
         let velocity = self.velocity_mut().clone();
         if velocity.x > 0. {
             self.flip_x = true;

@@ -63,14 +63,14 @@ pub struct AnimatedEntity {
 }
 
 impl AnimatedEntity {
-    pub fn new(sprite_path: &str, frame_count: usize) -> Self {
+    pub fn new(sprite_path: &str, frame_count: usize, fps: usize) -> Self {
         Self {
             sprite: Sprite::new(sprite_path, frame_count),
             flip_x: false,
             position: Vec2::new(0.0, 0.0),
             current_frame: 0,
             frame_timer: 0.0,
-            animation_fps: 5.0,
+            animation_fps: fps as f32,
             frame_count,
             current_animation: 0,
         }

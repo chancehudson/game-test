@@ -39,6 +39,7 @@ pub static MOB_DATA: Lazy<HashMap<u64, MobData>> = Lazy::new(|| {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnimationData {
     pub frame_count: usize,
+    pub fps: usize,
     pub sprite_sheet: String,
 }
 

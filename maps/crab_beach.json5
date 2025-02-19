@@ -5,8 +5,8 @@
     background: "assets/rainbow.png",
     npc: [],
     portals: [
-        { position: [0, 450], to: "welcome" },
-        { position: [0, 1000], to: "welcome" },
+        { position: [0, 450], to: "eastwatch" },
+        { position: [0, 1000], to: "eastwatch" },
     ],
     platforms: [
         { position: [0, 450], size: [1000, 100] },

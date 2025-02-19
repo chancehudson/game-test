@@ -53,18 +53,20 @@ impl Map {
         push_camera_state();
         set_default_camera();
 
-        let scale = Vec2::new(1.1, 1.1);
-        let offset_x =
-            (player_pos.x.clamp(0., self.size.x) / self.size.x) * (scale.x - 1.0) * screen_width();
-        let offset_y =
-            (player_pos.y.clamp(0., self.size.y) / self.size.y) * (scale.y - 1.0) * screen_height();
+        let scale = Vec2::new(0.7, 0.7);
+        let x_size = f32::max(self.background_texture.size().x * scale.x, screen_width());
+        let y_size = f32::max(self.background_texture.size().y * scale.y, screen_height());
+        let x_range = x_size - screen_width();
+        let y_range = y_size - screen_height();
+        let offset_x = (player_pos.x.clamp(0., self.size.x) / self.size.x) * x_range;
+        let offset_y = (player_pos.y.clamp(0., self.size.y) / self.size.y) * y_range;
         draw_texture_ex(
             &self.background_texture,
             -offset_x,
             -offset_y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(vec2(scale.x * screen_width(), scale.y * screen_height())),
+                dest_size: Some(vec2(x_size, y_size)),
                 ..Default::default()
             },
         );
@@ -90,29 +92,19 @@ impl Map {
 
         for entity in &mut self.entities {
             entity.render(step_len);
-            // draw_texture_ex(
-            //     &AssetBuffer::texture("assets/blob.png"),
-            //     entity.position.x,
-            //     entity.position.y,
-            //     WHITE,
-            //     DrawTextureParams {
-            //         dest_size: Some(entity.size),
-            //         ..Default::default()
-            //     },
-            // );
         }
 
-        draw_circle(
-            screen_width() - 300.0,
-            screen_height() - 300.0,
-            15.0,
-            YELLOW,
-        );
-        // custom rendering
-        draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
-        draw_rectangle(screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, GREEN);
+        // draw_circle(
+        //     screen_width() - 300.0,
+        //     screen_height() - 300.0,
+        //     15.0,
+        //     YELLOW,
+        // );
+        // // custom rendering
+        // draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
+        // draw_rectangle(screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, GREEN);
 
-        draw_text("IT WORKS!", 20.0, 80.0, 30.0, DARKGRAY);
+        // draw_text("IT WORKS!", 20.0, 80.0, 30.0, DARKGRAY);
 
         self.render_portals();
     }
