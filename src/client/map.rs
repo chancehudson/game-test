@@ -1,111 +1,189 @@
-use macroquad::prelude::*;
+use bevy::prelude::*;
 
-use game_test::Actor;
+use game_test::MapData;
 
-use crate::renderable::MobRenderable;
-use crate::Renderable;
+use super::map_data_loader::MapDataAsset;
+use super::GameState;
+use game_test::Mob;
 
-use super::AssetBuffer;
-use super::MapData;
+pub struct MapPlugin;
 
-/// We'll separate solids and visuals
-pub struct Map {
-    pub solids: Vec<Rect>,
-    pub entities: Vec<MobRenderable>,
-    pub spawn_location: Vec2,
-    pub background_texture: Texture2D,
-    pub data: MapData,
-    pub size: Vec2,
+#[derive(Component)]
+pub struct LoadingView;
+
+#[derive(Component)]
+pub struct MapEntity;
+
+#[derive(Component)]
+pub struct MobEntity(pub Mob);
+
+#[derive(Resource, Default)]
+pub struct MapLoadingAssets {
+    pub pending_map_data: Option<Handle<MapDataAsset>>,
+    pub pending_assets: Option<Vec<Handle<Image>>>,
 }
 
-impl Map {
-    pub async fn new(name: &str) -> Self {
-        let data_str = std::fs::read_to_string(format!("maps/{name}.json5")).unwrap();
-        let data = json5::from_str::<MapData>(&data_str).unwrap();
-        Self {
-            spawn_location: data.spawn_location,
-            background_texture: AssetBuffer::texture(&data.background),
-            solids: data
-                .platforms
-                .iter()
-                .map(|p| Rect::new(p.position.x, p.position.y, p.size.x, p.size.y))
-                .collect::<_>(),
-            size: data.size,
-            entities: vec![],
-            data,
+#[derive(Resource, Default)]
+pub struct ActiveMap {
+    pub name: String,
+    pub solids: Vec<Rect>,
+    pub size: Vec2,
+    pub data: Option<MapData>,
+}
+
+impl Plugin for MapPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<MapLoadingAssets>()
+            .init_resource::<ActiveMap>()
+            .add_systems(OnEnter(GameState::LoadingMap), begin_load_map)
+            .add_systems(OnEnter(GameState::OnMap), enter_map)
+            .add_systems(Update, check_assets.run_if(in_state(GameState::LoadingMap)));
+    }
+}
+
+fn check_assets(
+    mut next_state: ResMut<NextState<GameState>>,
+    mut game_assets: ResMut<MapLoadingAssets>,
+    asset_server: Res<AssetServer>,
+    map_datas: Res<Assets<MapDataAsset>>,
+) {
+    if let Some(pending_map_data) = &game_assets.pending_map_data {
+        if asset_server.is_loaded(pending_map_data.id()) && game_assets.pending_assets.is_none() {
+            let map_data = map_datas.get(pending_map_data).unwrap();
+            let mut pending_assets = vec![];
+            pending_assets.push(asset_server.load(map_data.data.background.clone()));
+            for npc in &map_data.data.npc {
+                pending_assets.push(asset_server.load(npc.asset.clone()));
+            }
+            game_assets.pending_assets = Some(pending_assets);
         }
     }
-
-    pub fn render_portals(&self) {
-        for portal in &self.data.portals {
-            let r = portal.rect();
-            draw_rectangle(r.x, r.y, r.w, r.h, RED);
+    if let Some(pending_assets) = &game_assets.pending_assets {
+        for asset in pending_assets {
+            if !asset_server.is_loaded(asset.id()) {
+                return;
+            }
         }
+        next_state.set(GameState::OnMap);
     }
+}
 
-    pub fn step_physics(&mut self, step_len: f32) {
-        for entity in self.entities.iter_mut() {
-            entity.step_physics(step_len, &self.data);
-        }
+fn begin_load_map(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut map_loading_assets: ResMut<MapLoadingAssets>,
+    windows: Query<&Window>,
+    old_map_query: Query<Entity, With<MapEntity>>,
+    active_map: Res<ActiveMap>,
+) {
+    for v in &old_map_query {
+        commands.entity(v).despawn();
     }
+    // despawn all old map assets
+    if map_loading_assets.pending_assets.is_some() || map_loading_assets.pending_map_data.is_some()
+    {
+        // we're already in the process of loading a map. Clear the original pending
+        // loads and register our new ones
+        println!("Began loading a second map before first one completed!");
+    }
+    map_loading_assets.pending_assets = None;
+    let map_data_handle: Handle<MapDataAsset> =
+        asset_server.load(format!("maps/{}.json5", active_map.name));
+    map_loading_assets.pending_map_data = Some(map_data_handle);
+    let window = windows.single();
+    let width = window.resolution.width();
+    let height = window.resolution.height();
+    commands.spawn((
+        LoadingView,
+        Sprite {
+            color: Color::srgb(1., 0., 0.),
+            custom_size: Some(Vec2::new(width, height)),
+            anchor: bevy::sprite::Anchor::BottomLeft,
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
+    ));
+}
 
-    pub fn render(&mut self, step_len: f32, player_pos: Vec2) {
-        push_camera_state();
-        set_default_camera();
-
-        let scale = Vec2::new(0.7, 0.7);
-        let x_size = f32::max(self.background_texture.size().x * scale.x, screen_width());
-        let y_size = f32::max(self.background_texture.size().y * scale.y, screen_height());
-        let x_range = x_size - screen_width();
-        let y_range = y_size - screen_height();
-        let offset_x = (player_pos.x.clamp(0., self.size.x) / self.size.x) * x_range;
-        let offset_y = (player_pos.y.clamp(0., self.size.y) / self.size.y) * y_range;
-        draw_texture_ex(
-            &self.background_texture,
-            -offset_x,
-            -offset_y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(x_size, y_size)),
-                ..Default::default()
+fn enter_map(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut game_assets: ResMut<MapLoadingAssets>,
+    map_datas: Res<Assets<MapDataAsset>>,
+    loading_query: Query<Entity, With<LoadingView>>,
+    mut active_map: ResMut<ActiveMap>,
+) {
+    for v in &loading_query {
+        commands.entity(v).despawn();
+    }
+    println!("Done loading!");
+    let map_data = map_datas
+        .get(game_assets.pending_map_data.as_ref().unwrap())
+        .unwrap();
+    let load_handle = asset_server.load(&map_data.data.background);
+    commands.spawn((
+        MapEntity,
+        Sprite {
+            anchor: bevy::sprite::Anchor::BottomLeft,
+            image: load_handle,
+            custom_size: Some(Vec2::new(map_data.data.size.x, map_data.data.size.y)),
+            // color: Color::srgb(1., 0., 0.),
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
+    ));
+    active_map.size = Vec2::new(map_data.data.size.x, map_data.data.size.y);
+    active_map.solids = map_data
+        .data
+        .platforms
+        .iter()
+        .map(|p| {
+            Rect::new(
+                p.position.x,
+                p.position.y,
+                p.position.x + p.size.x,
+                p.position.y + p.size.y,
+            )
+        })
+        .collect();
+    active_map.data = Some(map_data.data.clone());
+    for platform in &map_data.data.platforms {
+        commands.spawn((
+            MapEntity,
+            Transform::from_translation(Vec3::new(platform.position.x, platform.position.y, -1.0)),
+            Sprite {
+                color: Color::srgb(0.0, 0.0, 1.0),
+                custom_size: Some(Vec2::new(platform.size.x, platform.size.y)),
+                anchor: bevy::sprite::Anchor::BottomLeft,
+                ..default()
             },
-        );
-        pop_camera_state();
-
-        for solid in &self.solids {
-            draw_rectangle(solid.x, solid.y, solid.w, solid.h, BLUE);
-        }
-
-        for npc in &self.data.npc {
-            let sprite = AssetBuffer::texture(&npc.asset);
-            draw_texture_ex(
-                &sprite,
-                npc.position.x,
-                npc.position.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(npc.size),
-                    ..Default::default()
-                },
-            );
-        }
-
-        for entity in &mut self.entities {
-            entity.render(step_len);
-        }
-
-        // draw_circle(
-        //     screen_width() - 300.0,
-        //     screen_height() - 300.0,
-        //     15.0,
-        //     YELLOW,
-        // );
-        // // custom rendering
-        // draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
-        // draw_rectangle(screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, GREEN);
-
-        // draw_text("IT WORKS!", 20.0, 80.0, 30.0, DARKGRAY);
-
-        self.render_portals();
+        ));
     }
+    for portal in &map_data.data.portals {
+        commands.spawn((
+            MapEntity,
+            Transform::from_translation(Vec3::new(portal.position.x, portal.position.y, -1.0)),
+            Sprite {
+                color: Color::srgb(1.0, 0.0, 0.0),
+                custom_size: Some(portal.rect().size()),
+                anchor: bevy::sprite::Anchor::BottomLeft,
+                ..default()
+            },
+        ));
+    }
+    for npc in &map_data.data.npc {
+        commands.spawn((
+            MapEntity,
+            Transform::from_translation(Vec3::new(npc.position.x, npc.position.y, 0.0)),
+            Sprite {
+                image: asset_server.load(&npc.asset),
+                custom_size: Some(Vec2::new(npc.size.x, npc.size.y)),
+                anchor: bevy::sprite::Anchor::BottomLeft,
+                ..default()
+            },
+        ));
+    }
+    println!("Map data: {:?}", map_data);
+    game_assets.pending_assets = None;
+    game_assets.pending_map_data = None;
 }

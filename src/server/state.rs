@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
+use bevy::math::Vec2;
 use game_test::action::PlayerAction;
+use game_test::action::PlayerBody;
 use game_test::MapData;
 use tokio::sync::RwLock;
 
@@ -17,7 +19,7 @@ impl State {
     pub fn new() -> Self {
         let mut map_instances = HashMap::new();
         println!("Loading maps...");
-        let maps_dir = std::fs::read_dir("maps").unwrap();
+        let maps_dir = std::fs::read_dir("assets/maps").unwrap();
         for entry in maps_dir {
             let entry = entry.unwrap();
             let path = entry.path();
@@ -67,10 +69,17 @@ impl State {
         }
     }
 
-    pub async fn set_player_action(&self, player_id: &str, action: PlayerAction) {
+    pub async fn set_player_action(
+        &self,
+        player_id: &str,
+        action: PlayerAction,
+        position: Vec2,
+        velocity: Vec2,
+    ) {
         let player_id_map_name = self.player_id_map_name.read().await;
         let map_name = player_id_map_name.get(player_id);
         if map_name.is_none() {
+            println!("player: {}", player_id);
             println!("Player is not on a map!");
             return;
         }
@@ -81,7 +90,9 @@ impl State {
             return;
         }
         let mut map_instance = map_instance.unwrap().write().await;
-        map_instance.set_player_action(player_id, action).await;
+        map_instance
+            .set_player_action(player_id, action, position, velocity)
+            .await;
     }
 
     pub async fn logout_player(&self, player_id: &str) {
@@ -99,7 +110,7 @@ impl State {
         map_instance.remove_player(&player_id).await;
     }
 
-    pub async fn login_player(&self, record: PlayerRecord) {
+    pub async fn login_player(&self, record: PlayerRecord) -> PlayerBody {
         self.player_id_map_name
             .write()
             .await
@@ -107,9 +118,10 @@ impl State {
         let map_instance = self.map_instances.get(&record.current_map);
         if map_instance.is_none() {
             println!("Player is on unknown map: {} !", record.current_map);
-            return;
+            // TODO: handle this
+            panic!("player map instance non-existent");
         }
         let mut map_instance = map_instance.unwrap().write().await;
-        map_instance.add_player(record).await;
+        map_instance.add_player(record).await
     }
 }

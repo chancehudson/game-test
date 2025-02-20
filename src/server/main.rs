@@ -110,23 +110,26 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
         }
         Action::LoginPlayer(name) => {
             if let Some(player) = PlayerRecord::player_by_name(&name).await? {
-                STATE.login_player(player.clone()).await;
                 PLAYER_CONNS
                     .write()
                     .await
                     .register_player(socket_id.clone(), player.id.clone())
                     .await;
+                let body = STATE.login_player(player.clone()).await;
                 SERVER
                     .get()
                     .unwrap()
                     .send(
                         &socket_id,
-                        Response::PlayerLoggedIn(PlayerState {
-                            id: player.id.clone(),
-                            username: player.username.clone(),
-                            current_map: player.current_map,
-                            experience: player.experience,
-                        }),
+                        Response::PlayerLoggedIn(
+                            PlayerState {
+                                id: player.id.clone(),
+                                username: player.username.clone(),
+                                current_map: player.current_map,
+                                experience: player.experience,
+                            },
+                            body,
+                        ),
                     )
                     .await?;
             } else {
@@ -159,30 +162,35 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
                 .await
                 .register_player(socket_id.clone(), record.id.clone())
                 .await;
-            STATE.login_player(record.clone()).await;
+            let body = STATE.login_player(record.clone()).await;
             SERVER
                 .get()
                 .unwrap()
                 .send(
                     &socket_id,
-                    Response::PlayerLoggedIn(PlayerState {
-                        id: record.id.clone(),
-                        username: record.username.clone(),
-                        current_map: record.current_map,
-                        experience: record.experience,
-                    }),
+                    Response::PlayerLoggedIn(
+                        PlayerState {
+                            id: record.id.clone(),
+                            username: record.username.clone(),
+                            current_map: record.current_map,
+                            experience: record.experience,
+                        },
+                        body,
+                    ),
                 )
                 .await
                 .unwrap();
         }
-        Action::SetPlayerAction(player_action) => {
+        Action::SetPlayerAction(player_action, position, velocity) => {
             if let Some(player_id) = PLAYER_CONNS
                 .read()
                 .await
                 .player_by_socket_id(&socket_id)
                 .await
             {
-                STATE.set_player_action(&player_id, player_action).await;
+                STATE
+                    .set_player_action(&player_id, player_action, position, velocity)
+                    .await;
             }
         }
     }

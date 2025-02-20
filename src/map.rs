@@ -1,5 +1,5 @@
-use macroquad::prelude::Rect;
-use macroquad::prelude::Vec2;
+use bevy::math::Rect;
+use bevy::math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -12,7 +12,7 @@ where
     Ok(Vec2::new(arr[0], arr[1]))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Npc {
     pub asset: String,
     #[serde(deserialize_with = "deserialize_vec2")]
@@ -21,7 +21,7 @@ pub struct Npc {
     pub size: Vec2,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Portal {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub position: Vec2,
@@ -34,11 +34,16 @@ impl Portal {
     }
 
     pub fn rect(&self) -> Rect {
-        Rect::new(self.position.x, self.position.y - 150., 150., 150.)
+        Rect::new(
+            self.position.x,
+            self.position.y,
+            self.position.x + 150.,
+            self.position.y + 150.,
+        )
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Platform {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub position: Vec2,
@@ -46,7 +51,7 @@ pub struct Platform {
     pub size: Vec2,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MobSpawn {
     /// point at which we stop spawning
     pub max_count: usize,
@@ -59,7 +64,7 @@ pub struct MobSpawn {
     pub last_spawn: f32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct MapData {
     pub name: String,
     #[serde(deserialize_with = "deserialize_vec2")]

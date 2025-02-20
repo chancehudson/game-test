@@ -2,7 +2,7 @@
     name: "crab_beach",
     size: [1500, 1000],
     spawn_location: [100, 400],
-    background: "assets/rainbow.png",
+    background: "rainbow.png",
     npc: [],
     portals: [
         { position: [0, 450], to: "eastwatch" },

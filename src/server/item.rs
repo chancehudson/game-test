@@ -1,5 +1,5 @@
-use macroquad::prelude::Rect;
-use macroquad::prelude::Vec2;
+use bevy::math::Rect;
+use bevy::math::Vec2;
 
 use super::Actor;
 
@@ -22,7 +22,12 @@ impl Item {
 
 impl Actor for Item {
     fn rect(&self) -> Rect {
-        Rect::new(self.position.x, self.position.y, self.size.x, self.size.y)
+        Rect::new(
+            self.position.x,
+            self.position.y,
+            self.position.x + self.size.x,
+            self.position.y + self.size.y,
+        )
     }
 
     fn position_mut(&mut self) -> &mut Vec2 {

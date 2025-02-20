@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use macroquad::prelude::Rect;
-use macroquad::prelude::Vec2;
+use bevy::math::Rect;
+use bevy::math::Vec2;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
@@ -83,7 +83,12 @@ impl Mob {
 impl Actor for Mob {
     fn rect(&self) -> Rect {
         let data = MOB_DATA.get(&self.mob_type).unwrap();
-        Rect::new(self.position.x, self.position.y, data.size.x, data.size.y)
+        Rect::new(
+            self.position.x,
+            self.position.y,
+            self.position.x + data.size.x,
+            self.position.y + data.size.y,
+        )
     }
 
     fn position_mut(&mut self) -> &mut Vec2 {

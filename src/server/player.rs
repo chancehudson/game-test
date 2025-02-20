@@ -1,7 +1,7 @@
+use bevy::math::Rect;
+use bevy::math::Vec2;
 use game_test::action::PlayerState;
 use game_test::actor::MAX_VELOCITY;
-use macroquad::prelude::Rect;
-use macroquad::prelude::Vec2;
 
 use game_test::action::PlayerAction;
 use game_test::action::PlayerBody;
@@ -53,7 +53,12 @@ impl Player {
 
 impl Actor for Player {
     fn rect(&self) -> Rect {
-        Rect::new(self.position.x, self.position.y, self.size.x, self.size.y)
+        Rect::new(
+            self.position.x,
+            self.position.y,
+            self.position.x + self.size.x,
+            self.position.y + self.size.y,
+        )
     }
 
     fn position_mut(&mut self) -> &mut Vec2 {

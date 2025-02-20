@@ -1,54 +1,175 @@
-use macroquad::prelude::*;
-use macroquad::ui::hash;
-use macroquad::ui::root_ui;
-use macroquad::ui::widgets;
+use bevy::prelude::*;
+use bevy_simple_text_input::TextInput;
+use bevy_simple_text_input::TextInputPlugin;
+use bevy_simple_text_input::TextInputSubmitEvent;
+use bevy_simple_text_input::TextInputValue;
 
-pub struct LoginScreen {
-    pub username: String,
-    pub password: String,
-    pub error_message: Option<String>,
+use super::network::NetworkAction;
+use crate::GameState;
+
+pub struct LoginPlugin;
+
+impl Plugin for LoginPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(OnEnter(GameState::LoggedOut), setup_login_screen)
+            .add_systems(OnExit(GameState::LoggedOut), cleanup_login_screen)
+            .add_plugins(TextInputPlugin)
+            .add_systems(
+                Update,
+                handle_login_click.run_if(in_state(GameState::LoggedOut)),
+            )
+            .add_systems(
+                Update,
+                handle_signup_click.run_if(in_state(GameState::LoggedOut)),
+            )
+            .add_systems(Update, handle_enter.run_if(in_state(GameState::LoggedOut)));
+    }
 }
 
-impl LoginScreen {
-    pub fn new() -> Self {
-        root_ui().set_input_focus(99);
-        Self {
-            username: String::new(),
-            password: String::new(),
-            error_message: None,
-        }
+#[derive(Component)]
+struct UsernameInput;
+
+#[derive(Component)]
+struct LoginButton;
+
+#[derive(Component)]
+struct SignupButton;
+
+// Component to mark login UI entities
+#[derive(Component)]
+struct LoginUI;
+
+fn handle_login_click(
+    text_query: Query<&TextInputValue, With<UsernameInput>>,
+    interaction_query: Query<&Interaction, (Changed<Interaction>, With<LoginButton>)>,
+    mut action_events: EventWriter<NetworkAction>,
+) {
+    if interaction_query.is_empty() {
+        return;
     }
+    let button = interaction_query.single();
+    let text = text_query.single();
+    if button == &Interaction::Pressed {
+        action_events.send(NetworkAction(game_test::action::Action::LoginPlayer(
+            text.0.clone(),
+        )));
+    }
+}
 
-    pub fn draw(&mut self) -> (bool, bool) {
-        let mut login_clicked = false;
-        let mut create_clicked = false;
-        let size = vec2(300., 300.);
-        let pos = vec2(
-            (screen_width() - size.x) / 2.,
-            (screen_height() - size.y) / 2.,
-        );
-        clear_background(Color::new(0.1, 0.1, 0.1, 1.0));
-        widgets::Window::new(hash!(), pos, size)
-            .label("login")
-            .ui(&mut *root_ui(), |ui| {
-                ui.label(None, "Welcome");
+fn handle_signup_click(
+    text_query: Query<&TextInputValue, With<UsernameInput>>,
+    interaction_query: Query<&Interaction, (Changed<Interaction>, With<SignupButton>)>,
+    mut action_events: EventWriter<NetworkAction>,
+) {
+    if interaction_query.is_empty() {
+        return;
+    }
+    let button = interaction_query.single();
+    let text = text_query.single();
+    if button == &Interaction::Pressed {
+        action_events.send(NetworkAction(game_test::action::Action::CreatePlayer(
+            text.0.clone(),
+        )));
+    }
+}
 
-                ui.separator();
-                ui.input_text(99, "username", &mut self.username);
-                ui.input_password(hash!(), "password", &mut self.password);
-                ui.separator();
-                if ui.button(None, "submit") || is_key_pressed(KeyCode::Enter) {
-                    login_clicked = true;
-                }
-                ui.same_line(0.);
-                if ui.button(None, "create") {
-                    create_clicked = true;
-                }
-                if let Some(err) = &self.error_message {
-                    ui.separator();
-                    ui.label(None, err);
-                }
-            });
-        (login_clicked, create_clicked)
+fn handle_enter(
+    mut enter_events: EventReader<TextInputSubmitEvent>,
+    mut action_events: EventWriter<NetworkAction>,
+) {
+    for event in enter_events.read() {
+        action_events.send(NetworkAction(game_test::action::Action::LoginPlayer(
+            event.value.clone(),
+        )));
+    }
+}
+
+fn setup_login_screen(mut commands: Commands) {
+    commands
+        .spawn((
+            LoginUI,
+            Node {
+                width: Val::Percent(100.),
+                height: Val::Percent(100.),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn(Text::new("username:"));
+                    parent.spawn(Node {
+                        width: Val::Px(8.),
+                        ..default()
+                    });
+                    parent.spawn((
+                        UsernameInput,
+                        TextInput,
+                        Text::new(""),
+                        Node {
+                            height: Val::Px(64.),
+                            width: Val::Percent(80.),
+                            border: UiRect::all(Val::Px(5.0)),
+                            ..default()
+                        },
+                        BorderColor(Color::WHITE),
+                        BorderRadius::MAX,
+                    ));
+                });
+            parent
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent
+                        .spawn((
+                            Button,
+                            LoginButton,
+                            Node {
+                                border: UiRect::all(Val::Px(5.0)),
+                                // horizontally center child text
+                                justify_content: JustifyContent::Center,
+                                // vertically center child text
+                                align_items: AlignItems::Center,
+                                padding: UiRect::all(Val::Px(8.0)),
+                                ..default()
+                            },
+                            BorderColor(Color::WHITE),
+                            BorderRadius::MAX,
+                        ))
+                        .with_child((Text::new("Login"),));
+                    parent
+                        .spawn((
+                            Button,
+                            SignupButton,
+                            Node {
+                                border: UiRect::all(Val::Px(5.0)),
+                                // horizontally center child text
+                                justify_content: JustifyContent::Center,
+                                // vertically center child text
+                                align_items: AlignItems::Center,
+                                padding: UiRect::all(Val::Px(8.0)),
+                                ..default()
+                            },
+                            BorderColor(Color::WHITE),
+                            BorderRadius::MAX,
+                        ))
+                        .with_child((Text::new("Signup"),));
+                });
+        });
+}
+
+fn cleanup_login_screen(mut commands: Commands, login_ui: Query<Entity, With<LoginUI>>) {
+    // Remove all entities with LoginUI component
+    for entity in &login_ui {
+        commands.entity(entity).despawn_recursive();
     }
 }

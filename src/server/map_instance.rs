@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use macroquad::prelude::Vec2;
+use bevy::math::Vec2;
+use game_test::action::PlayerBody;
 
 use game_test::action::PlayerAction;
 use game_test::action::Response;
@@ -57,7 +58,7 @@ impl MapInstance {
     }
 
     /// insert our new player into the map and send the current state
-    pub async fn add_player(&mut self, player_record: PlayerRecord) {
+    pub async fn add_player(&mut self, player_record: PlayerRecord) -> PlayerBody {
         let mut player = Player::new(player_record);
         player.position = self.map.spawn_location;
         player.position.y -= player.size.y / 2.;
@@ -79,23 +80,19 @@ impl MapInstance {
         for other_player in self.players.values() {
             let body = other_player.body();
             let state = other_player.state();
-            {
-                let player_id = player_id.clone();
-                tokio::spawn(async move {
-                    send_to_player(&player_id, Response::PlayerChange(body)).await;
-                });
-            }
             let player_id = player_id.clone();
             tokio::spawn(async move {
-                send_to_player(&player_id, Response::PlayerData(state)).await;
+                send_to_player(&player_id, Response::PlayerData(state, body)).await;
             });
         }
         // notify other players of the new player
         self.broadcast(Response::PlayerChange(player.body()), None)
             .await;
-        self.broadcast(Response::PlayerData(player.state()), None)
+        self.broadcast(Response::PlayerData(player.state(), player.body()), None)
             .await;
+        let body = player.body();
         self.players.insert(player_id, player);
+        body
     }
 
     pub async fn remove_player(&mut self, player_id: &str) {
@@ -104,7 +101,13 @@ impl MapInstance {
             .await;
     }
 
-    pub async fn set_player_action(&mut self, player_id: &str, player_action: PlayerAction) {
+    pub async fn set_player_action(
+        &mut self,
+        player_id: &str,
+        player_action: PlayerAction,
+        position: Vec2,
+        velocity: Vec2,
+    ) {
         let player = self.players.get_mut(player_id);
         if player.is_none() {
             println!("Player is not on this map: {player_id} !");
@@ -112,8 +115,8 @@ impl MapInstance {
         }
         let player = player.unwrap();
         // broadcast input changes to the rest of the map
-        player.position = player_action.position.unwrap();
-        player.velocity = player_action.velocity.unwrap();
+        player.position = position;
+        player.velocity = velocity;
         player.action.update(player_action.clone());
         let mut body = player.body();
         body.action = Some(player.action.clone());

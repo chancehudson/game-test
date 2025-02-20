@@ -6,11 +6,11 @@
     standing: {
         fps: 3,
         frame_count: 3,
-        sprite_sheet: "assets/duck_blue/standing.png",
+        sprite_sheet: "duck_blue/standing.png",
     },
     walking: {
         fps: 5,
         frame_count: 4,
-        sprite_sheet: "assets/duck_blue/walk.png",
+        sprite_sheet: "duck_blue/walk.png",
     },
 }

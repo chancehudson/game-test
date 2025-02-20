@@ -1,7 +1,8 @@
-use macroquad::prelude::Vec2;
+use bevy::math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::actor::MAX_VELOCITY;
 use super::Mob;
 use crate::Actor;
 
@@ -14,19 +15,20 @@ pub enum Action {
     CreatePlayer(String),
     // provide a username
     LoginPlayer(String),
-    SetPlayerAction(PlayerAction),
+    // action and a current position + velocity
+    SetPlayerAction(PlayerAction, Vec2, Vec2),
     Ping,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Response {
     // current_map_id, experience
-    PlayerLoggedIn(PlayerState),
+    PlayerLoggedIn(PlayerState, PlayerBody),
     MapState(Vec<Mob>),
     MobChange(u64, Option<Vec2>), // id, new moving_to
     PlayerRemoved(String),
     PlayerChange(PlayerBody),
-    PlayerData(PlayerState), // data about another player
+    PlayerData(PlayerState, PlayerBody), // data about another player
     ChangeMap(String),
     LoginError(String),
     Tick(),
@@ -53,8 +55,6 @@ pub struct PlayerBody {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerAction {
-    pub position: Option<Vec2>,
-    pub velocity: Option<Vec2>,
     pub attack: bool,
     pub move_left: bool,
     pub move_right: bool,
@@ -78,8 +78,6 @@ impl PartialEq for PlayerAction {
 impl Default for PlayerAction {
     fn default() -> Self {
         Self {
-            velocity: None,
-            position: None,
             attack: false,
             move_left: false,
             move_right: false,
@@ -93,8 +91,6 @@ impl Default for PlayerAction {
 
 impl PlayerAction {
     pub fn update(&mut self, other_new: Self) {
-        self.velocity = other_new.velocity;
-        self.position = other_new.position;
         self.move_left = other_new.move_left;
         self.move_right = other_new.move_right;
         if other_new.attack {
@@ -114,38 +110,42 @@ impl PlayerAction {
         }
     }
 
-    pub fn step_action(&self, actor: &mut dyn Actor, step_len: f32) -> Self {
-        let mut out = self.clone();
-        out.position = None;
-        out.velocity = None;
+    pub fn step_action_raw(
+        &self,
+        position: Vec2,
+        velocity: Vec2,
+        step_len: f32,
+    ) -> (Vec2, Vec2, Self) {
+        let mut updated_action = self.clone();
+        let mut velocity = velocity;
+        let mut position = position;
         if self.move_right {
-            let velocity = actor.velocity_mut();
             velocity.x += ACCEL_RATE * step_len;
             if velocity.x < 0.0 {
                 velocity.x += DECEL_RATE * step_len;
             }
         } else if self.move_left {
-            let velocity = actor.velocity_mut();
             velocity.x -= ACCEL_RATE * step_len;
             if velocity.x > 0.0 {
                 velocity.x -= DECEL_RATE * step_len;
             }
-        } else if actor.velocity_mut().x.abs() > 0.0 {
-            let velocity = actor.velocity_mut();
+        } else if velocity.x.abs() > 0.0 {
             velocity.x = velocity.move_towards(Vec2::ZERO, DECEL_RATE * step_len).x;
         }
 
-        if self.downward_jump && actor.velocity_mut().y == 0. {
-            out.downward_jump = false;
-            let position = actor.position_mut();
-            position.y += 2.0;
+        if self.downward_jump && velocity.y == 0. {
+            updated_action.downward_jump = false;
+            position.y -= 2.0;
         } else if self.jump {
-            out.jump = false;
-            let velocity = actor.velocity_mut();
+            updated_action.jump = false;
             // TODO: check if we're standing on a platform first
-            velocity.y = -400.0;
+            velocity.y = 400.0;
         }
-        out
+        (
+            position,
+            velocity.clamp(-MAX_VELOCITY, MAX_VELOCITY),
+            updated_action,
+        )
 
         // if is_key_pressed(KeyCode::Z) {
         //     // drop an item
@@ -155,5 +155,16 @@ impl PlayerAction {
         //         Vec2::new(0., -200.),
         //     )));
         // }
+    }
+
+    pub fn step_action(&self, actor: &mut dyn Actor, step_len: f32) -> Self {
+        let (position, velocity, out) = self.step_action_raw(
+            actor.position_mut().clone(),
+            actor.velocity_mut().clone(),
+            step_len,
+        );
+        *actor.position_mut() = position;
+        *actor.velocity_mut() = velocity;
+        out
     }
 }

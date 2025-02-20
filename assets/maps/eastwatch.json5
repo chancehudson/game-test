@@ -1,0 +1,36 @@
+{
+    name: "eastwatch",
+    size: [3000, 1500],
+    spawn_location: [100, 500],
+    background: "eastwatch_background_blur.png",
+    portals: [
+        { position: [400, 1300], to: "crab_beach" },
+        { position: [0, 0], to: "crab_beach" },
+    ],
+    npc: [
+        { position: [700, 25], size: [100,100], asset: "flower.png" }
+    ],
+    platforms: [
+        { position: [0, 0], size: [3000, 25] },
+        { position: [1000, 50], size: [100, 25] },
+        { position: [1000, 100], size: [100, 25] },
+        { position: [1000, 150], size: [500, 25] },
+        { position: [1600, 200], size: [100, 25] },
+        { position: [1800, 250], size: [100, 25] },
+        { position: [2000, 300], size: [100, 25] },
+        { position: [2200, 350], size: [100, 25] },
+        { position: [2400, 400], size: [600, 25] },
+        { position: [2200, 450], size: [100, 25] },
+        { position: [2000, 500], size: [100, 25] },
+        { position: [1800, 550], size: [100, 25] },
+        { position: [1600, 600], size: [100, 25] },
+        { position: [1400, 650], size: [100, 25] },
+        { position: [800, 700], size: [500, 25] },
+        { position: [700, 750], size: [50, 25] },
+        { position: [0, 650], size: [600, 50] },
+        { position: [0, 800], size: [600, 50] },
+    ],
+    mob_spawns: [
+        { position: [0, 230], size: [1000, 10], mob_type: 0, max_count: 10 },
+    ]
+}
