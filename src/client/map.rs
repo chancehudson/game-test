@@ -2,9 +2,10 @@ use bevy::prelude::*;
 
 use game_test::MapData;
 
+use crate::mob::MobEntity;
+
 use super::map_data_loader::MapDataAsset;
 use super::GameState;
-use game_test::Mob;
 
 pub struct MapPlugin;
 
@@ -13,9 +14,6 @@ pub struct LoadingView;
 
 #[derive(Component)]
 pub struct MapEntity;
-
-#[derive(Component)]
-pub struct MobEntity(pub Mob);
 
 #[derive(Resource, Default)]
 pub struct MapLoadingAssets {

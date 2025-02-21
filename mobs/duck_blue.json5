@@ -7,10 +7,12 @@
         fps: 3,
         frame_count: 3,
         sprite_sheet: "duck_blue/standing.png",
+        width: 37,
     },
     walking: {
         fps: 5,
         frame_count: 4,
         sprite_sheet: "duck_blue/walk.png",
+        width: 39,
     },
 }

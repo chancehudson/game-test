@@ -58,6 +58,7 @@ impl Player {
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, handle_player_state)
+            .add_systems(Update, flip_player)
             .add_systems(
                 Update,
                 (input_system, step_physics, step_movement)
@@ -85,21 +86,25 @@ fn handle_player_state(
             println!("Received remove for unknown player: {}", id);
         }
         if let Response::PlayerChange(body) = &event.0 {
-            for (_entity, mut existing_player, mut _transform) in player_query.iter_mut() {
+            for (_entity, mut existing_player, mut transform) in player_query.iter_mut() {
                 if &existing_player.id != &body.id {
                     continue;
                 }
                 existing_player.body = body.clone();
+                transform.translation.x = body.position.x;
+                transform.translation.y = body.position.y;
                 return;
             }
             println!("Received update for unknown player: {}", body.id);
         }
         if let Response::PlayerData(state, body) = &event.0 {
-            for (_entity, mut existing_player, mut _transform) in player_query.iter_mut() {
+            for (_entity, mut existing_player, mut transform) in player_query.iter_mut() {
                 if &existing_player.id != &state.id {
                     continue;
                 }
                 existing_player.body = body.clone();
+                transform.translation.x = body.position.x;
+                transform.translation.y = body.position.y;
                 return;
             }
             commands.spawn((
@@ -113,6 +118,16 @@ fn handle_player_state(
                 Transform::from_translation(Vec3::new(body.position.x, body.position.y, 0.0)),
                 Player::default_sprite(&asset_server, &mut texture_atlas_layouts),
             ));
+        }
+    }
+}
+
+fn flip_player(mut query: Query<(&Player, &mut Sprite)>) {
+    for (player, mut sprite) in query.iter_mut() {
+        if player.body.velocity.x > 0.0 {
+            sprite.flip_x = true;
+        } else if player.body.velocity.x < 0.0 {
+            sprite.flip_x = false;
         }
     }
 }

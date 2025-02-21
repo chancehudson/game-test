@@ -1,4 +1,3 @@
-use animated_sprite::AnimatedSprite;
 use bevy::prelude::*;
 use bevy::utils::HashMap;
 
@@ -14,12 +13,13 @@ mod animated_sprite;
 mod login;
 mod map;
 mod map_data_loader;
+mod mob;
 mod network;
 mod player;
 
 use map::ActiveMap;
 use map::MapEntity;
-use map::MobEntity;
+use mob::MobEntity;
 use network::NetworkMessage;
 use network::NetworkPlugin;
 use player::ActivePlayer;
@@ -43,6 +43,7 @@ fn main() {
         .add_plugins(login::LoginPlugin)
         .add_plugins(NetworkPlugin)
         .add_plugins(player::PlayerPlugin)
+        .add_plugins(mob::MobPlugin)
         .add_systems(FixedUpdate, response_handler_system)
         .add_systems(FixedUpdate, handle_login)
         .add_systems(FixedUpdate, handle_mob_state)
@@ -64,9 +65,9 @@ fn step_mobs(
     let delta = time.delta_secs();
     let map_data = active_map.data.as_ref().unwrap();
     for (mut mob, mut transform) in &mut mobs {
-        mob.0.step_physics(delta, map_data);
-        transform.translation.x = mob.0.position.x;
-        transform.translation.y = mob.0.position.y;
+        mob.mob.step_physics(delta, map_data);
+        transform.translation.x = mob.mob.position.x;
+        transform.translation.y = mob.mob.position.y;
     }
 }
 
@@ -95,7 +96,7 @@ fn response_handler_system(
 fn handle_mob_state(
     mut action_events: EventReader<NetworkMessage>,
     mut commands: Commands,
-    mut mob_query: Query<(Entity, &mut map::MobEntity, &mut Transform)>,
+    mut mob_query: Query<(Entity, &mut MobEntity, &mut Transform)>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
@@ -104,10 +105,10 @@ fn handle_mob_state(
         if let Response::MobChange(id, moving_to) = &event.0 {
             // We assume the mob is on map here. If it's not this is a noop
             for (_entity, mut existing_mob, mut _transform) in mob_query.iter_mut() {
-                if &existing_mob.0.id != id {
+                if &existing_mob.mob.id != id {
                     continue;
                 }
-                existing_mob.0.moving_to = moving_to.clone();
+                existing_mob.mob.moving_to = moving_to.clone();
             }
         }
         if let Response::MapState(mobs) = &event.0 {
@@ -116,49 +117,24 @@ fn handle_mob_state(
                 updated.insert(mob.id, mob.clone());
             }
             for (entity, mut existing_mob, mut transform) in mob_query.iter_mut() {
-                if let Some(new_mob) = updated.get(&existing_mob.0.id).cloned() {
+                if let Some(new_mob) = updated.get(&existing_mob.mob.id).cloned() {
                     transform.translation.x = new_mob.position.x;
                     transform.translation.y = new_mob.position.y;
-                    existing_mob.0 = new_mob.clone();
+                    existing_mob.mob = new_mob.clone();
                     updated.remove(&new_mob.id);
                 } else {
                     commands.entity(entity).despawn();
                 }
             }
             for (_, new_mob) in updated {
-                // TODO: clean this all up
-                let texture = asset_server.load(new_mob.data.standing.sprite_sheet.clone());
-
-                let layout = TextureAtlasLayout::from_grid(
-                    UVec2::new(new_mob.data.size.x as u32, new_mob.data.size.y as u32),
-                    new_mob.data.standing.frame_count as u32,
-                    1,
-                    None,
-                    None,
-                );
-                let texture_atlas_layout = texture_atlas_layouts.add(layout);
                 commands.spawn((
                     MapEntity,
-                    map::MobEntity(new_mob.clone()),
                     Transform::from_translation(Vec3::new(
                         new_mob.position.x,
                         new_mob.position.y,
                         1.0,
                     )),
-                    AnimatedSprite {
-                        frame_count: new_mob.data.standing.frame_count as u8,
-                        fps: new_mob.data.standing.fps as u8,
-                        time: 0.0,
-                    },
-                    Sprite {
-                        image: texture.clone(),
-                        texture_atlas: Some(TextureAtlas {
-                            layout: texture_atlas_layout,
-                            index: 0,
-                        }),
-                        anchor: bevy::sprite::Anchor::BottomLeft,
-                        ..default()
-                    },
+                    MobEntity::new(new_mob.clone(), &asset_server, &mut texture_atlas_layouts),
                 ));
             }
         }

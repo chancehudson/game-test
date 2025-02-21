@@ -15,6 +15,7 @@ use super::timestamp;
 use super::Actor;
 use super::MapData;
 
+/// Key the mob type to the data
 pub static MOB_DATA: Lazy<HashMap<u64, MobData>> = Lazy::new(|| {
     let mut mob_data = HashMap::new();
     for entry in WalkDir::new("mobs") {
@@ -41,6 +42,7 @@ pub struct AnimationData {
     pub frame_count: usize,
     pub fps: usize,
     pub sprite_sheet: String,
+    pub width: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,7 +58,6 @@ pub struct MobData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Mob {
     pub id: u64,
-    pub data: MobData,
     pub mob_type: u64,
     pub position: Vec2,
     pub velocity: Vec2,
@@ -67,15 +68,21 @@ pub struct Mob {
 
 impl Mob {
     pub fn new(id: u64, mob_type: u64) -> Self {
-        let data = MOB_DATA.get(&mob_type).unwrap().clone();
         Self {
             id,
             mob_type,
-            data,
             position: Vec2::ZERO,
             velocity: Vec2::ZERO,
             moving_to: None,
             move_start: 0.0,
+        }
+    }
+
+    pub fn data(&self) -> &MobData {
+        if let Some(data) = MOB_DATA.get(&self.mob_type) {
+            data
+        } else {
+            panic!("Mob type not found: {}", self.mob_type);
         }
     }
 }
