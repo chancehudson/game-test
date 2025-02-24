@@ -2,8 +2,6 @@ use bevy::prelude::*;
 
 use game_test::MapData;
 
-use crate::mob::MobEntity;
-
 use super::map_data_loader::MapDataAsset;
 use super::GameState;
 

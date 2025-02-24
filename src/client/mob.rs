@@ -12,8 +12,8 @@ impl Plugin for MobPlugin {
     }
 }
 
-fn animate_mobs(mut query: Query<(&mut MobEntity, &mut AnimatedSprite, &mut Sprite)>) {
-    for (mut mob, mut animated_sprite, mut sprite) in &mut query {
+fn animate_mobs(mut query: Query<(&MobEntity, &mut AnimatedSprite, &mut Sprite)>) {
+    for (mob, mut animated_sprite, mut sprite) in &mut query {
         if mob.mob.velocity.x == 0.0 {
             sprite.image = mob.standing_texture.clone();
             sprite.texture_atlas = Some(TextureAtlas {

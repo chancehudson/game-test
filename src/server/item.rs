@@ -11,13 +11,13 @@ pub struct Item {
 }
 
 impl Item {
-    pub fn new(position: Vec2, velocity: Vec2) -> Self {
-        Self {
-            position,
-            velocity,
-            size: Vec2::new(52., 52.),
-        }
-    }
+    // pub fn new(position: Vec2, velocity: Vec2) -> Self {
+    //     Self {
+    //         position,
+    //         velocity,
+    //         size: Vec2::new(52., 52.),
+    //     }
+    // }
 }
 
 impl Actor for Item {

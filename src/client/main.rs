@@ -1,5 +1,9 @@
+use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
+use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::prelude::*;
+use bevy::text::FontSmoothing;
 use bevy::utils::HashMap;
+// use bevy_dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 
 pub use game_test::action::Action;
 pub use game_test::action::PlayerAction;
@@ -16,6 +20,7 @@ mod map_data_loader;
 mod mob;
 mod network;
 mod player;
+mod smooth_camera;
 
 use map::ActiveMap;
 use map::MapEntity;
@@ -35,26 +40,35 @@ pub enum GameState {
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
-        .init_state::<GameState>()
-        .add_plugins(animated_sprite::AnimatedSpritePlugin)
-        .add_plugins(map::MapPlugin)
-        .add_plugins(map_data_loader::MapDataLoaderPlugin)
-        .add_plugins(login::LoginPlugin)
-        .add_plugins(NetworkPlugin)
-        .add_plugins(player::PlayerPlugin)
-        .add_plugins(mob::MobPlugin)
-        .add_systems(FixedUpdate, response_handler_system)
-        .add_systems(FixedUpdate, handle_login)
-        .add_systems(FixedUpdate, handle_mob_state)
-        .add_systems(Startup, setup)
-        .add_systems(Update, player_camera.run_if(in_state(GameState::OnMap)))
-        .add_systems(Update, step_mobs.run_if(in_state(GameState::OnMap)));
+    app.add_plugins((
+        DefaultPlugins.set(ImagePlugin::default_nearest()),
+        FpsOverlayPlugin {
+            config: FpsOverlayConfig {
+                text_config: TextFont {
+                    font_size: 12.0,
+                    font: default(),
+                    font_smoothing: FontSmoothing::default(),
+                },
+                // We can also change color of the overlay
+                text_color: Color::WHITE,
+                enabled: true,
+            },
+        },
+    ))
+    .init_state::<GameState>()
+    .add_plugins(smooth_camera::SmoothCameraPlugin)
+    .add_plugins(animated_sprite::AnimatedSpritePlugin)
+    .add_plugins(map::MapPlugin)
+    .add_plugins(map_data_loader::MapDataLoaderPlugin)
+    .add_plugins(login::LoginPlugin)
+    .add_plugins(NetworkPlugin)
+    .add_plugins(player::PlayerPlugin)
+    .add_plugins(mob::MobPlugin)
+    .add_systems(FixedUpdate, response_handler_system)
+    .add_systems(FixedUpdate, handle_login)
+    .add_systems(FixedUpdate, handle_mob_state)
+    .add_systems(Update, step_mobs.run_if(in_state(GameState::OnMap)));
     app.run();
-}
-
-fn setup(mut commands: Commands) {
-    commands.spawn(Camera2d);
 }
 
 fn step_mobs(
@@ -178,28 +192,4 @@ fn handle_login(
             }
         }
     }
-}
-
-fn player_camera(
-    player: Query<(&Player, &Transform, &ActivePlayer), Without<Camera2d>>,
-    mut camera: Query<&mut Transform, With<Camera2d>>,
-    windows: Query<&Window>,
-    active_map: Res<map::ActiveMap>,
-) {
-    if player.is_empty() {
-        return;
-    }
-    let (_, player_transform, _) = player.single();
-    let mut transform = camera.single_mut();
-    let window = windows.single();
-    let screen_width = window.resolution.width();
-    let screen_height = window.resolution.height();
-    transform.translation.x = player_transform
-        .translation
-        .x
-        .clamp(screen_width / 2., active_map.size.x - screen_width / 2.);
-    transform.translation.y = player_transform
-        .translation
-        .y
-        .clamp(screen_height / 2., active_map.size.y - screen_height / 2.);
 }
