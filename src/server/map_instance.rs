@@ -168,7 +168,41 @@ impl MapInstance {
         // TODO: in parallel
         for player in self.players.values_mut() {
             let enter_portal = player.action.enter_portal;
+            let attack = player.action.attack;
             player.action = player.action.clone().step_action(player, step_len);
+            if attack {
+                let direction_sign = if player.action.facing_left { -1.0 } else { 1.0 };
+                // look for mobs nearby in the direction the player is facing
+                let attack_range_start =
+                    player.body().position.clone() + Vec2::new(player.body().size.x / 2.0, 0.0);
+                let attack_range_end = attack_range_start
+                    + Vec2::new(direction_sign * player.body().size.x, player.body().size.y);
+                let attack_rect = bevy::math::Rect::new(
+                    attack_range_start.x,
+                    attack_range_start.y,
+                    attack_range_end.x,
+                    attack_range_end.y,
+                );
+                for mob in &mut self.mobs {
+                    if attack_rect.intersect(mob.rect()).is_empty() {
+                        continue;
+                    }
+                    // mob is in range, deal damage
+                    let damage_amount = 2;
+                    if mob.health > damage_amount {
+                        mob.health -= damage_amount;
+                    } else {
+                        // mob has died
+                    }
+                    let player_id = player.id.clone();
+                    let mob = mob.clone();
+                    tokio::spawn(async move {
+                        send_to_player(&player_id, Response::MobDamage(mob.id, damage_amount))
+                            .await;
+                    });
+                    break;
+                }
+            }
             if enter_portal {
                 // determine if the player is overlapping a portal
                 for portal in &self.map.portals {

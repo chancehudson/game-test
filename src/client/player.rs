@@ -139,10 +139,8 @@ fn handle_player_state(
 
 fn flip_player(mut query: Query<(&Player, &mut Sprite)>) {
     for (player, mut sprite) in query.iter_mut() {
-        if player.body.velocity.x > 0.0 {
-            sprite.flip_x = true;
-        } else if player.body.velocity.x < 0.0 {
-            sprite.flip_x = false;
+        if let Some(action) = player.body.action.as_ref() {
+            sprite.flip_x = action.facing_left;
         }
     }
 }
@@ -156,15 +154,27 @@ fn input_system(
         return;
     }
     let (mut active_player, transform) = query.single_mut();
-    let player_action = PlayerAction {
+    let mut player_action = PlayerAction {
+        facing_left: active_player
+            .body
+            .action
+            .clone()
+            .unwrap_or_default()
+            .facing_left,
         move_left: keyboard.pressed(KeyCode::ArrowLeft),
         move_right: keyboard.pressed(KeyCode::ArrowRight),
         jump: keyboard.just_pressed(KeyCode::Space) && !keyboard.pressed(KeyCode::ArrowDown),
         downward_jump: keyboard.pressed(KeyCode::ArrowDown)
             && keyboard.just_pressed(KeyCode::Space),
         enter_portal: keyboard.just_pressed(KeyCode::ArrowUp),
+        attack: keyboard.just_pressed(KeyCode::KeyA),
         ..default()
     };
+    if player_action.move_left {
+        player_action.facing_left = true;
+    } else if player_action.move_right {
+        player_action.facing_left = false;
+    }
     if active_player.body.action.as_ref() != Some(&player_action) {
         action_events.send(NetworkAction(game_test::action::Action::SetPlayerAction(
             player_action.clone(),

@@ -1,14 +1,74 @@
 use bevy::prelude::*;
 
+use super::NetworkMessage;
+use game_test::action::Response;
 use game_test::mob::Mob;
 
 use crate::animated_sprite::AnimatedSprite;
 
 pub struct MobPlugin;
 
+#[derive(Component)]
+pub struct DamageText {
+    pub created_at: f64,
+}
+
 impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, animate_mobs);
+        app.add_systems(Update, animate_mobs)
+            .add_systems(Update, handle_mob_damage)
+            .add_systems(Update, animate_mob_damage);
+    }
+}
+
+fn animate_mob_damage(
+    mut commands: Commands,
+    mut damage_query: Query<(Entity, &DamageText, &mut Transform, &mut TextColor)>,
+    time: Res<Time>,
+) {
+    let current_time = time.elapsed_secs_f64();
+    for (entity, text, mut transform, mut color) in &mut damage_query {
+        if current_time - text.created_at > 0.7 {
+            let new_alpha = color.0.alpha() - 0.05;
+            color.0.set_alpha(new_alpha);
+        }
+        if current_time - text.created_at > 3.0 {
+            commands.entity(entity).despawn();
+        } else {
+            transform.translation.y += 1.0;
+        }
+    }
+}
+
+fn handle_mob_damage(
+    mut action_events: EventReader<NetworkMessage>,
+    mut commands: Commands,
+    mob_query: Query<(&MobEntity, &Transform)>,
+    time: Res<Time>,
+) {
+    for event in action_events.read() {
+        if let Response::MobDamage(id, amount) = &event.0 {
+            for (entity, transform) in &mob_query {
+                if &entity.mob.id != id {
+                    continue;
+                }
+                commands.spawn((
+                    DamageText {
+                        created_at: time.elapsed_secs_f64(),
+                    },
+                    Transform::from_translation(
+                        transform.translation
+                            + Vec3::new(0.0, entity.mob.data().size.y + 10.0, 99.0),
+                    ),
+                    Text2d::new(format!("{}", amount)),
+                    TextColor(Color::srgba(0.7, 0.0, 0.0, 1.0)),
+                    TextFont {
+                        font_size: 25.0,
+                        ..default()
+                    },
+                ));
+            }
+        }
     }
 }
 

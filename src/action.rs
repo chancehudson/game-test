@@ -29,6 +29,8 @@ pub enum Response {
     MobChange(u64, Option<Vec2>), // id, new moving_to
     PlayerRemoved(String),
     PlayerChange(PlayerBody, Option<PlayerState>),
+    MobDamage(u64, u64),                 // mob id, damage amount
+    PlayerDamage(String, u64),           // player id, damage amount
     PlayerData(PlayerState, PlayerBody), // data about another player
     ChangeMap(String),
     LoginError(String),
@@ -56,9 +58,10 @@ pub struct PlayerBody {
     pub action: Option<PlayerAction>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PlayerAction {
     pub attack: bool,
+    pub facing_left: bool,
     pub move_left: bool,
     pub move_right: bool,
     pub enter_portal: bool,
@@ -67,21 +70,11 @@ pub struct PlayerAction {
     pub downward_jump: bool,
 }
 
-impl PartialEq for PlayerAction {
-    fn eq(&self, other: &Self) -> bool {
-        self.move_left == other.move_left
-            && self.move_right == other.move_right
-            && self.enter_portal == other.enter_portal
-            && self.jump == other.jump
-            && self.pickup == other.pickup
-            && self.downward_jump == other.downward_jump
-    }
-}
-
 impl Default for PlayerAction {
     fn default() -> Self {
         Self {
             attack: false,
+            facing_left: true,
             move_left: false,
             move_right: false,
             enter_portal: false,
@@ -96,6 +89,7 @@ impl PlayerAction {
     pub fn update(&mut self, other_new: Self) {
         self.move_left = other_new.move_left;
         self.move_right = other_new.move_right;
+        self.facing_left = other_new.facing_left;
         if other_new.attack {
             self.attack = true;
         }
@@ -144,6 +138,7 @@ impl PlayerAction {
             // TODO: check if we're standing on a platform first
             velocity.y = 400.0;
         }
+        updated_action.attack = false;
         (
             position,
             velocity.clamp(-MAX_VELOCITY, MAX_VELOCITY),

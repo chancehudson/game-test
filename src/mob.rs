@@ -61,6 +61,9 @@ pub struct Mob {
     pub mob_type: u64,
     pub position: Vec2,
     pub velocity: Vec2,
+    pub max_health: u64,
+    pub health: u64,
+    pub level: u64,
 
     pub moving_to: Option<Vec2>,
     pub move_start: f32,
@@ -75,7 +78,24 @@ impl Mob {
             velocity: Vec2::ZERO,
             moving_to: None,
             move_start: 0.0,
+            max_health: 10,
+            health: 10,
+            level: 1,
         }
+    }
+
+    pub fn center(&self) -> Vec2 {
+        self.position + self.data().size / 2.0
+    }
+
+    pub fn rect(&self) -> Rect {
+        let data = MOB_DATA.get(&self.mob_type).unwrap();
+        Rect::new(
+            self.position.x,
+            self.position.y,
+            self.position.x + data.size.x,
+            self.position.y + data.size.y,
+        )
     }
 
     pub fn data(&self) -> &MobData {
