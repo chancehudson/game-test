@@ -108,6 +108,12 @@ async fn handle_action(socket_id: String, action: Action) -> anyhow::Result<()> 
                 .send(&socket_id, Response::Pong)
                 .await?;
         }
+        Action::LogoutPlayer => {
+            // if the socket is associated we'll deassociate it
+            if let Some(player_id) = PLAYER_CONNS.write().await.logout_socket(&socket_id).await {
+                STATE.logout_player(&player_id).await;
+            }
+        }
         Action::LoginPlayer(name) => {
             if let Some(player) = PlayerRecord::player_by_name(&name).await? {
                 PLAYER_CONNS

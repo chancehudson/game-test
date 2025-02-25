@@ -30,6 +30,14 @@ impl PlayerConnection {
         self.player_socket_map.get(player_id).cloned()
     }
 
+    pub async fn logout_socket(&mut self, socket_id: &str) -> Option<String> {
+        let player_id = self.socket_player_map.remove(socket_id);
+        if let Some(player_id) = player_id.as_ref() {
+            self.player_socket_map.remove(player_id);
+        }
+        player_id
+    }
+
     pub async fn register_player(&mut self, socket_id: String, player_id: String) {
         self.socket_player_map
             .insert(socket_id.clone(), player_id.clone());

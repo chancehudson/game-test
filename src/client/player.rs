@@ -64,7 +64,15 @@ impl Plugin for PlayerPlugin {
                 (input_system, step_physics, step_movement)
                     .chain()
                     .run_if(in_state(GameState::OnMap)),
-            );
+            )
+            .add_systems(OnEnter(GameState::LoggedOut), despawn_player);
+    }
+}
+
+fn despawn_player(mut player_query: Query<Entity, With<Player>>, mut commands: Commands) {
+    for entity in player_query.iter_mut() {
+        commands.entity(entity).despawn();
+        return;
     }
 }
 

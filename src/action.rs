@@ -15,6 +15,7 @@ pub enum Action {
     CreatePlayer(String),
     // provide a username
     LoginPlayer(String),
+    LogoutPlayer,
     // action and a current position + velocity
     SetPlayerAction(PlayerAction, Vec2, Vec2),
     Ping,

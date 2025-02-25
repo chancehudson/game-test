@@ -134,7 +134,7 @@ fn setup_login_screen(mut commands: Commands) {
                             Button,
                             LoginButton,
                             Node {
-                                border: UiRect::all(Val::Px(5.0)),
+                                border: UiRect::all(Val::Px(2.0)),
                                 // horizontally center child text
                                 justify_content: JustifyContent::Center,
                                 // vertically center child text
@@ -151,7 +151,7 @@ fn setup_login_screen(mut commands: Commands) {
                             Button,
                             SignupButton,
                             Node {
-                                border: UiRect::all(Val::Px(5.0)),
+                                border: UiRect::all(Val::Px(2.0)),
                                 // horizontally center child text
                                 justify_content: JustifyContent::Center,
                                 // vertically center child text

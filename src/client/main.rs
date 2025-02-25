@@ -3,7 +3,6 @@ use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::prelude::*;
 use bevy::text::FontSmoothing;
 use bevy::utils::HashMap;
-// use bevy_dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 
 pub use game_test::action::Action;
 pub use game_test::action::PlayerAction;
@@ -14,6 +13,7 @@ pub use game_test::Actor;
 pub use game_test::MapData;
 
 mod animated_sprite;
+mod gui;
 mod login;
 mod map;
 mod map_data_loader;
@@ -61,6 +61,7 @@ fn main() {
     .add_plugins(map::MapPlugin)
     .add_plugins(map_data_loader::MapDataLoaderPlugin)
     .add_plugins(login::LoginPlugin)
+    .add_plugins(gui::GuiPlugin)
     .add_plugins(NetworkPlugin)
     .add_plugins(player::PlayerPlugin)
     .add_plugins(mob::MobPlugin)

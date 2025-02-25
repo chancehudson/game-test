@@ -2,6 +2,8 @@ use bevy::prelude::*;
 
 use game_test::MapData;
 
+use crate::smooth_camera::CAMERA_Y_PADDING;
+
 use super::map_data_loader::MapDataAsset;
 use super::GameState;
 
@@ -33,6 +35,7 @@ impl Plugin for MapPlugin {
             .init_resource::<ActiveMap>()
             .add_systems(OnEnter(GameState::LoadingMap), begin_load_map)
             .add_systems(OnEnter(GameState::OnMap), enter_map)
+            .add_systems(OnExit(GameState::OnMap), exit_map)
             .add_systems(Update, check_assets.run_if(in_state(GameState::LoadingMap)));
     }
 }
@@ -64,17 +67,19 @@ fn check_assets(
     }
 }
 
+fn exit_map(mut commands: Commands, old_map_query: Query<Entity, With<MapEntity>>) {
+    for v in &old_map_query {
+        commands.entity(v).despawn();
+    }
+}
+
 fn begin_load_map(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut map_loading_assets: ResMut<MapLoadingAssets>,
     windows: Query<&Window>,
-    old_map_query: Query<Entity, With<MapEntity>>,
     active_map: Res<ActiveMap>,
 ) {
-    for v in &old_map_query {
-        commands.entity(v).despawn();
-    }
     // despawn all old map assets
     if map_loading_assets.pending_assets.is_some() || map_loading_assets.pending_map_data.is_some()
     {
@@ -122,11 +127,14 @@ fn enter_map(
         Sprite {
             anchor: bevy::sprite::Anchor::BottomLeft,
             image: load_handle,
-            custom_size: Some(Vec2::new(map_data.data.size.x, map_data.data.size.y)),
+            custom_size: Some(Vec2::new(
+                map_data.data.size.x,
+                map_data.data.size.y + CAMERA_Y_PADDING,
+            )),
             // color: Color::srgb(1., 0., 0.),
             ..default()
         },
-        Transform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
+        Transform::from_translation(Vec3::new(0.0, -CAMERA_Y_PADDING, -10.0)),
     ));
     active_map.size = Vec2::new(map_data.data.size.x, map_data.data.size.y);
     active_map.solids = map_data

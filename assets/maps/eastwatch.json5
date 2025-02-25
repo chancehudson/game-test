@@ -8,10 +8,10 @@
         { position: [0, 0], to: "crab_beach" },
     ],
     npc: [
-        { position: [700, 25], size: [100,100], asset: "flower.png" }
+        { position: [700, 0], size: [100,100], asset: "flower.png" }
     ],
     platforms: [
-        { position: [0, 0], size: [3000, 25] },
+        { position: [0, -25], size: [3000, 25] },
         { position: [1000, 50], size: [100, 25] },
         { position: [1000, 100], size: [100, 25] },
         { position: [1000, 150], size: [500, 25] },

@@ -4,10 +4,14 @@ use crate::map;
 use crate::player::Player;
 use crate::ActivePlayer;
 
-const CAMERA_ACCELERATION: f32 = 500.0;
+const CAMERA_ACCELERATION: f32 = 1500.0;
 const CAMERA_MAX_SPEED: f32 = 300.0;
+pub const CAMERA_Y_PADDING: f32 = 200.0;
 
 pub struct SmoothCameraPlugin;
+
+#[derive(Component)]
+pub struct DebugMarker;
 
 #[derive(Component)]
 pub struct CameraMovement {
@@ -19,11 +23,12 @@ pub struct CameraMovement {
 impl Plugin for SmoothCameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_camera)
-            .add_systems(Update, player_camera);
+            .add_systems(Update, player_camera)
+            .add_systems(Update, move_debug_marker);
     }
 }
 
-fn setup_camera(mut commands: Commands) {
+fn setup_camera(mut commands: Commands, windows: Query<&Window>) {
     commands.spawn((
         Camera2d,
         CameraMovement {
@@ -32,6 +37,38 @@ fn setup_camera(mut commands: Commands) {
             velocity: Vec2::ZERO,
         },
     ));
+    // spawn a box onscreen showing the movement range
+    return;
+    let window = windows.single();
+    let screen_width = window.resolution.width();
+    let screen_height = window.resolution.height();
+    let movement_range = Vec2::new(f32::min(100., screen_width), f32::min(100., screen_height));
+    commands.spawn((
+        DebugMarker,
+        Sprite {
+            custom_size: Some(movement_range * Vec2::splat(2.0)),
+            color: Color::srgba(1.0, 0.0, 0.0, 0.5),
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(
+            screen_width / 2.0 - movement_range.x,
+            screen_height / 2.0 - movement_range.y,
+            10.0,
+        )),
+    ));
+}
+
+fn move_debug_marker(
+    mut query: Query<(&DebugMarker, &mut Transform), Without<Camera2d>>,
+    mut camera_query: Query<&mut Transform, With<Camera2d>>,
+) {
+    if query.is_empty() {
+        return;
+    }
+    let (_, mut transform) = query.single_mut();
+    let camera_transform = camera_query.single_mut();
+    transform.translation.x = camera_transform.translation.x;
+    transform.translation.y = camera_transform.translation.y;
 }
 
 /// We'll allow the player to move in a small square near the center of
@@ -53,7 +90,7 @@ fn player_camera(
     let window = windows.single();
     let screen_width = window.resolution.width();
     let screen_height = window.resolution.height();
-    let movement_range = Vec2::new(f32::min(300., screen_width), f32::min(150., screen_height));
+    let movement_range = Vec2::new(f32::min(150., screen_width), f32::min(100., screen_height));
 
     let player_pos = player_transform.translation.xy() + player.body.size / Vec2::splat(2.0);
     let dist = player_pos - camera_transform.translation.xy();
@@ -68,19 +105,22 @@ fn player_camera(
         camera_movement.is_moving_x = false;
         camera_movement.velocity.x = 0.0;
     } else if camera_movement.is_moving_x {
-        let toward = if dist.x.abs() < movement_range.x {
-            Vec2::ZERO
+        if dist.x.abs() < movement_range.x {
+            let accel_diff_abs = (camera_movement.velocity.x.abs().powf(1.15))
+                .max(10.0)
+                .min(CAMERA_ACCELERATION)
+                * delta;
+            // moving toward 0
+            camera_movement.velocity.x = (camera_movement.velocity.x.abs() - accel_diff_abs)
+                .max(0.0)
+                * dist.x.signum().signum();
         } else {
-            Vec2::splat(dist.x.signum() * CAMERA_MAX_SPEED)
-        };
-        let x_diff = (dist.x.abs() - movement_range.x).abs();
-        camera_movement.velocity.x = camera_movement
-            .velocity
-            .move_towards(
-                toward,
-                (15.0 * x_diff).max(10.0).min(CAMERA_ACCELERATION) * delta,
-            )
-            .x;
+            // moving toward max velocity
+            let accel_diff_abs = (2.0 * dist.x.abs()).max(10.0).min(CAMERA_ACCELERATION) * delta;
+            camera_movement.velocity.x = (camera_movement.velocity.x.abs() + accel_diff_abs)
+                .min(CAMERA_MAX_SPEED)
+                * dist.x.signum();
+        }
     }
     // adjust the y velocity
     if dist.y.abs() > movement_range.y && !camera_movement.is_moving_y {
@@ -93,35 +133,32 @@ fn player_camera(
         camera_movement.is_moving_y = false;
         camera_movement.velocity.y = 0.0;
     } else if camera_movement.is_moving_y {
-        let toward = if dist.y.abs() < movement_range.y {
-            Vec2::ZERO
+        if dist.y.abs() < movement_range.y {
+            let accel_diff_abs = (camera_movement.velocity.y.abs().powf(1.4))
+                .max(10.0)
+                .min(CAMERA_ACCELERATION)
+                * delta;
+            // moving toward 0
+            camera_movement.velocity.y = (camera_movement.velocity.y.abs() - accel_diff_abs)
+                .max(0.0)
+                * dist.y.signum().signum();
         } else {
-            Vec2::splat(dist.y.signum() * CAMERA_MAX_SPEED)
-        };
-        let y_diff = (dist.y.abs() - movement_range.y).abs();
-        // println!("{y_diff}, {}", 5.0 * y_diff);
-        camera_movement.velocity.y = camera_movement
-            .velocity
-            .move_towards(
-                toward,
-                (5.0 * y_diff).max(10.0).min(CAMERA_ACCELERATION) * delta,
-            )
-            .y;
+            // moving toward may velocity
+            let accel_diff_abs = (2.0 * dist.y.abs()).max(10.0).min(CAMERA_ACCELERATION) * delta;
+            camera_movement.velocity.y = (camera_movement.velocity.y.abs() + accel_diff_abs)
+                .min(CAMERA_MAX_SPEED)
+                * dist.y.signum();
+        }
     }
     camera_movement.velocity = camera_movement.velocity.clamp(
         -Vec2::splat(CAMERA_MAX_SPEED),
         Vec2::splat(CAMERA_MAX_SPEED),
     );
+    // handle actually moving the camera based on the velocity
     camera_transform.translation.x += camera_movement.velocity.x * delta;
     camera_transform.translation.y += camera_movement.velocity.y * delta;
 
-    // don't allow the player to move offscreen
-    let max_x_dist = screen_width / 2.0 - 150.0;
-    if dist.x.abs() > max_x_dist && player.body.velocity.x.abs() > camera_movement.velocity.x.abs()
-    {
-        camera_transform.translation.x = player_pos.x - max_x_dist * dist.x.signum();
-    }
-    let max_y_dist = screen_height / 2.0 - 150.0;
+    let max_y_dist = 200.0;
     if dist.y.abs() > max_y_dist && player.body.velocity.y.abs() > camera_movement.velocity.y.abs()
     {
         camera_transform.translation.y = player_pos.y - max_y_dist * dist.y.signum();
@@ -134,8 +171,9 @@ fn player_camera(
         .translation
         .x
         .clamp(screen_width / 2., active_map.size.x - screen_width / 2.);
-    camera_transform.translation.y = camera_transform
-        .translation
-        .y
-        .clamp(screen_height / 2., active_map.size.y - screen_height / 2.);
+    // we leave space at the bottom of the screen for the GUI
+    camera_transform.translation.y = camera_transform.translation.y.clamp(
+        screen_height / 2. - CAMERA_Y_PADDING,
+        active_map.size.y - screen_height / 2.,
+    );
 }
