@@ -6,6 +6,7 @@ use bevy::utils::HashMap;
 
 pub use game_test::action::Action;
 pub use game_test::action::PlayerAction;
+use game_test::action::PlayerState;
 pub use game_test::action::Response;
 pub use game_test::actor::move_x;
 pub use game_test::actor::move_y;
@@ -38,6 +39,9 @@ pub enum GameState {
     OnMap,
 }
 
+#[derive(Resource, Default)]
+pub struct ActivePlayerState(pub PlayerState);
+
 fn main() {
     let mut app = App::new();
     app.add_plugins((
@@ -56,6 +60,7 @@ fn main() {
         },
     ))
     .init_state::<GameState>()
+    .init_resource::<ActivePlayerState>()
     .add_plugins(smooth_camera::SmoothCameraPlugin)
     .add_plugins(animated_sprite::AnimatedSpritePlugin)
     .add_plugins(map::MapPlugin)
@@ -164,11 +169,13 @@ fn handle_login(
     mut next_state: ResMut<NextState<GameState>>,
     mut active_map: ResMut<ActiveMap>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    mut active_player_state: ResMut<ActivePlayerState>,
 ) {
     for event in action_events.read() {
         if let Response::PlayerLoggedIn(state, body) = &event.0 {
             active_map.name = state.current_map.clone();
             next_state.set(GameState::LoadingMap);
+            active_player_state.0 = state.clone();
 
             if active_player.is_empty() {
                 commands.spawn((

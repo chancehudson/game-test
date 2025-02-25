@@ -67,7 +67,7 @@ impl MapInstance {
         let body = player.body();
         // send new player position to themselves
         tokio::spawn(async move {
-            send_to_player(&player_id, Response::PlayerChange(body)).await;
+            send_to_player(&player_id, Response::PlayerChange(body, None)).await;
         });
         let player_id = player.id.clone();
         // send the map state to the new player
@@ -86,7 +86,7 @@ impl MapInstance {
             });
         }
         // notify other players of the new player
-        self.broadcast(Response::PlayerChange(player.body()), None)
+        self.broadcast(Response::PlayerChange(player.body(), None), None)
             .await;
         self.broadcast(Response::PlayerData(player.state(), player.body()), None)
             .await;
@@ -120,7 +120,7 @@ impl MapInstance {
         player.action.update(player_action.clone());
         let mut body = player.body();
         body.action = Some(player.action.clone());
-        let player_change = Some(Response::PlayerChange(body.clone()));
+        let player_change = Some(Response::PlayerChange(body.clone(), None));
         // broadcast the change after stepping
         if let Some(player_change) = player_change {
             self.broadcast(player_change, Some(player_id)).await;

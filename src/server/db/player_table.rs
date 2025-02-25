@@ -18,6 +18,8 @@ pub struct PlayerRecord {
     pub username: String,
     pub current_map: String,
     pub experience: u64,
+    pub max_health: u64,
+    pub health: u64,
 }
 
 impl PlayerRecord {
@@ -28,6 +30,8 @@ impl PlayerRecord {
             username,
             current_map: "eastwatch".to_string(),
             experience: 0,
+            max_health: 50,
+            health: 50,
         };
         let username_tree = DB.open_tree(USERNAME_TREE)?;
         let player_tree = DB.open_tree(PLAYER_TREE)?;

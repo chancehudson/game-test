@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use super::network::NetworkAction;
+use super::ActivePlayerState;
 use super::GameState;
 use super::Player;
 
@@ -15,6 +16,12 @@ pub struct UsernameLabel;
 #[derive(Component)]
 pub struct LogoutButton;
 
+#[derive(Component)]
+pub struct ExperienceBar;
+
+#[derive(Component)]
+pub struct HealthBar;
+
 impl Plugin for GuiPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameState::OnMap), show_gui)
@@ -22,7 +29,12 @@ impl Plugin for GuiPlugin {
                 Update,
                 handle_logout_click.run_if(in_state(GameState::OnMap)),
             )
-            .add_systems(OnExit(GameState::OnMap), remove_gui);
+            .add_systems(OnExit(GameState::OnMap), remove_gui)
+            .add_systems(
+                Update,
+                update_experience_bar.run_if(in_state(GameState::OnMap)),
+            )
+            .add_systems(Update, update_health_bar.run_if(in_state(GameState::OnMap)));
     }
 }
 
@@ -41,6 +53,28 @@ pub fn handle_logout_click(
     }
 }
 
+pub fn update_experience_bar(mut query: Query<&mut Node, With<ExperienceBar>>, time: Res<Time>) {
+    if query.is_empty() {
+        return;
+    }
+    let percent = time.elapsed_secs() % 100.0;
+    let mut node = query.single_mut();
+    node.width = Val::Percent(percent);
+}
+
+pub fn update_health_bar(
+    mut query: Query<&mut Node, With<HealthBar>>,
+    active_player_state: Res<ActivePlayerState>,
+) {
+    if query.is_empty() {
+        return;
+    }
+    let mut node = query.single_mut();
+    let health_percent =
+        (100 * active_player_state.0.max_health) as f32 / active_player_state.0.health as f32;
+    node.width = Val::Percent(health_percent);
+}
+
 pub fn show_gui(mut commands: Commands, windows: Query<&Window>, player_query: Query<&Player>) {
     if player_query.is_empty() {
         println!("No player!");
@@ -50,6 +84,7 @@ pub fn show_gui(mut commands: Commands, windows: Query<&Window>, player_query: Q
     let window = windows.single();
     let screen_width = window.resolution.width();
     let screen_height = window.resolution.height();
+    const BAR_BACKGROUND_COLOR: Color = Color::srgb(0.1, 0.1, 0.1);
     commands
         .spawn((
             GuiWrapper,
@@ -83,7 +118,7 @@ pub fn show_gui(mut commands: Commands, windows: Query<&Window>, player_query: Q
                     parent.spawn((
                         Text::new("Level 1"),
                         TextFont {
-                            font_size: 10.0,
+                            font_size: 13.0,
                             ..default()
                         },
                     ));
@@ -107,9 +142,23 @@ pub fn show_gui(mut commands: Commands, windows: Query<&Window>, player_query: Q
                                 align_items: AlignItems::Center,
                                 ..default()
                             },
-                            BackgroundColor(Color::srgb(0.0, 0.7, 0.0)),
+                            BackgroundColor(BAR_BACKGROUND_COLOR),
                         ))
-                        .with_child(Text::new("health"));
+                        .with_children(|parent| {
+                            parent.spawn((
+                                HealthBar,
+                                Node {
+                                    width: Val::Percent(50.0),
+                                    position_type: PositionType::Absolute,
+                                    top: Val::Px(0.0),
+                                    bottom: Val::Px(0.0),
+                                    left: Val::Px(0.0),
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgb(0.0, 0.7, 0.0)),
+                            ));
+                            parent.spawn(Text::new("health"));
+                        });
                     parent
                         .spawn((
                             Node {
@@ -119,9 +168,23 @@ pub fn show_gui(mut commands: Commands, windows: Query<&Window>, player_query: Q
                                 align_items: AlignItems::Center,
                                 ..default()
                             },
-                            BackgroundColor(Color::srgb(0.5, 0.5, 1.0)),
+                            BackgroundColor(BAR_BACKGROUND_COLOR),
                         ))
-                        .with_child(Text::new("experience"));
+                        .with_children(|parent| {
+                            parent.spawn((
+                                ExperienceBar,
+                                Node {
+                                    width: Val::Percent(50.0),
+                                    position_type: PositionType::Absolute,
+                                    top: Val::Px(0.0),
+                                    bottom: Val::Px(0.0),
+                                    left: Val::Px(0.0),
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgb(0.5, 0.5, 1.0)),
+                            ));
+                            parent.spawn(Text::new("experience"));
+                        });
                 });
             // buttons
             parent

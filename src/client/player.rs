@@ -12,6 +12,7 @@ use super::map::ActiveMap;
 use super::map::MapEntity;
 use super::network::NetworkAction;
 use super::network::NetworkMessage;
+use super::ActivePlayerState;
 use super::GameState;
 
 pub struct PlayerPlugin;
@@ -82,6 +83,7 @@ fn handle_player_state(
     mut player_query: Query<(Entity, &mut Player, &mut Transform)>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    mut active_player_state: ResMut<ActivePlayerState>,
 ) {
     for event in action_events.read() {
         if let Response::PlayerRemoved(id) = &event.0 {
@@ -93,7 +95,12 @@ fn handle_player_state(
             }
             println!("Received remove for unknown player: {}", id);
         }
-        if let Response::PlayerChange(body) = &event.0 {
+        if let Response::PlayerChange(body, maybe_state) = &event.0 {
+            if body.id == active_player_state.0.id {
+                if let Some(state) = maybe_state {
+                    active_player_state.0 = state.clone();
+                }
+            }
             for (_entity, mut existing_player, mut transform) in player_query.iter_mut() {
                 if &existing_player.id != &body.id {
                     continue;

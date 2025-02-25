@@ -47,6 +47,8 @@ impl Player {
             username: self.record.username.clone(),
             current_map: self.record.current_map.clone(),
             experience: self.record.experience,
+            max_health: self.record.max_health,
+            health: self.record.health,
         }
     }
 }

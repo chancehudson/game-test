@@ -28,7 +28,7 @@ pub enum Response {
     MapState(Vec<Mob>),
     MobChange(u64, Option<Vec2>), // id, new moving_to
     PlayerRemoved(String),
-    PlayerChange(PlayerBody),
+    PlayerChange(PlayerBody, Option<PlayerState>),
     PlayerData(PlayerState, PlayerBody), // data about another player
     ChangeMap(String),
     LoginError(String),
@@ -37,12 +37,14 @@ pub enum Response {
     Pong,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlayerState {
     pub id: String,
     pub username: String,
     pub current_map: String,
     pub experience: u64,
+    pub max_health: u64,
+    pub health: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
