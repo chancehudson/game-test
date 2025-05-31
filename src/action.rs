@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::actor::MAX_VELOCITY;
-use super::Mob;
+use super::MobData;
 use crate::Actor;
 
 const ACCEL_RATE: f32 = 700.0;
@@ -25,8 +25,8 @@ pub enum Action {
 pub enum Response {
     // current_map_id, experience
     PlayerLoggedIn(PlayerState, PlayerBody),
-    MapState(Vec<Mob>),
-    MobChange(u64, Option<Vec2>), // id, new moving_to
+    MapState(Vec<MobData>),
+    MobChange(MobData), // id, new moving_to
     PlayerRemoved(String),
     PlayerChange(PlayerBody, Option<PlayerState>),
     MobDamage(u64, u64),                 // mob id, damage amount

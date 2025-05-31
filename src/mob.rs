@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Instant;
 
 use bevy::math::Rect;
 use bevy::math::Vec2;
@@ -10,13 +11,16 @@ use serde::Serialize;
 use rand::Rng;
 use walkdir::WalkDir;
 
+use super::action::PlayerBody;
 #[cfg(feature = "server")]
 use super::timestamp;
 use super::Actor;
 use super::MapData;
 
+const KNOCKBACK_DURATION: f32 = 0.5;
+
 /// Key the mob type to the data
-pub static MOB_DATA: Lazy<HashMap<u64, MobData>> = Lazy::new(|| {
+pub static MOB_DATA: Lazy<HashMap<u64, MobAnimationData>> = Lazy::new(|| {
     let mut mob_data = HashMap::new();
     for entry in WalkDir::new("mobs") {
         let entry = entry.unwrap();
@@ -29,7 +33,7 @@ pub static MOB_DATA: Lazy<HashMap<u64, MobData>> = Lazy::new(|| {
             }
             if let Some(_file_name) = entry.file_name().to_str() {
                 let data_str = std::fs::read_to_string(path_str).unwrap();
-                let data = json5::from_str::<MobData>(&data_str).unwrap();
+                let data = json5::from_str::<MobAnimationData>(&data_str).unwrap();
                 mob_data.insert(data.id, data);
             }
         }
@@ -46,7 +50,7 @@ pub struct AnimationData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MobData {
+pub struct MobAnimationData {
     pub id: u64,
     pub name: String,
     pub size: Vec2,
@@ -56,118 +60,15 @@ pub struct MobData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Mob {
+pub struct MobData {
     pub id: u64,
     pub mob_type: u64,
     pub position: Vec2,
-    pub velocity: Vec2,
+    // the position we're moving to at the end of the next tick
+    // if position == next_position the mob isn't moving in this tick
+    pub next_position: Vec2,
+    pub moving_dir: Option<f32>,
     pub max_health: u64,
     pub health: u64,
     pub level: u64,
-
-    pub moving_to: Option<Vec2>,
-    pub move_start: f32,
-}
-
-impl Mob {
-    pub fn new(id: u64, mob_type: u64) -> Self {
-        Self {
-            id,
-            mob_type,
-            position: Vec2::ZERO,
-            velocity: Vec2::ZERO,
-            moving_to: None,
-            move_start: 0.0,
-            max_health: 10,
-            health: 10,
-            level: 1,
-        }
-    }
-
-    pub fn center(&self) -> Vec2 {
-        self.position + self.data().size / 2.0
-    }
-
-    pub fn rect(&self) -> Rect {
-        let data = MOB_DATA.get(&self.mob_type).unwrap();
-        Rect::new(
-            self.position.x,
-            self.position.y,
-            self.position.x + data.size.x,
-            self.position.y + data.size.y,
-        )
-    }
-
-    pub fn data(&self) -> &MobData {
-        if let Some(data) = MOB_DATA.get(&self.mob_type) {
-            data
-        } else {
-            panic!("Mob type not found: {}", self.mob_type);
-        }
-    }
-}
-
-impl Actor for Mob {
-    fn rect(&self) -> Rect {
-        let data = MOB_DATA.get(&self.mob_type).unwrap();
-        Rect::new(
-            self.position.x,
-            self.position.y,
-            self.position.x + data.size.x,
-            self.position.y + data.size.y,
-        )
-    }
-
-    fn position_mut(&mut self) -> &mut Vec2 {
-        &mut self.position
-    }
-
-    fn velocity_mut(&mut self) -> &mut Vec2 {
-        &mut self.velocity
-    }
-
-    fn step_physics(&mut self, step_len: f32, map: &MapData) {
-        let data = MOB_DATA.get(&self.mob_type).unwrap();
-        // simple logic to control the mob
-        let accel_rate = 700.0;
-        if self.moving_to.is_none() {
-            #[cfg(feature = "server")]
-            if rand::rng().random_bool(0.001) {
-                self.move_start = timestamp();
-                self.moving_to = Some(Vec2::new(
-                    rand::rng().random_range(0.0..map.size.x),
-                    rand::rng().random_range(0.0..map.size.y),
-                ));
-            }
-            self.velocity.x = self
-                .velocity
-                .move_towards(Vec2::ZERO, accel_rate * step_len)
-                .x;
-            self.step_physics_default(step_len, map);
-            return;
-        }
-        let moving_to = self.moving_to.clone().unwrap();
-        let move_left = self.position.x > moving_to.x;
-        let move_right = self.position.x < moving_to.x;
-        if move_right {
-            self.velocity_mut().x += accel_rate * step_len;
-            self.velocity.x = self.velocity.x.clamp(-data.max_velocity, data.max_velocity);
-        } else if move_left {
-            self.velocity_mut().x -= accel_rate * step_len;
-            self.velocity.x = self.velocity.x.clamp(-data.max_velocity, data.max_velocity);
-        } else if self.velocity.x.abs() > 0.0 {
-            self.velocity.x = self
-                .velocity
-                .move_towards(Vec2::ZERO, accel_rate * step_len)
-                .x;
-        }
-        if (self.position.x - moving_to.x).abs() < 10.0 {
-            self.moving_to = None;
-        }
-        #[cfg(feature = "server")]
-        if timestamp() - self.move_start > 10.0 {
-            self.moving_to = None;
-        }
-        self.step_physics_default(step_len, map);
-    }
 }

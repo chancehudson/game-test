@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use bevy::math::Vec2;
 use game_test::action::PlayerBody;
 
+use super::mob::ServerMob;
 use game_test::action::PlayerAction;
 use game_test::action::Response;
 use game_test::map::MapData;
 use game_test::timestamp;
-use game_test::Mob;
 
 use crate::send_to_player_err;
 use crate::PlayerRecord;
@@ -23,7 +23,7 @@ pub struct MapInstance {
     mob_counter: u64,
     pub map: MapData,
     pub players: HashMap<String, Player>,
-    pub mobs: Vec<Mob>,
+    pub mobs: Vec<ServerMob>,
     last_broadcast: f32,
 }
 
@@ -71,7 +71,8 @@ impl MapInstance {
         });
         let player_id = player.id.clone();
         // send the map state to the new player
-        let map_state = Response::MapState(self.mobs.clone());
+        let map_state =
+            Response::MapState(self.mobs.clone().into_iter().map(|v| v.into()).collect());
         tokio::spawn(async move {
             send_to_player(&player_id, map_state).await;
         });
@@ -127,7 +128,7 @@ impl MapInstance {
         }
     }
 
-    pub async fn step(&mut self, step_len: f32) {
+    pub async fn tick(&mut self) {
         for spawn in &self.map.mob_spawns {
             if timestamp() - spawn.last_spawn < 10.0 {
                 continue;
@@ -138,23 +139,36 @@ impl MapInstance {
             let spawn_count = rand::random_range(0..=spawn.max_count);
             for _ in 0..spawn_count {
                 self.mob_counter += 1;
-                let mut mob = Mob::new(self.mob_counter, spawn.mob_type);
+                let mut mob = ServerMob::new(self.mob_counter, spawn.mob_type);
                 mob.position = Vec2::new(
                     rand::random_range(spawn.position.x..spawn.position.x + spawn.size.x),
                     rand::random_range(spawn.position.y..spawn.position.y + spawn.size.y),
                 );
+                mob.next_position = mob.position;
                 self.mobs.push(mob);
             }
         }
         // step our mobs and send any relevant changes to the players
         let mut mob_changes = vec![];
         for mob in &mut self.mobs {
-            let is_moving = mob.moving_to.is_none();
-            mob.step_physics(step_len, &self.map);
-            if is_moving != mob.moving_to.is_none() {
-                // send to player
-                mob_changes.push(Response::MobChange(mob.id, mob.moving_to));
+            // handle mob aggro to player
+            if let Some(aggro_player_id) = mob.aggro_to.as_ref() {
+                if let Some(player) = self.players.get(aggro_player_id) {
+                    mob.moving_dir = if player.position.x > mob.next_position.x {
+                        Some(1.)
+                    } else {
+                        Some(-1.)
+                    };
+                } else {
+                    // player has moved off map, deaggro
+                    mob.aggro_to = None;
+                }
             }
+            mob.tick(&self.map);
+            // if is_moving != mob.moving_to.is_none() {
+            // send to player
+            mob_changes.push(Response::MobChange(mob.clone().into()));
+            // }
         }
         for player in self.players.values() {
             let player_id = player.id.clone();
@@ -168,41 +182,45 @@ impl MapInstance {
         // TODO: in parallel
         for player in self.players.values_mut() {
             let enter_portal = player.action.enter_portal;
-            let attack = player.action.attack;
-            player.action = player.action.clone().step_action(player, step_len);
-            if attack {
-                let direction_sign = if player.action.facing_left { -1.0 } else { 1.0 };
-                // look for mobs nearby in the direction the player is facing
-                let attack_range_start =
-                    player.body().position.clone() + Vec2::new(player.body().size.x / 2.0, 0.0);
-                let attack_range_end = attack_range_start
-                    + Vec2::new(direction_sign * player.body().size.x, player.body().size.y);
-                let attack_rect = bevy::math::Rect::new(
-                    attack_range_start.x,
-                    attack_range_start.y,
-                    attack_range_end.x,
-                    attack_range_end.y,
-                );
-                for mob in &mut self.mobs {
-                    if attack_rect.intersect(mob.rect()).is_empty() {
-                        continue;
-                    }
-                    // mob is in range, deal damage
-                    let damage_amount = 2;
-                    if mob.health > damage_amount {
-                        mob.health -= damage_amount;
-                    } else {
-                        // mob has died
-                    }
-                    let player_id = player.id.clone();
-                    let mob = mob.clone();
-                    tokio::spawn(async move {
-                        send_to_player(&player_id, Response::MobDamage(mob.id, damage_amount))
-                            .await;
-                    });
-                    break;
-                }
-            }
+            // let attack = player.action.attack;
+            // player.action = player.action.clone().step_action(player, step_len);
+            // if attack {
+            //     let direction_sign = if player.action.facing_left { -1.0 } else { 1.0 };
+            //     // look for mobs nearby in the direction the player is facing
+            //     let attack_range_start =
+            //         player.body().position.clone() + Vec2::new(player.body().size.x / 2.0, 0.0);
+            //     let attack_range_end = attack_range_start
+            //         + Vec2::new(direction_sign * player.body().size.x, player.body().size.y);
+            //     let attack_rect = bevy::math::Rect::new(
+            //         attack_range_start.x,
+            //         attack_range_start.y,
+            //         attack_range_end.x,
+            //         attack_range_end.y,
+            //     );
+            //     for mob in &mut self.mobs {
+            //         if attack_rect.intersect(mob.rect()).is_empty() {
+            //             continue;
+            //         }
+            //         // mob is in range, deal damage
+            //         let damage_amount = 2;
+            //         mob.hit(&player.body(), damage_amount);
+            //         if mob.health == 0 {
+            //             // mob has died
+            //         }
+            //         let player_id = player.id.clone();
+            //         let mob_inner = mob.clone();
+            //         tokio::spawn(async move {
+            //             send_to_player(&player_id, Response::MobChange(mob_inner)).await;
+            //         });
+            //         let player_id = player.id.clone();
+            //         let mob_id = mob.id;
+            //         tokio::spawn(async move {
+            //             send_to_player(&player_id, Response::MobDamage(mob_id, damage_amount))
+            //                 .await;
+            //         });
+            //         break;
+            //     }
+            // }
             if enter_portal {
                 // determine if the player is overlapping a portal
                 for portal in &self.map.portals {
@@ -240,7 +258,8 @@ impl MapInstance {
             self.last_broadcast = timestamp();
             for player in self.players.values() {
                 let player_id = player.id.clone();
-                let map_state = Response::MapState(self.mobs.clone());
+                let map_state =
+                    Response::MapState(self.mobs.clone().into_iter().map(|v| v.into()).collect());
                 tokio::spawn(async move {
                     send_to_player(&player_id, map_state).await;
                 });

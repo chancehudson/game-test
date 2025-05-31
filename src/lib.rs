@@ -7,11 +7,12 @@ pub mod actor;
 pub mod map;
 pub mod mob;
 
-pub use mob::Mob;
+pub use mob::MobData;
 
 pub use actor::Actor;
 pub use map::MapData;
 
+pub static TICK_RATE_MS: f32 = 500.;
 pub static START_INSTANT: Lazy<Instant> = Lazy::new(|| Instant::now());
 
 pub fn timestamp() -> f32 {

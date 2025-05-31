@@ -1,8 +1,14 @@
+use bevy::math::VectorSpace;
 use bevy::prelude::*;
+use game_test::actor::GRAVITY_ACCEL;
+use game_test::MapData;
+use game_test::TICK_RATE_MS;
 
+use super::move_x;
+use super::move_y;
 use super::NetworkMessage;
 use game_test::action::Response;
-use game_test::mob::Mob;
+use game_test::mob::{MobData, MOB_DATA};
 
 use crate::animated_sprite::AnimatedSprite;
 
@@ -52,13 +58,13 @@ fn handle_mob_damage(
                 if &entity.mob.id != id {
                     continue;
                 }
+                let data = MOB_DATA.get(&entity.mob.mob_type).unwrap();
                 commands.spawn((
                     DamageText {
                         created_at: time.elapsed_secs_f64(),
                     },
                     Transform::from_translation(
-                        transform.translation
-                            + Vec3::new(0.0, entity.mob.data().size.y + 10.0, 99.0),
+                        transform.translation + Vec3::new(0.0, data.size.y + 10.0, 99.0),
                     ),
                     Text2d::new(format!("{}", amount)),
                     TextColor(Color::srgba(0.7, 0.0, 0.0, 1.0)),
@@ -74,26 +80,31 @@ fn handle_mob_damage(
 
 fn animate_mobs(mut query: Query<(&MobEntity, &mut AnimatedSprite, &mut Sprite)>) {
     for (mob, mut animated_sprite, mut sprite) in &mut query {
-        if mob.mob.velocity.x == 0.0 {
-            sprite.image = mob.standing_texture.clone();
-            sprite.texture_atlas = Some(TextureAtlas {
-                layout: mob.standing_texture_atlas_layout.clone(),
-                index: 0,
-            });
-            animated_sprite.fps = mob.mob.data().standing.fps as u8;
-            animated_sprite.frame_count = mob.mob.data().standing.frame_count as u8;
+        let data = MOB_DATA.get(&mob.mob.mob_type).unwrap();
+        if mob.velocity.x.abs() < 0.1 {
+            if sprite.image != mob.standing_texture {
+                sprite.image = mob.standing_texture.clone();
+                sprite.texture_atlas = Some(TextureAtlas {
+                    layout: mob.standing_texture_atlas_layout.clone(),
+                    index: 0,
+                });
+                animated_sprite.fps = data.standing.fps as u8;
+                animated_sprite.frame_count = data.standing.frame_count as u8;
+            }
         } else {
-            sprite.image = mob.walking_texture.clone();
-            sprite.texture_atlas = Some(TextureAtlas {
-                layout: mob.walking_texture_atlas_layout.clone(),
-                index: 0,
-            });
-            animated_sprite.fps = mob.mob.data().walking.fps as u8;
-            animated_sprite.frame_count = mob.mob.data().walking.frame_count as u8;
+            if sprite.image != mob.walking_texture {
+                sprite.image = mob.walking_texture.clone();
+                sprite.texture_atlas = Some(TextureAtlas {
+                    layout: mob.walking_texture_atlas_layout.clone(),
+                    index: 0,
+                });
+                animated_sprite.fps = data.walking.fps as u8;
+                animated_sprite.frame_count = data.walking.frame_count as u8;
+            }
         }
-        if mob.mob.velocity.x > 0.0 {
+        if mob.velocity.x > 0. {
             sprite.flip_x = true;
-        } else if mob.mob.velocity.x < 0.0 {
+        } else if mob.velocity.x < 0. {
             sprite.flip_x = false;
         }
     }
@@ -101,7 +112,8 @@ fn animate_mobs(mut query: Query<(&MobEntity, &mut AnimatedSprite, &mut Sprite)>
 
 #[derive(Component)]
 pub struct MobEntity {
-    pub mob: Mob,
+    pub mob: MobData,
+    pub velocity: Vec2,
     pub standing_texture: Handle<Image>,
     pub standing_texture_atlas_layout: Handle<TextureAtlasLayout>,
     pub walking_texture: Handle<Image>,
@@ -109,12 +121,53 @@ pub struct MobEntity {
 }
 
 impl MobEntity {
+    pub fn tick(&mut self, new_mob: &MobData) {
+        self.mob.next_position = new_mob.next_position;
+        if self.mob.position == self.mob.next_position {
+            self.velocity = Vec2::ZERO;
+        } else {
+            self.velocity.x =
+                (self.mob.next_position.x - self.mob.position.x) / (TICK_RATE_MS / 1000.);
+        }
+    }
+
+    pub fn step(&mut self, step_len: f32, map: &MapData) {
+        let data = MOB_DATA.get(&self.mob.mob_type).unwrap();
+        self.velocity.y += -GRAVITY_ACCEL * step_len;
+        let rect = Rect::new(
+            self.mob.position.x,
+            self.mob.position.y,
+            self.mob.position.x + data.size.x,
+            self.mob.position.y + data.size.y,
+        );
+        let (new_x, _) = move_x(rect, self.velocity, step_len * self.velocity.x, map);
+        let (new_y, vel_y) = move_y(rect, self.velocity, step_len * self.velocity.y, map);
+        self.mob.position = Vec2::new(new_x, new_y);
+        self.velocity = Vec2::new(self.velocity.x, vel_y);
+        // to avoid slight stutters between reaching the target coords and
+        // receiving new ones
+        const OVERRUN_DIST: f32 = 10.0;
+        if (self.velocity.x > 0. && self.mob.position.x > self.mob.next_position.x + OVERRUN_DIST)
+            || (self.velocity.x < 0.
+                && self.mob.position.x + OVERRUN_DIST < self.mob.next_position.x)
+        {
+            self.mob.position.x = self.mob.next_position.x;
+            self.velocity.x = 0.;
+        }
+        if (self.velocity.y > 0. && self.mob.position.y > self.mob.next_position.y)
+            || (self.velocity.y < 0. && self.mob.position.y < self.mob.next_position.y)
+        {
+            self.mob.position.y = self.mob.next_position.y;
+            self.velocity.y = 0.;
+        }
+    }
+
     pub fn new(
-        mob: Mob,
+        mob: MobData,
         asset_server: &Res<AssetServer>,
         texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
     ) -> (Self, AnimatedSprite, Sprite) {
-        let data = mob.data();
+        let data = MOB_DATA.get(&mob.mob_type).unwrap();
         let standing_texture = asset_server.load(data.standing.sprite_sheet.clone());
         let walking_texture = asset_server.load(data.walking.sprite_sheet.clone());
         let standing_layout = TextureAtlasLayout::from_grid(
@@ -136,6 +189,7 @@ impl MobEntity {
         (
             MobEntity {
                 mob: mob.clone(),
+                velocity: Vec2::ZERO,
                 standing_texture: standing_texture.clone(),
                 walking_texture,
                 standing_texture_atlas_layout: standing_texture_atlas_layout.clone(),

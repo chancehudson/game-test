@@ -1,5 +1,6 @@
 use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
 use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
+use bevy::math::VectorSpace;
 use bevy::prelude::*;
 use bevy::text::FontSmoothing;
 use bevy::utils::HashMap;
@@ -23,6 +24,7 @@ mod network;
 mod player;
 mod smooth_camera;
 
+use game_test::TICK_RATE_MS;
 use map::ActiveMap;
 use map::MapEntity;
 use mob::MobEntity;
@@ -30,6 +32,7 @@ use network::NetworkMessage;
 use network::NetworkPlugin;
 use player::ActivePlayer;
 use player::Player;
+use tokio::time::Instant;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum GameState {
@@ -79,13 +82,14 @@ fn main() {
 
 fn step_mobs(
     mut mobs: Query<(&mut MobEntity, &mut Transform)>,
+    players: Query<(&Player, &Transform), Without<MobEntity>>,
     time: Res<Time>,
     active_map: Res<ActiveMap>,
 ) {
     let delta = time.delta_secs();
     let map_data = active_map.data.as_ref().unwrap();
     for (mut mob, mut transform) in &mut mobs {
-        mob.mob.step_physics(delta, map_data);
+        mob.step(delta, map_data);
         transform.translation.x = mob.mob.position.x;
         transform.translation.y = mob.mob.position.y;
     }
@@ -122,13 +126,23 @@ fn handle_mob_state(
 ) {
     // TODO: use a hashmap to avoid iterating over all mobs on every update
     for event in action_events.read() {
-        if let Response::MobChange(id, moving_to) = &event.0 {
+        if let Response::MobChange(new_mob) = &event.0 {
             // We assume the mob is on map here. If it's not this is a noop
-            for (_entity, mut existing_mob, mut _transform) in mob_query.iter_mut() {
-                if &existing_mob.mob.id != id {
+            for (_entity, mut existing_mob, mut transform) in mob_query.iter_mut() {
+                if existing_mob.mob.id != new_mob.id {
                     continue;
                 }
-                existing_mob.mob.moving_to = moving_to.clone();
+                if (transform.translation.xy()).abs_diff_eq(new_mob.position, 50.0) {
+                    // use our local position
+                    existing_mob.mob.position = transform.translation.xy();
+                } else {
+                    println!(
+                        "overwriting, local mob is {}",
+                        existing_mob.mob.position.x - new_mob.position.x
+                    );
+                    existing_mob.mob.position = new_mob.position;
+                }
+                existing_mob.tick(new_mob);
             }
         }
         if let Response::MapState(mobs) = &event.0 {
@@ -136,11 +150,9 @@ fn handle_mob_state(
             for mob in mobs {
                 updated.insert(mob.id, mob.clone());
             }
-            for (entity, mut existing_mob, mut transform) in mob_query.iter_mut() {
+            for (entity, mut existing_mob, mut _transform) in mob_query.iter_mut() {
                 if let Some(new_mob) = updated.get(&existing_mob.mob.id).cloned() {
-                    transform.translation.x = new_mob.position.x;
-                    transform.translation.y = new_mob.position.y;
-                    existing_mob.mob = new_mob.clone();
+                    // existing_mob.mob = new_mob.clone();
                     updated.remove(&new_mob.id);
                 } else {
                     commands.entity(entity).despawn();

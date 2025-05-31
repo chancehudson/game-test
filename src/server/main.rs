@@ -7,12 +7,14 @@ use game_test::action::PlayerState;
 use game_test::action::Response;
 use game_test::timestamp;
 use game_test::Actor;
+use game_test::TICK_RATE_MS;
 use once_cell::sync::Lazy;
 use tokio::sync::RwLock;
 
 mod db;
 mod item;
 mod map_instance;
+mod mob;
 mod network;
 mod player;
 mod player_connection;
@@ -54,8 +56,7 @@ async fn main() -> anyhow::Result<()> {
     let mut last_step = timestamp();
     loop {
         let time = timestamp();
-        let step_len = time - last_step;
-        last_step = time;
+        let diff = time - last_step;
 
         // handle inputs from the clients
         while let Some((socket_id, action)) = server.action_queue.write().await.pop_front() {
@@ -64,9 +65,15 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
+        // TODO: have each map tick independently with slightly different offsets
+        if diff * 1000.0 < TICK_RATE_MS {
+            continue;
+        }
+        last_step = time;
+
         // step the game state
         for map_instance in STATE.map_instances.values() {
-            map_instance.write().await.step(step_len).await;
+            map_instance.write().await.tick().await;
         }
 
         tokio::time::sleep(Duration::from_millis(10)).await;
