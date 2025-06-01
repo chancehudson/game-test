@@ -1,9 +1,12 @@
 use bevy::math::VectorSpace;
 use bevy::prelude::*;
 
+use bevy::transform;
+use bevy::utils::HashMap;
 use game_test::actor::GRAVITY_ACCEL;
 use game_test::MapData;
 use game_test::TICK_RATE_MS;
+use websocket::websocket_base::header::names;
 
 use super::move_x;
 use super::move_y;
@@ -16,6 +19,11 @@ use crate::mob_health_bar::MobHealthBar;
 
 pub struct MobPlugin;
 
+#[derive(Resource, Default)]
+pub struct MobRegistry {
+    pub mobs: HashMap<u64, Entity>,
+}
+
 #[derive(Component)]
 pub struct DamageText {
     pub created_at: f64,
@@ -23,9 +31,38 @@ pub struct DamageText {
 
 impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, animate_mobs)
+        app.init_resource::<MobRegistry>()
+            .add_systems(FixedUpdate, handle_mob_change)
+            .add_systems(Update, animate_mobs)
             .add_systems(Update, handle_mob_damage)
             .add_systems(Update, animate_mob_damage);
+    }
+}
+
+fn handle_mob_change(
+    mut action_events: EventReader<NetworkMessage>,
+    mob_registry: Res<MobRegistry>,
+    mut mob_query: Query<(&mut MobEntity, &Transform)>,
+) {
+    for event in action_events.read() {
+        if let Response::MobChange(new_mob) = &event.0 {
+            // We assume the mob is on map here. If it's not this is a noop
+            if let Some(&entity) = mob_registry.mobs.get(&new_mob.id) {
+                if let Ok((mut existing_mob, transform)) = mob_query.get_mut(entity) {
+                    if (transform.translation.xy()).abs_diff_eq(new_mob.position, 50.0) {
+                        // use our local position
+                        existing_mob.mob.position = transform.translation.xy();
+                    } else {
+                        println!(
+                            "overwriting, local mob is {}",
+                            existing_mob.mob.position.x - new_mob.position.x
+                        );
+                        existing_mob.mob.position = new_mob.position;
+                    }
+                    existing_mob.tick(new_mob);
+                }
+            }
+        }
     }
 }
 

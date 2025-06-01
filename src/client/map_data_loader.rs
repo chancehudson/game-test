@@ -33,12 +33,12 @@ impl AssetLoader for MapDataLoader {
            + futures_util::Future<
         Output = Result<<Self as AssetLoader>::Asset, <Self as AssetLoader>::Error>,
     > {
-        Box::pin(async move {
+        async move {
             let mut data_str = String::new();
             reader.read_to_string(&mut data_str).await?;
             let data = json5::from_str(&data_str)?;
             Ok(MapDataAsset { data })
-        })
+        }
     }
 
     fn extensions(&self) -> &[&str] {

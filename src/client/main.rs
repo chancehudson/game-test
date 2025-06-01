@@ -16,6 +16,7 @@ pub use game_test::MapData;
 
 mod animated_sprite;
 mod gui;
+mod loading_screen;
 mod login;
 mod map;
 mod map_data_loader;
@@ -25,16 +26,15 @@ mod network;
 mod player;
 mod smooth_camera;
 
-use game_test::TICK_RATE_MS;
 use map::ActiveMap;
 use map::MapEntity;
 use mob::MobEntity;
+use mob::MobRegistry;
 use mob_health_bar::MobHealthBar;
 use network::NetworkMessage;
 use network::NetworkPlugin;
 use player::ActivePlayer;
 use player::Player;
-use tokio::time::Instant;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum GameState {
@@ -66,6 +66,7 @@ fn main() {
     ))
     .init_state::<GameState>()
     .init_resource::<ActivePlayerState>()
+    .add_plugins(loading_screen::LoadingScreenPlugin)
     .add_plugins(smooth_camera::SmoothCameraPlugin)
     .add_plugins(animated_sprite::AnimatedSpritePlugin)
     .add_plugins(map::MapPlugin)
@@ -78,7 +79,7 @@ fn main() {
     .add_plugins(mob_health_bar::MobHealthBarPlugin)
     .add_systems(FixedUpdate, response_handler_system)
     .add_systems(FixedUpdate, handle_login)
-    .add_systems(FixedUpdate, handle_mob_state)
+    .add_systems(FixedUpdate, handle_map_state)
     .add_systems(Update, step_mobs.run_if(in_state(GameState::OnMap)));
     app.run();
 }
@@ -120,63 +121,31 @@ fn response_handler_system(
     }
 }
 
-fn handle_mob_state(
+fn handle_map_state(
+    mut mob_registry: ResMut<MobRegistry>,
     mut action_events: EventReader<NetworkMessage>,
     mut commands: Commands,
-    mut mob_query: Query<(Entity, &mut MobEntity, &mut Transform)>,
+    // mut mob_query: Query<(Entity, &mut MobEntity, &mut Transform)>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
-    // TODO: use a hashmap to avoid iterating over all mobs on every update
     for event in action_events.read() {
-        if let Response::MobChange(new_mob) = &event.0 {
-            // We assume the mob is on map here. If it's not this is a noop
-            for (_entity, mut existing_mob, mut transform) in mob_query.iter_mut() {
-                if existing_mob.mob.id != new_mob.id {
-                    continue;
-                }
-                if (transform.translation.xy()).abs_diff_eq(new_mob.position, 50.0) {
-                    // use our local position
-                    existing_mob.mob.position = transform.translation.xy();
-                } else {
-                    println!(
-                        "overwriting, local mob is {}",
-                        existing_mob.mob.position.x - new_mob.position.x
-                    );
-                    existing_mob.mob.position = new_mob.position;
-                }
-                existing_mob.tick(new_mob);
-            }
-        }
         if let Response::MapState(mobs) = &event.0 {
-            let mut updated = HashMap::new();
             for mob in mobs {
-                updated.insert(mob.id, mob.clone());
-            }
-            for (entity, mut existing_mob, mut _transform) in mob_query.iter_mut() {
-                if let Some(new_mob) = updated.get(&existing_mob.mob.id).cloned() {
-                    // existing_mob.mob = new_mob.clone();
-                    updated.remove(&new_mob.id);
+                if mob_registry.mobs.get(&mob.id).is_some() {
+                    // update the mob state if needed
+                    // currently do nothing
                 } else {
-                    commands.entity(entity).despawn();
-                }
-            }
-            for (_, new_mob) in updated {
-                println!(
-                    "spawned entity {} with health {}",
-                    new_mob.id, new_mob.health
-                );
-                commands
-                    .spawn((
+                    // insert the mob
+                    println!("spawned entity {} with health {}", mob.id, mob.health);
+                    let mut entity = commands.spawn((
                         MapEntity,
-                        Transform::from_translation(Vec3::new(
-                            new_mob.position.x,
-                            new_mob.position.y,
-                            1.0,
-                        )),
-                        MobEntity::new(new_mob.clone(), &asset_server, &mut texture_atlas_layouts),
-                    ))
-                    .with_child(MobHealthBar::new(new_mob));
+                        Transform::from_translation(Vec3::new(mob.position.x, mob.position.y, 1.0)),
+                        MobEntity::new(mob.clone(), &asset_server, &mut texture_atlas_layouts),
+                    ));
+                    entity.with_child(MobHealthBar::new(mob.clone()));
+                    mob_registry.mobs.insert(mob.id, entity.id());
+                }
             }
         }
     }

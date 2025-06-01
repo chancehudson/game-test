@@ -1,7 +1,9 @@
+use bevy::asset::LoadState;
 use bevy::prelude::*;
 
 use game_test::MapData;
 
+use crate::mob::MobRegistry;
 use crate::smooth_camera::CAMERA_Y_PADDING;
 
 use super::map_data_loader::MapDataAsset;
@@ -9,17 +11,37 @@ use super::GameState;
 
 pub struct MapPlugin;
 
-#[derive(Component)]
-pub struct LoadingView;
+#[derive(Event)]
+pub struct MapLoadComplete {
+    pub map_data: MapData,
+}
+
+#[derive(Event)]
+pub struct MapLoadFailed {
+    pub error: String,
+}
+
+#[derive(Default)]
+pub enum MapLoadingState {
+    #[default]
+    Idle,
+    LoadingMapData(Handle<MapDataAsset>),
+    LoadingAssets {
+        map_data: MapData,
+        pending: Vec<Handle<Image>>,
+        loaded: usize,
+    },
+    Failed(String),
+}
+
+#[derive(Resource, Default)]
+pub struct MapLoader {
+    pub state: MapLoadingState,
+    pub target_map: String,
+}
 
 #[derive(Component)]
 pub struct MapEntity;
-
-#[derive(Resource, Default)]
-pub struct MapLoadingAssets {
-    pub pending_map_data: Option<Handle<MapDataAsset>>,
-    pub pending_assets: Option<Vec<Handle<Image>>>,
-}
 
 #[derive(Resource, Default)]
 pub struct ActiveMap {
@@ -31,127 +53,163 @@ pub struct ActiveMap {
 
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<MapLoadingAssets>()
-            .init_resource::<ActiveMap>()
+        app.init_resource::<ActiveMap>()
+            .init_resource::<MapLoader>()
+            .add_event::<MapLoadComplete>()
+            .add_event::<MapLoadFailed>()
             .add_systems(OnEnter(GameState::LoadingMap), begin_load_map)
-            .add_systems(OnEnter(GameState::OnMap), enter_map)
             .add_systems(OnExit(GameState::OnMap), exit_map)
-            .add_systems(Update, check_assets.run_if(in_state(GameState::LoadingMap)));
+            // .add_systems(OnExit(GameState::LoadingMap), end_load_map)
+            .add_systems(
+                Update,
+                (
+                    update_map_loading,
+                    handle_map_load_complete,
+                    // spawn_map_entities,
+                )
+                    .run_if(in_state(GameState::LoadingMap)),
+            );
     }
 }
 
-fn check_assets(
+fn handle_map_load_complete(
+    mut events: EventReader<MapLoadComplete>,
     mut next_state: ResMut<NextState<GameState>>,
-    mut game_assets: ResMut<MapLoadingAssets>,
+    mut active_map: ResMut<ActiveMap>,
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
-    map_datas: Res<Assets<MapDataAsset>>,
 ) {
-    if let Some(pending_map_data) = &game_assets.pending_map_data {
-        if asset_server.is_loaded(pending_map_data.id()) && game_assets.pending_assets.is_none() {
-            let map_data = map_datas.get(pending_map_data).unwrap();
-            let mut pending_assets = vec![];
-            pending_assets.push(asset_server.load(map_data.data.background.clone()));
-            for npc in &map_data.data.npc {
-                pending_assets.push(asset_server.load(npc.asset.clone()));
-            }
-            game_assets.pending_assets = Some(pending_assets);
-        }
-    }
-    if let Some(pending_assets) = &game_assets.pending_assets {
-        for asset in pending_assets {
-            if !asset_server.is_loaded(asset.id()) {
-                return;
-            }
-        }
+    for event in events.read() {
+        active_map.name = event.map_data.name.clone();
+        active_map.size = event.map_data.size;
+        active_map.data = Some(event.map_data.clone());
+        spawn_background(&mut commands, &asset_server, &event.map_data);
+        spawn_platforms(&mut commands, &asset_server, &event.map_data);
+        spawn_portals(&mut commands, &asset_server, &event.map_data);
+        spawn_npcs(&mut commands, &asset_server, &event.map_data);
         next_state.set(GameState::OnMap);
     }
 }
 
-fn exit_map(mut commands: Commands, old_map_query: Query<Entity, With<MapEntity>>) {
-    for v in &old_map_query {
-        commands.entity(v).despawn();
+fn update_map_loading(
+    mut loader: ResMut<MapLoader>,
+    asset_server: Res<AssetServer>,
+    map_assets: Res<Assets<MapDataAsset>>,
+    mut load_complete: EventWriter<MapLoadComplete>,
+    mut load_failed: EventWriter<MapLoadFailed>,
+) {
+    match &mut loader.state {
+        MapLoadingState::LoadingMapData(handle) => {
+            match asset_server.get_load_state(handle.id()) {
+                Some(LoadState::Loaded) => {
+                    if let Some(asset) = map_assets.get(handle) {
+                        let map_data = asset.data.clone();
+                        let mut pending = vec![];
+                        pending.push(asset_server.load(&map_data.background));
+                        for npc in &map_data.npc {
+                            pending.push(asset_server.load(&npc.asset));
+                        }
+                        loader.state = MapLoadingState::LoadingAssets {
+                            map_data,
+                            pending,
+                            loaded: 0,
+                        };
+                    } else {
+                        loader.state = MapLoadingState::Failed("Map asset not found".to_string());
+                    }
+                }
+                Some(LoadState::Failed(err)) => {
+                    loader.state =
+                        MapLoadingState::Failed(format!("Failed to load map: {:?}", err));
+                }
+                _ => {} // Still loading
+            }
+        }
+        MapLoadingState::LoadingAssets {
+            map_data,
+            pending,
+            loaded,
+        } => {
+            let mut new_loaded = 0;
+            for handle in pending.iter() {
+                if asset_server.is_loaded(handle.id()) {
+                    new_loaded += 1;
+                }
+            }
+            *loaded = new_loaded;
+
+            if *loaded == pending.len() {
+                load_complete.send(MapLoadComplete {
+                    map_data: map_data.clone(),
+                });
+                loader.state = MapLoadingState::Idle;
+            }
+        }
+        MapLoadingState::Failed(error) => {
+            load_failed.send(MapLoadFailed {
+                error: error.clone(),
+            });
+            loader.state = MapLoadingState::Idle;
+        }
+        _ => {}
     }
+}
+
+fn exit_map(
+    mut mob_registry: ResMut<MobRegistry>,
+    mut commands: Commands,
+    old_map_query: Query<Entity, With<MapEntity>>,
+) {
+    for v in &old_map_query {
+        commands.entity(v).despawn_recursive();
+    }
+    mob_registry.mobs.clear();
 }
 
 fn begin_load_map(
-    mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut map_loading_assets: ResMut<MapLoadingAssets>,
-    windows: Query<&Window>,
+    mut loader: ResMut<MapLoader>,
     active_map: Res<ActiveMap>,
 ) {
-    // despawn all old map assets
-    if map_loading_assets.pending_assets.is_some() || map_loading_assets.pending_map_data.is_some()
-    {
-        // we're already in the process of loading a map. Clear the original pending
-        // loads and register our new ones
-        println!("Began loading a second map before first one completed!");
+    // Clean up any previous loading state
+    if !matches!(loader.state, MapLoadingState::Idle) {
+        warn!("Starting new map load while previous load was in progress");
     }
-    map_loading_assets.pending_assets = None;
-    let map_data_handle: Handle<MapDataAsset> =
-        asset_server.load(format!("maps/{}.json5", active_map.name));
-    map_loading_assets.pending_map_data = Some(map_data_handle);
-    let window = windows.single();
-    let width = window.resolution.width();
-    let height = window.resolution.height();
-    commands.spawn((
-        LoadingView,
-        Sprite {
-            color: Color::srgb(1., 0., 0.),
-            custom_size: Some(Vec2::new(width, height)),
-            anchor: bevy::sprite::Anchor::BottomLeft,
-            ..default()
-        },
-        Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
-    ));
+
+    // Validate we have a map to load
+    if active_map.name.is_empty() {
+        error!("Cannot start map load: no map name specified");
+        loader.state = MapLoadingState::Failed("No map name specified".to_string());
+        return;
+    }
+
+    // Start loading the map data
+    let map_path = format!("maps/{}.json5", active_map.name);
+    let handle: Handle<MapDataAsset> = asset_server.load(&map_path);
+
+    info!("Starting to load map: {}", active_map.name);
+    loader.state = MapLoadingState::LoadingMapData(handle);
+    loader.target_map = active_map.name.clone();
 }
 
-fn enter_map(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut game_assets: ResMut<MapLoadingAssets>,
-    map_datas: Res<Assets<MapDataAsset>>,
-    loading_query: Query<Entity, With<LoadingView>>,
-    mut active_map: ResMut<ActiveMap>,
-) {
-    for v in &loading_query {
-        commands.entity(v).despawn();
-    }
-    println!("Done loading!");
-    let map_data = map_datas
-        .get(game_assets.pending_map_data.as_ref().unwrap())
-        .unwrap();
-    let load_handle = asset_server.load(&map_data.data.background);
+pub fn spawn_background(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {
     commands.spawn((
         MapEntity,
         Sprite {
             anchor: bevy::sprite::Anchor::BottomLeft,
-            image: load_handle,
+            image: asset_server.load(&map_data.background),
             custom_size: Some(Vec2::new(
-                map_data.data.size.x,
-                map_data.data.size.y + CAMERA_Y_PADDING,
+                map_data.size.x,
+                map_data.size.y + CAMERA_Y_PADDING,
             )),
-            // color: Color::srgb(1., 0., 0.),
             ..default()
         },
         Transform::from_translation(Vec3::new(0.0, -CAMERA_Y_PADDING, -10.0)),
     ));
-    active_map.size = Vec2::new(map_data.data.size.x, map_data.data.size.y);
-    active_map.solids = map_data
-        .data
-        .platforms
-        .iter()
-        .map(|p| {
-            Rect::new(
-                p.position.x,
-                p.position.y,
-                p.position.x + p.size.x,
-                p.position.y + p.size.y,
-            )
-        })
-        .collect();
-    active_map.data = Some(map_data.data.clone());
-    for platform in &map_data.data.platforms {
+}
+
+pub fn spawn_platforms(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {
+    for platform in &map_data.platforms {
         commands.spawn((
             MapEntity,
             Transform::from_translation(Vec3::new(platform.position.x, platform.position.y, -1.0)),
@@ -163,7 +221,10 @@ fn enter_map(
             },
         ));
     }
-    for portal in &map_data.data.portals {
+}
+
+pub fn spawn_portals(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {
+    for portal in &map_data.portals {
         commands.spawn((
             MapEntity,
             Transform::from_translation(Vec3::new(portal.position.x, portal.position.y, -1.0)),
@@ -175,7 +236,10 @@ fn enter_map(
             },
         ));
     }
-    for npc in &map_data.data.npc {
+}
+
+pub fn spawn_npcs(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {
+    for npc in &map_data.npc {
         commands.spawn((
             MapEntity,
             Transform::from_translation(Vec3::new(npc.position.x, npc.position.y, 0.0)),
@@ -187,7 +251,4 @@ fn enter_map(
             },
         ));
     }
-    println!("Map data: {:?}", map_data);
-    game_assets.pending_assets = None;
-    game_assets.pending_map_data = None;
 }
