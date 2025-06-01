@@ -145,7 +145,7 @@ impl Game {
             }
             Action::LogoutPlayer => {
                 // if the socket is associated we'll deassociate it
-                if let Some(player_id) = self.network_server.logout_socket(&socket_id).await {
+                if let Some(_player_id) = self.network_server.logout_socket(&socket_id).await {
                     // map instances will auto detect the disconnection on next tick
                     // self.logout_player(&player_id).await;
                 }

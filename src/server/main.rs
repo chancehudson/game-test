@@ -73,6 +73,29 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    let game_clone = game.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            println!(
+                "server action_queue len: {}",
+                game_clone.network_server.action_queue.read().await.len()
+            );
+            println!(
+                "server socket_sender len: {}",
+                game_clone.network_server.socket_sender.read().await.len()
+            );
+            let mut total_mobs = 0usize;
+            let mut total_players = 0usize;
+            for map in game_clone.map_instances.values() {
+                total_mobs += map.read().await.mobs.len();
+                total_players += map.read().await.players.len();
+            }
+            println!("total mobs: {total_mobs}");
+            println!("total players: {total_players}");
+        }
+    });
+
     // game core loop
     println!(
         "Starting game loop ({} maps loaded)",
@@ -102,7 +125,8 @@ async fn main() -> anyhow::Result<()> {
             println!("WARNING: server tick took more than TICK_RATE_MS !");
         } else {
             let remaining = TICK_RATE_MS / 1000. - tick_time;
-            tokio::time::sleep(Duration::from_secs_f32(remaining)).await;
+            // println!("wait time: {}", remaining);
+            tokio::time::sleep(Duration::from_secs_f64(remaining)).await;
         }
     }
 

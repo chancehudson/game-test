@@ -6,6 +6,7 @@ use bevy::utils::HashMap;
 use game_test::actor::GRAVITY_ACCEL;
 use game_test::MapData;
 use game_test::TICK_RATE_MS;
+use game_test::TICK_RATE_S_F32;
 use websocket::websocket_base::header::names;
 
 use super::move_x;
@@ -222,8 +223,7 @@ impl MobEntity {
         if self.mob.position == self.mob.next_position {
             self.velocity = Vec2::ZERO;
         } else {
-            self.velocity.x =
-                (self.mob.next_position.x - self.mob.position.x) / (TICK_RATE_MS / 1000.);
+            self.velocity.x = (self.mob.next_position.x - self.mob.position.x) / TICK_RATE_S_F32;
         }
     }
 

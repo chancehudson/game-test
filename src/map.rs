@@ -61,7 +61,7 @@ pub struct MobSpawn {
     pub size: Vec2,
     pub mob_type: u64,
     #[serde(default)]
-    pub last_spawn: f32,
+    pub last_spawn: f64,
 }
 
 #[derive(Clone, Debug, Deserialize)]

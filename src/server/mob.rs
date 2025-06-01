@@ -1,6 +1,3 @@
-use std::time::Instant;
-use std::vec::Vec;
-
 use bevy::math::Rect;
 use bevy::math::Vec2;
 use game_test::action::PlayerBody;
@@ -18,7 +15,7 @@ use game_test::actor::move_y;
 use game_test::mob::MobData;
 use game_test::mob::MOB_DATA;
 
-const KNOCKBACK_DURATION_MS: f32 = 500.;
+const KNOCKBACK_DURATION_MS: f64 = 500.;
 
 #[derive(Debug, Clone)]
 pub struct ServerMob {
@@ -32,10 +29,10 @@ pub struct ServerMob {
     pub level: u64,
 
     pub moving_dir: Option<f32>,
-    pub move_start: f32,
-    pub knockback_began: Option<f32>,
+    pub move_start: f64,
+    pub knockback_began: Option<f64>,
     pub aggro_to: Option<String>,
-    pub aggro_began: Option<f32>,
+    pub aggro_began: Option<f64>,
 
     pub data: &'static MobAnimationData,
 }
@@ -149,18 +146,19 @@ impl ServerMob {
         let moving_dir = self.moving_dir.unwrap_or(0.);
         self.velocity.x = moving_dir * self.data.max_velocity;
 
-        const STEP_LEN_MS: f32 = 16.666667;
+        const STEP_LEN_MS: f64 = 16.666667;
+        const STEP_LEN_S: f64 = STEP_LEN_MS / 1000.;
         let step_count: usize = (TICK_RATE_MS / STEP_LEN_MS).round() as usize;
         for _ in 0..step_count {
-            if self.knockback_began.is_some() && STEP_LEN_MS / 1000. >= remaining_knockback {
+            if self.knockback_began.is_some() && STEP_LEN_S >= remaining_knockback {
                 remaining_knockback = 0.0;
                 self.knockback_began = None;
                 continue;
             } else if self.knockback_began.is_some() {
-                remaining_knockback -= STEP_LEN_MS / 1000.;
+                remaining_knockback -= STEP_LEN_S;
                 continue;
             }
-            self.step(STEP_LEN_MS / 1000., map);
+            self.step(STEP_LEN_S as f32, map);
         }
     }
 
@@ -179,6 +177,9 @@ impl ServerMob {
             map,
         );
         self.next_position = Vec2::new(new_x, new_y);
-        self.velocity = Vec2::new(vel_x, vel_y);
+        self.velocity = Vec2::new(vel_x, vel_y).clamp(
+            Vec2::splat(-self.data.max_velocity),
+            Vec2::splat(self.data.max_velocity),
+        );
     }
 }

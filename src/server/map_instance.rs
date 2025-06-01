@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use bevy::math::Vec2;
-use bevy::math::VectorSpace;
 use game_test::action::PlayerBody;
 use game_test::TICK_RATE_MS;
+use game_test::TICK_RATE_S_F32;
 
 use super::mob::ServerMob;
 use game_test::action::PlayerAction;
@@ -12,7 +12,6 @@ use game_test::action::Response;
 use game_test::map::MapData;
 use game_test::timestamp;
 
-use crate::game::Game;
 use crate::game::MapGameAction;
 use crate::network;
 use crate::PlayerRecord;
@@ -28,7 +27,7 @@ pub struct MapInstance {
     pub map: MapData,
     pub players: HashMap<String, Player>,
     pub mobs: Vec<ServerMob>,
-    last_broadcast: f32,
+    last_broadcast: f64,
 }
 
 impl MapInstance {
@@ -293,7 +292,7 @@ impl MapInstance {
             if !player.action.move_left && !player.action.move_right {
                 player.velocity = player.velocity.move_towards(Vec2::ZERO, 300.);
             }
-            player.step_physics(TICK_RATE_MS / 1000., &self.map);
+            player.step_physics(TICK_RATE_S_F32, &self.map);
         }
 
         if timestamp() - self.last_broadcast > 1.0 {
