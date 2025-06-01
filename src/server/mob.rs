@@ -18,7 +18,7 @@ use game_test::actor::move_y;
 use game_test::mob::MobData;
 use game_test::mob::MOB_DATA;
 
-const KNOCKBACK_DURATION: f32 = 0.5;
+const KNOCKBACK_DURATION_MS: f32 = 500.;
 
 #[derive(Debug, Clone)]
 pub struct ServerMob {
@@ -33,7 +33,7 @@ pub struct ServerMob {
 
     pub moving_dir: Option<f32>,
     pub move_start: f32,
-    pub knockback_began: Option<Instant>,
+    pub knockback_began: Option<f32>,
     pub aggro_to: Option<String>,
     pub aggro_began: Option<f32>,
 
@@ -104,16 +104,29 @@ impl ServerMob {
         if damage >= self.health {
             self.health = 0;
             // mob is dead, drop items and despawn
+            return;
+        }
+        self.health -= damage;
+        self.aggro_to = Some(from.id.clone());
+        self.aggro_began = Some(timestamp());
+        self.knockback_began = Some(timestamp());
+        if from.position.x < self.position.x {
+            // knocking to the right
         } else {
-            self.health -= damage;
-            self.knockback_began = Some(Instant::now());
-            self.aggro_to = Some(from.id.clone());
-            self.aggro_began = Some(timestamp());
+            // knocking to the left
         }
     }
 
     pub fn tick(&mut self, map: &MapData) {
         self.position = self.next_position;
+        // our knockback begins between ticks, meaning it will end between the next ticks
+        // so we calculate how much knockback time is remaining and wait, then continue
+        // animating the mob as usual
+        let mut remaining_knockback = if let Some(knockback_began) = self.knockback_began {
+            (timestamp() - knockback_began).clamp(0.0, KNOCKBACK_DURATION_MS / 1000.)
+        } else {
+            0.0
+        };
         // determine a new position based on the velocity of the mob
         if self.moving_dir.is_none() && rand::rng().random_bool(0.05) {
             self.move_start = timestamp();
@@ -139,6 +152,14 @@ impl ServerMob {
         const STEP_LEN_MS: f32 = 16.666667;
         let step_count: usize = (TICK_RATE_MS / STEP_LEN_MS).round() as usize;
         for _ in 0..step_count {
+            if self.knockback_began.is_some() && STEP_LEN_MS / 1000. >= remaining_knockback {
+                remaining_knockback = 0.0;
+                self.knockback_began = None;
+                continue;
+            } else if self.knockback_began.is_some() {
+                remaining_knockback -= STEP_LEN_MS / 1000.;
+                continue;
+            }
             self.step(STEP_LEN_MS / 1000., map);
         }
     }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use bevy::math::Vec2;
 use bevy::math::VectorSpace;
@@ -11,17 +12,18 @@ use game_test::action::Response;
 use game_test::map::MapData;
 use game_test::timestamp;
 
-use crate::send_to_player_err;
+use crate::game::Game;
+use crate::game::MapGameAction;
+use crate::network;
 use crate::PlayerRecord;
-use crate::STATE;
 
-use super::send_to_player;
 use super::Actor;
 use super::Player;
 
 /// A distinct instance of a map. Each map is it's own game instance
 /// responsible for player communication, mob management, and physics.
 pub struct MapInstance {
+    network_server: Arc<network::Server>,
     mob_counter: u64,
     pub map: MapData,
     pub players: HashMap<String, Player>,
@@ -30,8 +32,9 @@ pub struct MapInstance {
 }
 
 impl MapInstance {
-    pub fn new(map: MapData) -> Self {
+    pub fn new(map: MapData, network_server: Arc<network::Server>) -> Self {
         Self {
+            network_server,
             mob_counter: 0, // TODO: give each map it's own region of distinct id's
             map,
             players: HashMap::new(),
@@ -40,23 +43,39 @@ impl MapInstance {
         }
     }
 
-    pub async fn broadcast(&self, r: Response, exclude: Option<&str>) {
-        for player_notif in self.players.values() {
-            let player_notif_id = player_notif.id.clone();
-            if let Some(exclude) = exclude {
-                if exclude == &player_notif_id {
-                    continue;
-                }
+    pub async fn check_for_disconnects(&mut self) {
+        let mut disconnected_ids = vec![];
+        for player_id in self.players.keys() {
+            if self
+                .network_server
+                .socket_by_player_id(player_id)
+                .await
+                .is_none()
+            {
+                disconnected_ids.push(player_id.clone());
             }
-            let r = r.clone();
-            let map_name = self.map.name.clone();
-            // TODO: figure out this stupid fucking borrow cycle nonsense
-            tokio::spawn(async move {
-                if let Err(e) = send_to_player_err(&player_notif_id, r).await {
+        }
+        for id in disconnected_ids {
+            self.remove_player(&id).await;
+        }
+    }
+
+    pub async fn broadcast(&self, r: Response, exclude: Option<String>) {
+        let player_ids = self.players.keys().cloned().collect::<Vec<String>>();
+        let network_server = self.network_server.clone();
+        let map_name = self.map.name.clone();
+        tokio::spawn(async move {
+            for id in player_ids {
+                if let Some(exclude) = exclude.clone() {
+                    if exclude == id {
+                        continue;
+                    }
+                }
+                if let Err(e) = network_server.send_to_player_err(&id, r.clone()).await {
                     println!("Error broadcasting on map {}: {:?}", map_name, e);
                 }
-            });
-        }
+            }
+        });
     }
 
     /// insert our new player into the map and send the current state
@@ -68,15 +87,19 @@ impl MapInstance {
         let player_id = player.id.clone();
         let body = player.body();
         // send new player position to themselves
+        let network_server = self.network_server.clone();
         tokio::spawn(async move {
-            send_to_player(&player_id, Response::PlayerChange(body, None)).await;
+            network_server
+                .send_to_player(&player_id, Response::PlayerChange(body, None))
+                .await;
         });
         let player_id = player.id.clone();
         // send the map state to the new player
         let map_state =
             Response::MapState(self.mobs.clone().into_iter().map(|v| v.into()).collect());
+        let network_server = self.network_server.clone();
         tokio::spawn(async move {
-            send_to_player(&player_id, map_state).await;
+            network_server.send_to_player(&player_id, map_state).await;
         });
         let player_id = player.id.clone();
         // send other player positions to the new player
@@ -84,8 +107,11 @@ impl MapInstance {
             let body = other_player.body();
             let state = other_player.state();
             let player_id = player_id.clone();
+            let network_server = self.network_server.clone();
             tokio::spawn(async move {
-                send_to_player(&player_id, Response::PlayerData(state, body)).await;
+                network_server
+                    .send_to_player(&player_id, Response::PlayerData(state, body))
+                    .await;
             });
         }
         // notify other players of the new player
@@ -110,11 +136,11 @@ impl MapInstance {
         player_action: PlayerAction,
         position: Vec2,
         velocity: Vec2,
-    ) {
+    ) -> Option<MapGameAction> {
         let player = self.players.get_mut(player_id);
         if player.is_none() {
             println!("Player is not on this map: {player_id} !");
-            return;
+            return None;
         }
         // client authoritatively provides player position
         // TODO: validate that positions make sense, player isn't moving
@@ -163,14 +189,20 @@ impl MapInstance {
                 } else {
                     let player_id = player.id.clone();
                     let mob_inner = mob.clone();
+                    let network_server = self.network_server.clone();
                     tokio::spawn(async move {
-                        send_to_player(&player_id, Response::MobChange(mob_inner.into())).await;
+                        network_server
+                            .send_to_player(&player_id, Response::MobChange(mob_inner.into()))
+                            .await;
                     });
                 }
                 let player_id = player.id.clone();
                 let mob_id = mob.id;
+                let network_server = self.network_server.clone();
                 tokio::spawn(async move {
-                    send_to_player(&player_id, Response::MobDamage(mob_id, damage_amount)).await;
+                    network_server
+                        .send_to_player(&player_id, Response::MobDamage(mob_id, damage_amount))
+                        .await;
                 });
                 break;
             }
@@ -182,33 +214,23 @@ impl MapInstance {
                     .rect()
                     .contains(player.position + Vec2::new(15., 15.))
                 {
-                    // user is moving
-                    let player_id = player.id.clone();
-                    let to_map = portal.to.clone();
-                    let from_map = self.map.name.clone();
-                    let mut new_record = player.record.clone();
-                    new_record.current_map = to_map.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) =
-                            PlayerRecord::change_map(player_id.clone(), &from_map, &to_map).await
-                        {
-                            println!("Error changing map: {:?}", e);
-                        } else {
-                            STATE.player_change_map(&player_id, &to_map).await;
-                            send_to_player(&player_id, Response::ChangeMap(to_map)).await;
-                        }
-                    });
-                    break;
+                    return Some(MapGameAction::EnterPortal(
+                        self.map.name.clone(),
+                        portal.to.clone(),
+                    ));
                 }
             }
         }
         // broadcast the change to other players on the map
         if let Some(player_change) = player_change {
-            self.broadcast(player_change, Some(player_id)).await;
+            self.broadcast(player_change, Some(player_id.to_string()))
+                .await;
         }
+        None
     }
 
     pub async fn tick(&mut self) {
+        self.check_for_disconnects().await;
         self.mobs = self
             .mobs
             .iter()
@@ -259,9 +281,10 @@ impl MapInstance {
         for player in self.players.values() {
             let player_id = player.id.clone();
             let mob_changes = mob_changes.clone();
+            let network_server = self.network_server.clone();
             tokio::spawn(async move {
                 for change in mob_changes {
-                    send_to_player(&player_id, change).await;
+                    network_server.send_to_player(&player_id, change).await;
                 }
             });
         }
@@ -271,8 +294,6 @@ impl MapInstance {
                 player.velocity = player.velocity.move_towards(Vec2::ZERO, 300.);
             }
             player.step_physics(TICK_RATE_MS / 1000., &self.map);
-            println!("{:?}", player.action);
-            println!("{:?}", player.rect());
         }
 
         if timestamp() - self.last_broadcast > 1.0 {
@@ -281,8 +302,9 @@ impl MapInstance {
                 let player_id = player.id.clone();
                 let map_state =
                     Response::MapState(self.mobs.clone().into_iter().map(|v| v.into()).collect());
+                let network_server = self.network_server.clone();
                 tokio::spawn(async move {
-                    send_to_player(&player_id, map_state).await;
+                    network_server.send_to_player(&player_id, map_state).await;
                 });
             }
         }

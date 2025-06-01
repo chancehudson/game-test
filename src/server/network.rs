@@ -23,6 +23,9 @@ pub struct Server {
     // socket_id, reverse communication channel, action
     pub action_queue: RwLock<VecDeque<(String, Action)>>,
     pub socket_sender: RwLock<HashMap<String, mpsc::Sender<Response>>>,
+    // player id keyed to socket
+    // and socket keyed to player id
+    player_socket_map: RwLock<HashMap<String, String>>,
 }
 
 impl Server {
@@ -37,9 +40,35 @@ impl Server {
             action_queue,
             socket_sender: RwLock::new(HashMap::new()),
             listener,
+            player_socket_map: RwLock::new(HashMap::new()),
         })
     }
 
+    /// Send to a player id
+    pub async fn send_to_player_err(&self, player_id: &str, res: Response) -> anyhow::Result<()> {
+        if let Some(socket_id) = self.socket_by_player_id(player_id).await {
+            self.send(&socket_id, res.clone()).await?;
+        }
+        Ok(())
+    }
+
+    /// Send to a player id
+    /// eat any error that occurs
+    pub async fn send_to_player(&self, player_id: &str, res: Response) {
+        if let Some(socket_id) = self.socket_by_player_id(player_id).await {
+            if let Err(e) = self.send(&socket_id, res.clone()).await {
+                println!("Error sending to player {player_id}: {:?}", e);
+                println!("message: {:?}", res);
+                if e.to_string() == "channel closed" {
+                    println!("player disconnected");
+                    self.logout_socket(&socket_id).await;
+                }
+            }
+        }
+    }
+
+    /// Send to a socket id
+    /// This can be invoked from any thread
     pub async fn send(&self, socket_id: &str, res: Response) -> anyhow::Result<()> {
         if let Some(sender) = self.socket_sender.write().await.get_mut(socket_id) {
             sender.send(res).await?;
@@ -49,6 +78,7 @@ impl Server {
         }
     }
 
+    /// This will be invoked from a non-main thread
     pub async fn accept_connection(&self, stream: TcpStream) {
         let addr = stream
             .peer_addr()
@@ -134,7 +164,7 @@ impl Server {
                             let msg = msg.unwrap();
                             if msg.is_binary() {
                                 let action = bincode::deserialize::<Action>(&msg.clone().into_data())?;
-                                println!("{:?}", action);
+                                // println!("{:?}", action);
                                 self.action_queue.write().await.push_back((socket_id.to_string(), action));
                             } else if msg.is_close() {
                                 self.cleanup_connection(socket_id, recv).await;
@@ -162,5 +192,37 @@ impl Server {
     async fn cleanup_connection(&self, socket_id: &str, recv: &mut mpsc::Receiver<Response>) {
         self.socket_sender.write().await.remove(socket_id);
         recv.close();
+    }
+
+    pub async fn player_by_socket_id(&self, socket_id: &str) -> Option<String> {
+        let player_socket_map = self.player_socket_map.read().await;
+        if let Some(player_id) = player_socket_map.get(socket_id) {
+            if let Some(socket_id_internal) = player_socket_map.get(player_id) {
+                if socket_id == socket_id_internal {
+                    return Some(player_id.clone());
+                }
+            }
+        }
+        None
+    }
+
+    pub async fn socket_by_player_id(&self, player_id: &str) -> Option<String> {
+        let player_socket_map = self.player_socket_map.read().await;
+        player_socket_map.get(player_id).cloned()
+    }
+
+    pub async fn logout_socket(&self, socket_id: &str) -> Option<String> {
+        let mut player_socket_map = self.player_socket_map.write().await;
+        let player_id = player_socket_map.remove(socket_id);
+        if let Some(player_id) = player_id.as_ref() {
+            player_socket_map.remove(player_id);
+        }
+        player_id
+    }
+
+    pub async fn register_player(&self, socket_id: String, player_id: String) {
+        let mut player_socket_map = self.player_socket_map.write().await;
+        player_socket_map.insert(socket_id.clone(), player_id.clone());
+        player_socket_map.insert(player_id, socket_id);
     }
 }

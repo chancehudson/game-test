@@ -5,8 +5,6 @@ use serde::Serialize;
 use sled::transaction::ConflictableTransactionError;
 use sled::Transactional;
 
-use crate::DB;
-
 // player record
 const PLAYER_TREE: &str = "players";
 // map usernames to player id's for constant time access
@@ -23,7 +21,7 @@ pub struct PlayerRecord {
 }
 
 impl PlayerRecord {
-    pub async fn create(username: String) -> Result<Self> {
+    pub async fn create(db: sled::Db, username: String) -> Result<Self> {
         let player_id = nanoid!();
         let player = Self {
             id: player_id.clone(),
@@ -33,8 +31,8 @@ impl PlayerRecord {
             max_health: 50,
             health: 50,
         };
-        let username_tree = DB.open_tree(USERNAME_TREE)?;
-        let player_tree = DB.open_tree(PLAYER_TREE)?;
+        let username_tree = db.open_tree(USERNAME_TREE)?;
+        let player_tree = db.open_tree(PLAYER_TREE)?;
         (&username_tree, &player_tree)
             .transaction(|(username_tree, player_tree)| {
                 if let None = username_tree.get(player.username.clone().into_bytes())? {
@@ -57,8 +55,13 @@ impl PlayerRecord {
         Ok(player)
     }
 
-    pub async fn change_map(player_id: String, from_map: &str, to_map: &str) -> Result<()> {
-        let tree = DB.open_tree(PLAYER_TREE)?;
+    pub async fn change_map(
+        db: sled::Db,
+        player_id: String,
+        from_map: &str,
+        to_map: &str,
+    ) -> Result<()> {
+        let tree = db.open_tree(PLAYER_TREE)?;
         tree.transaction(move |player_tree| {
             if let Some(player) = player_tree.get(&player_id)? {
                 let mut player: PlayerRecord = bincode::deserialize(player.as_ref()).unwrap();
@@ -84,8 +87,8 @@ impl PlayerRecord {
     }
 
     // Load a player from the database
-    pub async fn player_by_id(player_id: String) -> Result<Option<Self>> {
-        let tree = DB.open_tree(PLAYER_TREE)?;
+    pub async fn player_by_id(db: sled::Db, player_id: String) -> Result<Option<Self>> {
+        let tree = db.open_tree(PLAYER_TREE)?;
         if let Some(bytes) = tree.get(player_id)? {
             let player = bincode::deserialize(bytes.as_ref())?;
             Ok(Some(player))
@@ -95,8 +98,8 @@ impl PlayerRecord {
     }
 
     /// TODO: use a seperate table to avoid scanning
-    pub async fn player_by_name(username: &str) -> Result<Option<Self>> {
-        let tree = DB.open_tree(PLAYER_TREE)?;
+    pub async fn player_by_name(db: sled::Db, username: &str) -> Result<Option<Self>> {
+        let tree = db.open_tree(PLAYER_TREE)?;
         for v in tree.iter() {
             let (_k, v) = v?;
             let player: Self = bincode::deserialize(v.as_ref())?;

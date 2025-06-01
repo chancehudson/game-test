@@ -76,7 +76,7 @@ fn handle_mob_damage(
                         transform.translation + Vec3::new(0.0, data.size.y + 10.0, 99.0),
                     ),
                     Text2d::new(format!("{}", amount)),
-                    TextColor(Color::srgba(0.7, 0.0, 0.0, 1.0)),
+                    TextColor(Color::srgba(1., 0.0, 0.2, 1.0)),
                     TextFont {
                         font_size: 25.0,
                         ..default()
