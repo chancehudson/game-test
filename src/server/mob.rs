@@ -3,6 +3,7 @@ use std::vec::Vec;
 
 use bevy::math::Rect;
 use bevy::math::Vec2;
+use game_test::action::PlayerBody;
 use game_test::actor::GRAVITY_ACCEL;
 use game_test::mob::MobAnimationData;
 use game_test::MapData;
@@ -33,8 +34,8 @@ pub struct ServerMob {
     pub moving_dir: Option<f32>,
     pub move_start: f32,
     pub knockback_began: Option<Instant>,
-    pub last_aggro_pos_update: Option<Instant>,
     pub aggro_to: Option<String>,
+    pub aggro_began: Option<f32>,
 
     pub data: &'static MobAnimationData,
 }
@@ -69,7 +70,7 @@ impl ServerMob {
             level: 1,
             knockback_began: None,
             aggro_to: None,
-            last_aggro_pos_update: None,
+            aggro_began: None,
             data: MOB_DATA.get(&mob_type).as_ref().unwrap(),
         }
     }
@@ -98,17 +99,18 @@ impl ServerMob {
         )
     }
 
-    // // when a mob is hit
-    // pub fn hit(&mut self, from: &PlayerBody, damage: u64) {
-    //     if damage >= self.health {
-    //         self.health = 0;
-    //         // mob is dead, drop items and despawn
-    //     } else {
-    //         self.health -= damage;
-    //         self.knockback_began = Some(Instant::now());
-    //         self.aggro_to = Some(from.id.clone());
-    //     }
-    // }
+    // when a mob is hit
+    pub fn hit(&mut self, from: &PlayerBody, damage: u64) {
+        if damage >= self.health {
+            self.health = 0;
+            // mob is dead, drop items and despawn
+        } else {
+            self.health -= damage;
+            self.knockback_began = Some(Instant::now());
+            self.aggro_to = Some(from.id.clone());
+            self.aggro_began = Some(timestamp());
+        }
+    }
 
     pub fn tick(&mut self, map: &MapData) {
         self.position = self.next_position;
@@ -121,7 +123,11 @@ impl ServerMob {
                 Some(-1.)
             }
         }
-        if timestamp() - self.move_start > 10.0 {
+        if self.moving_dir.is_some() && rand::rng().random_bool(0.05) && self.aggro_to.is_none() {
+            self.moving_dir = None;
+        }
+        if self.aggro_to.is_some() && timestamp() - self.aggro_began.unwrap() > 10.0 {
+            self.aggro_to = None;
             self.moving_dir = None;
         }
         // we'll do a simple move algo on a single dimension (x)

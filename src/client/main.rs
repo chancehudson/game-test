@@ -20,6 +20,7 @@ mod login;
 mod map;
 mod map_data_loader;
 mod mob;
+mod mob_health_bar;
 mod network;
 mod player;
 mod smooth_camera;
@@ -28,6 +29,7 @@ use game_test::TICK_RATE_MS;
 use map::ActiveMap;
 use map::MapEntity;
 use mob::MobEntity;
+use mob_health_bar::MobHealthBar;
 use network::NetworkMessage;
 use network::NetworkPlugin;
 use player::ActivePlayer;
@@ -73,6 +75,7 @@ fn main() {
     .add_plugins(NetworkPlugin)
     .add_plugins(player::PlayerPlugin)
     .add_plugins(mob::MobPlugin)
+    .add_plugins(mob_health_bar::MobHealthBarPlugin)
     .add_systems(FixedUpdate, response_handler_system)
     .add_systems(FixedUpdate, handle_login)
     .add_systems(FixedUpdate, handle_mob_state)
@@ -82,7 +85,7 @@ fn main() {
 
 fn step_mobs(
     mut mobs: Query<(&mut MobEntity, &mut Transform)>,
-    players: Query<(&Player, &Transform), Without<MobEntity>>,
+    // players: Query<(&Player, &Transform), Without<MobEntity>>,
     time: Res<Time>,
     active_map: Res<ActiveMap>,
 ) {
@@ -159,15 +162,21 @@ fn handle_mob_state(
                 }
             }
             for (_, new_mob) in updated {
-                commands.spawn((
-                    MapEntity,
-                    Transform::from_translation(Vec3::new(
-                        new_mob.position.x,
-                        new_mob.position.y,
-                        1.0,
-                    )),
-                    MobEntity::new(new_mob.clone(), &asset_server, &mut texture_atlas_layouts),
-                ));
+                println!(
+                    "spawned entity {} with health {}",
+                    new_mob.id, new_mob.health
+                );
+                commands
+                    .spawn((
+                        MapEntity,
+                        Transform::from_translation(Vec3::new(
+                            new_mob.position.x,
+                            new_mob.position.y,
+                            1.0,
+                        )),
+                        MobEntity::new(new_mob.clone(), &asset_server, &mut texture_atlas_layouts),
+                    ))
+                    .with_child(MobHealthBar::new(new_mob));
             }
         }
     }

@@ -1,5 +1,6 @@
 use bevy::math::VectorSpace;
 use bevy::prelude::*;
+
 use game_test::actor::GRAVITY_ACCEL;
 use game_test::MapData;
 use game_test::TICK_RATE_MS;
@@ -11,6 +12,7 @@ use game_test::action::Response;
 use game_test::mob::{MobData, MOB_DATA};
 
 use crate::animated_sprite::AnimatedSprite;
+use crate::mob_health_bar::MobHealthBar;
 
 pub struct MobPlugin;
 
@@ -49,14 +51,21 @@ fn animate_mob_damage(
 fn handle_mob_damage(
     mut action_events: EventReader<NetworkMessage>,
     mut commands: Commands,
-    mob_query: Query<(&MobEntity, &Transform)>,
+    mut mob_query: Query<(&mut MobEntity, &Transform, Entity)>,
     time: Res<Time>,
 ) {
     for event in action_events.read() {
         if let Response::MobDamage(id, amount) = &event.0 {
-            for (entity, transform) in &mob_query {
+            for (mut entity, transform, e) in mob_query.iter_mut() {
                 if &entity.mob.id != id {
                     continue;
+                }
+                if amount >= &entity.mob.health {
+                    entity.mob.health = 0;
+                    println!("killed entity {}", entity.mob.id);
+                    commands.entity(e).despawn_recursive();
+                } else {
+                    entity.mob.health -= amount;
                 }
                 let data = MOB_DATA.get(&entity.mob.mob_type).unwrap();
                 commands.spawn((
@@ -121,47 +130,6 @@ pub struct MobEntity {
 }
 
 impl MobEntity {
-    pub fn tick(&mut self, new_mob: &MobData) {
-        self.mob.next_position = new_mob.next_position;
-        if self.mob.position == self.mob.next_position {
-            self.velocity = Vec2::ZERO;
-        } else {
-            self.velocity.x =
-                (self.mob.next_position.x - self.mob.position.x) / (TICK_RATE_MS / 1000.);
-        }
-    }
-
-    pub fn step(&mut self, step_len: f32, map: &MapData) {
-        let data = MOB_DATA.get(&self.mob.mob_type).unwrap();
-        self.velocity.y += -GRAVITY_ACCEL * step_len;
-        let rect = Rect::new(
-            self.mob.position.x,
-            self.mob.position.y,
-            self.mob.position.x + data.size.x,
-            self.mob.position.y + data.size.y,
-        );
-        let (new_x, _) = move_x(rect, self.velocity, step_len * self.velocity.x, map);
-        let (new_y, vel_y) = move_y(rect, self.velocity, step_len * self.velocity.y, map);
-        self.mob.position = Vec2::new(new_x, new_y);
-        self.velocity = Vec2::new(self.velocity.x, vel_y);
-        // to avoid slight stutters between reaching the target coords and
-        // receiving new ones
-        const OVERRUN_DIST: f32 = 10.0;
-        if (self.velocity.x > 0. && self.mob.position.x > self.mob.next_position.x + OVERRUN_DIST)
-            || (self.velocity.x < 0.
-                && self.mob.position.x + OVERRUN_DIST < self.mob.next_position.x)
-        {
-            self.mob.position.x = self.mob.next_position.x;
-            self.velocity.x = 0.;
-        }
-        if (self.velocity.y > 0. && self.mob.position.y > self.mob.next_position.y)
-            || (self.velocity.y < 0. && self.mob.position.y < self.mob.next_position.y)
-        {
-            self.mob.position.y = self.mob.next_position.y;
-            self.velocity.y = 0.;
-        }
-    }
-
     pub fn new(
         mob: MobData,
         asset_server: &Res<AssetServer>,
@@ -210,5 +178,46 @@ impl MobEntity {
                 ..default()
             },
         )
+    }
+
+    pub fn tick(&mut self, new_mob: &MobData) {
+        self.mob.next_position = new_mob.next_position;
+        if self.mob.position == self.mob.next_position {
+            self.velocity = Vec2::ZERO;
+        } else {
+            self.velocity.x =
+                (self.mob.next_position.x - self.mob.position.x) / (TICK_RATE_MS / 1000.);
+        }
+    }
+
+    pub fn step(&mut self, step_len: f32, map: &MapData) {
+        let data = MOB_DATA.get(&self.mob.mob_type).unwrap();
+        self.velocity.y += -GRAVITY_ACCEL * step_len;
+        let rect = Rect::new(
+            self.mob.position.x,
+            self.mob.position.y,
+            self.mob.position.x + data.size.x,
+            self.mob.position.y + data.size.y,
+        );
+        let (new_x, _) = move_x(rect, self.velocity, step_len * self.velocity.x, map);
+        let (new_y, vel_y) = move_y(rect, self.velocity, step_len * self.velocity.y, map);
+        self.mob.position = Vec2::new(new_x, new_y);
+        self.velocity = Vec2::new(self.velocity.x, vel_y);
+        // to avoid slight stutters between reaching the target coords and
+        // receiving new ones
+        const OVERRUN_DIST: f32 = 0.0;
+        if (self.velocity.x > 0. && self.mob.position.x > self.mob.next_position.x + OVERRUN_DIST)
+            || (self.velocity.x < 0.
+                && self.mob.position.x + OVERRUN_DIST < self.mob.next_position.x)
+        {
+            self.mob.position.x = self.mob.next_position.x;
+            self.velocity.x = 0.;
+        }
+        if (self.velocity.y > 0. && self.mob.position.y > self.mob.next_position.y)
+            || (self.velocity.y < 0. && self.mob.position.y < self.mob.next_position.y)
+        {
+            self.mob.position.y = self.mob.next_position.y;
+            self.velocity.y = 0.;
+        }
     }
 }

@@ -201,6 +201,7 @@ fn step_physics(mut query: Query<(&mut Player, &mut Transform)>, time: Res<Time>
         player.body.action = Some(out_action);
         player.body.velocity = Vec2::new(velocity.x, velocity.y);
         player.body.velocity.y += -game_test::actor::GRAVITY_ACCEL * delta;
+        player.body.position = new_position;
         transform.translation.x = new_position.x;
         transform.translation.y = new_position.y;
     }

@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::player::ActivePlayer;
+
 use super::network::NetworkAction;
 use super::ActivePlayerState;
 use super::GameState;
@@ -75,7 +77,11 @@ pub fn update_health_bar(
     node.width = Val::Percent(health_percent);
 }
 
-pub fn show_gui(mut commands: Commands, windows: Query<&Window>, player_query: Query<&Player>) {
+pub fn show_gui(
+    mut commands: Commands,
+    windows: Query<&Window>,
+    player_query: Query<&Player, With<ActivePlayer>>,
+) {
     if player_query.is_empty() {
         println!("No player!");
         return;
