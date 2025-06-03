@@ -289,10 +289,10 @@ impl MapInstance {
         }
         for player in self.players.values_mut() {
             // TODO: better player position sync
-            if !player.action.move_left && !player.action.move_right {
-                player.velocity = player.velocity.move_towards(Vec2::ZERO, 300.);
-            }
-            player.step_physics(TICK_RATE_S_F32, &self.map);
+            // if !player.action.move_left && !player.action.move_right {
+            //     player.velocity = player.velocity.move_towards(Vec2::ZERO, 300.);
+            // }
+            // player.step_physics(TICK_RATE_S_F32, &self.map);
         }
 
         if timestamp() - self.last_broadcast > 1.0 {

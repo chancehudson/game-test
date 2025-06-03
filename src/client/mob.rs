@@ -1,13 +1,9 @@
-use bevy::math::VectorSpace;
 use bevy::prelude::*;
 
-use bevy::transform;
 use bevy::utils::HashMap;
 use game_test::actor::GRAVITY_ACCEL;
 use game_test::MapData;
-use game_test::TICK_RATE_MS;
 use game_test::TICK_RATE_S_F32;
-use websocket::websocket_base::header::names;
 
 use super::move_x;
 use super::move_y;
@@ -16,7 +12,6 @@ use game_test::action::Response;
 use game_test::mob::{MobData, MOB_DATA};
 
 use crate::animated_sprite::AnimatedSprite;
-use crate::mob_health_bar::MobHealthBar;
 
 pub struct MobPlugin;
 
@@ -50,17 +45,10 @@ fn handle_mob_change(
             // We assume the mob is on map here. If it's not this is a noop
             if let Some(&entity) = mob_registry.mobs.get(&new_mob.id) {
                 if let Ok((mut existing_mob, transform)) = mob_query.get_mut(entity) {
-                    if (transform.translation.xy()).abs_diff_eq(new_mob.position, 50.0) {
-                        // use our local position
-                        existing_mob.mob.position = transform.translation.xy();
-                    } else {
-                        println!(
-                            "overwriting, local mob is {}",
-                            existing_mob.mob.position.x - new_mob.position.x
-                        );
-                        existing_mob.mob.position = new_mob.position;
-                    }
-                    existing_mob.tick(new_mob);
+                    existing_mob.mob.next_position = new_mob.next_position;
+                    existing_mob.velocity.x = (existing_mob.mob.next_position.x
+                        - existing_mob.mob.position.x)
+                        / TICK_RATE_S_F32;
                 }
             }
         }
@@ -87,39 +75,39 @@ fn animate_mob_damage(
 }
 
 fn handle_mob_damage(
+    mob_registry: Res<MobRegistry>,
     mut action_events: EventReader<NetworkMessage>,
     mut commands: Commands,
-    mut mob_query: Query<(&mut MobEntity, &Transform, Entity)>,
+    mut mob_query: Query<(&mut MobEntity, &Transform)>,
     time: Res<Time>,
 ) {
     for event in action_events.read() {
         if let Response::MobDamage(id, amount) = &event.0 {
-            for (mut entity, transform, e) in mob_query.iter_mut() {
-                if &entity.mob.id != id {
-                    continue;
+            if let Some(&entity) = mob_registry.mobs.get(id) {
+                if let Ok((mut mob, transform)) = mob_query.get_mut(entity) {
+                    if amount >= &mob.mob.health {
+                        mob.mob.health = 0;
+                        println!("killed entity {}", mob.mob.id);
+                        commands.entity(entity).despawn_recursive();
+                    } else {
+                        mob.mob.health -= amount;
+                    }
+                    let data = MOB_DATA.get(&mob.mob.mob_type).unwrap();
+                    commands.spawn((
+                        DamageText {
+                            created_at: time.elapsed_secs_f64(),
+                        },
+                        Transform::from_translation(
+                            transform.translation + Vec3::new(0.0, data.size.y + 10.0, 99.0),
+                        ),
+                        Text2d::new(format!("{}", amount)),
+                        TextColor(Color::srgba(1., 0.0, 0.2, 1.0)),
+                        TextFont {
+                            font_size: 25.0,
+                            ..default()
+                        },
+                    ));
                 }
-                if amount >= &entity.mob.health {
-                    entity.mob.health = 0;
-                    println!("killed entity {}", entity.mob.id);
-                    commands.entity(e).despawn_recursive();
-                } else {
-                    entity.mob.health -= amount;
-                }
-                let data = MOB_DATA.get(&entity.mob.mob_type).unwrap();
-                commands.spawn((
-                    DamageText {
-                        created_at: time.elapsed_secs_f64(),
-                    },
-                    Transform::from_translation(
-                        transform.translation + Vec3::new(0.0, data.size.y + 10.0, 99.0),
-                    ),
-                    Text2d::new(format!("{}", amount)),
-                    TextColor(Color::srgba(1., 0.0, 0.2, 1.0)),
-                    TextFont {
-                        font_size: 25.0,
-                        ..default()
-                    },
-                ));
             }
         }
     }
@@ -216,15 +204,6 @@ impl MobEntity {
                 ..default()
             },
         )
-    }
-
-    pub fn tick(&mut self, new_mob: &MobData) {
-        self.mob.next_position = new_mob.next_position;
-        if self.mob.position == self.mob.next_position {
-            self.velocity = Vec2::ZERO;
-        } else {
-            self.velocity.x = (self.mob.next_position.x - self.mob.position.x) / TICK_RATE_S_F32;
-        }
     }
 
     pub fn step(&mut self, step_len: f32, map: &MapData) {

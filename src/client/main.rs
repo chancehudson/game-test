@@ -1,9 +1,7 @@
 use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
 use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
-use bevy::math::VectorSpace;
 use bevy::prelude::*;
 use bevy::text::FontSmoothing;
-use bevy::utils::HashMap;
 
 pub use game_test::action::Action;
 pub use game_test::action::PlayerAction;
@@ -11,6 +9,7 @@ use game_test::action::PlayerState;
 pub use game_test::action::Response;
 pub use game_test::actor::move_x;
 pub use game_test::actor::move_y;
+use game_test::timestamp;
 pub use game_test::Actor;
 pub use game_test::MapData;
 
@@ -175,6 +174,7 @@ fn handle_login(
                         username: state.username.clone(),
                         current_map: state.current_map.clone(),
                         body: body.clone(),
+                        last_update: timestamp(),
                     },
                     Transform::from_translation(Vec3::new(body.position.x, body.position.y, 1.0)),
                     Player::default_sprite(&asset_server, &mut texture_atlas_layouts),

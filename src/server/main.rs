@@ -3,7 +3,7 @@ use std::time::Duration;
 use game_test::action::Action;
 use game_test::timestamp;
 use game_test::Actor;
-use game_test::TICK_RATE_MS;
+use game_test::TICK_RATE_S;
 
 mod db;
 mod game;
@@ -121,10 +121,10 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         let tick_time = timestamp() - tick_start;
-        if tick_time >= TICK_RATE_MS / 1000. {
+        if tick_time >= TICK_RATE_S {
             println!("WARNING: server tick took more than TICK_RATE_MS !");
         } else {
-            let remaining = TICK_RATE_MS / 1000. - tick_time;
+            let remaining = TICK_RATE_S - tick_time;
             // println!("wait time: {}", remaining);
             tokio::time::sleep(Duration::from_secs_f64(remaining)).await;
         }

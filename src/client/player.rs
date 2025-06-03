@@ -5,6 +5,8 @@ use game_test::action::PlayerBody;
 use game_test::action::Response;
 use game_test::actor::move_x;
 use game_test::actor::move_y;
+use game_test::timestamp;
+use game_test::TICK_RATE_S;
 
 use crate::animated_sprite::AnimatedSprite;
 
@@ -25,6 +27,7 @@ pub struct Player {
     pub id: String,
     pub username: String,
     pub current_map: String,
+    pub last_update: f64,
     pub body: PlayerBody, // data necessary to render the player
 }
 
@@ -58,32 +61,35 @@ impl Player {
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, handle_player_state)
-            .add_systems(Update, flip_player)
-            .add_systems(
-                Update,
-                (input_system, step_physics, step_movement)
-                    .chain()
-                    .run_if(in_state(GameState::OnMap)),
-            )
-            .add_systems(OnEnter(GameState::LoggedOut), despawn_player);
+        app.add_systems(
+            FixedUpdate,
+            (
+                handle_player_data,
+                handle_player_change,
+                handle_player_removed,
+            ),
+        )
+        .add_systems(Update, flip_player)
+        .add_systems(
+            Update,
+            (input_system, step_physics, step_movement)
+                .chain()
+                .run_if(in_state(GameState::OnMap)),
+        )
+        .add_systems(OnEnter(GameState::LoggedOut), despawn_all_players);
     }
 }
 
-fn despawn_player(mut player_query: Query<Entity, With<Player>>, mut commands: Commands) {
+fn despawn_all_players(mut player_query: Query<Entity, With<Player>>, mut commands: Commands) {
     for entity in player_query.iter_mut() {
-        commands.entity(entity).despawn();
-        return;
+        commands.entity(entity).despawn_recursive();
     }
 }
 
-fn handle_player_state(
+fn handle_player_removed(
     mut action_events: EventReader<NetworkMessage>,
     mut commands: Commands,
     mut player_query: Query<(Entity, &mut Player, &mut Transform)>,
-    asset_server: Res<AssetServer>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-    mut active_player_state: ResMut<ActivePlayerState>,
 ) {
     for event in action_events.read() {
         if let Response::PlayerRemoved(id) = &event.0 {
@@ -95,6 +101,15 @@ fn handle_player_state(
             }
             println!("Received remove for unknown player: {}", id);
         }
+    }
+}
+
+fn handle_player_change(
+    mut action_events: EventReader<NetworkMessage>,
+    mut player_query: Query<(Entity, &mut Player, &mut Transform)>,
+    mut active_player_state: ResMut<ActivePlayerState>,
+) {
+    for event in action_events.read() {
         if let Response::PlayerChange(body, maybe_state) = &event.0 {
             if body.id == active_player_state.0.id {
                 if let Some(state) = maybe_state {
@@ -112,6 +127,17 @@ fn handle_player_state(
             }
             println!("Received update for unknown player: {}", body.id);
         }
+    }
+}
+
+fn handle_player_data(
+    mut action_events: EventReader<NetworkMessage>,
+    mut commands: Commands,
+    mut player_query: Query<(Entity, &mut Player, &mut Transform)>,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+) {
+    for event in action_events.read() {
         if let Response::PlayerData(state, body) = &event.0 {
             for (_entity, mut existing_player, mut transform) in player_query.iter_mut() {
                 if &existing_player.id != &state.id {
@@ -129,6 +155,7 @@ fn handle_player_state(
                     username: state.username.clone(),
                     current_map: state.current_map.clone(),
                     body: body.clone(),
+                    last_update: timestamp(),
                 },
                 Transform::from_translation(Vec3::new(body.position.x, body.position.y, 0.0)),
                 Player::default_sprite(&asset_server, &mut texture_atlas_layouts),
@@ -175,7 +202,10 @@ fn input_system(
     } else if player_action.move_right {
         player_action.facing_left = false;
     }
-    if active_player.body.action.as_ref() != Some(&player_action) {
+    if active_player.body.action.as_ref() != Some(&player_action)
+        || timestamp() - active_player.last_update > TICK_RATE_S
+    {
+        active_player.last_update = timestamp();
         action_events.send(NetworkAction(game_test::action::Action::SetPlayerAction(
             player_action.clone(),
             Vec2::new(transform.translation.x, transform.translation.y),

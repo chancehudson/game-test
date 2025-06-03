@@ -1,19 +1,19 @@
 use bevy::math::Rect;
 use bevy::math::Vec2;
+
 use game_test::action::PlayerBody;
+use game_test::actor::move_x;
+use game_test::actor::move_y;
 use game_test::actor::GRAVITY_ACCEL;
 use game_test::mob::MobAnimationData;
+use game_test::mob::MobData;
+use game_test::mob::MOB_DATA;
 use game_test::MapData;
+use game_test::TICK_RATE_MS;
 
 use rand::Rng;
 
-use crate::TICK_RATE_MS;
-
 use super::timestamp;
-use game_test::actor::move_x;
-use game_test::actor::move_y;
-use game_test::mob::MobData;
-use game_test::mob::MOB_DATA;
 
 const KNOCKBACK_DURATION_MS: f64 = 500.;
 
@@ -109,8 +109,10 @@ impl ServerMob {
         self.knockback_began = Some(timestamp());
         if from.position.x < self.position.x {
             // knocking to the right
+            self.next_position.x += 150.;
         } else {
             // knocking to the left
+            self.next_position.x -= 150.;
         }
     }
 
@@ -125,7 +127,7 @@ impl ServerMob {
             0.0
         };
         // determine a new position based on the velocity of the mob
-        if self.moving_dir.is_none() && rand::rng().random_bool(0.05) {
+        if self.moving_dir.is_none() && rand::rng().random_bool(0.005) {
             self.move_start = timestamp();
             self.moving_dir = if rand::rng().random_bool(0.5) {
                 Some(1.)
@@ -133,7 +135,7 @@ impl ServerMob {
                 Some(-1.)
             }
         }
-        if self.moving_dir.is_some() && rand::rng().random_bool(0.05) && self.aggro_to.is_none() {
+        if self.moving_dir.is_some() && rand::rng().random_bool(0.005) && self.aggro_to.is_none() {
             self.moving_dir = None;
         }
         if self.aggro_to.is_some() && timestamp() - self.aggro_began.unwrap() > 10.0 {

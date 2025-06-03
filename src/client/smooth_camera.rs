@@ -28,7 +28,7 @@ impl Plugin for SmoothCameraPlugin {
     }
 }
 
-fn setup_camera(mut commands: Commands, windows: Query<&Window>) {
+fn setup_camera(mut commands: Commands /*windows: Query<&Window>*/) {
     commands.spawn((
         Camera2d,
         CameraMovement {
@@ -38,24 +38,23 @@ fn setup_camera(mut commands: Commands, windows: Query<&Window>) {
         },
     ));
     // spawn a box onscreen showing the movement range
-    return;
-    let window = windows.single();
-    let screen_width = window.resolution.width();
-    let screen_height = window.resolution.height();
-    let movement_range = Vec2::new(f32::min(100., screen_width), f32::min(100., screen_height));
-    commands.spawn((
-        DebugMarker,
-        Sprite {
-            custom_size: Some(movement_range * Vec2::splat(2.0)),
-            color: Color::srgba(1.0, 0.0, 0.0, 0.5),
-            ..default()
-        },
-        Transform::from_translation(Vec3::new(
-            screen_width / 2.0 - movement_range.x,
-            screen_height / 2.0 - movement_range.y,
-            10.0,
-        )),
-    ));
+    // let window = windows.single();
+    // let screen_width = window.resolution.width();
+    // let screen_height = window.resolution.height();
+    // let movement_range = Vec2::new(f32::min(100., screen_width), f32::min(100., screen_height));
+    // commands.spawn((
+    //     DebugMarker,
+    //     Sprite {
+    //         custom_size: Some(movement_range * Vec2::splat(2.0)),
+    //         color: Color::srgba(1.0, 0.0, 0.0, 0.5),
+    //         ..default()
+    //     },
+    //     Transform::from_translation(Vec3::new(
+    //         screen_width / 2.0 - movement_range.x,
+    //         screen_height / 2.0 - movement_range.y,
+    //         10.0,
+    //     )),
+    // ));
 }
 
 fn move_debug_marker(

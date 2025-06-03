@@ -15,6 +15,10 @@ name = "client"
 path = "src/client/main.rs"
 
 [[bin]]
+name = "client_test"
+path = "src/client_test/main.rs"
+
+[[bin]]
 name = "server"
 path = "src/server/main.rs"
 #required-features = ["server"]
