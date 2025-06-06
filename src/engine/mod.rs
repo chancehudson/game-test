@@ -10,6 +10,8 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use bevy::math::Vec2;
+use serde::Deserialize;
+use serde::Serialize;
 
 pub mod entity;
 pub mod mob;
@@ -20,58 +22,94 @@ use entity::Entity;
 use entity::EntityInput;
 use player::PlayerEntity;
 
+use crate::generate_strong_u128;
 use crate::map::MapData;
 use crate::timestamp;
 
 pub const STEP_LEN_S: f64 = 1. / 60.;
+pub const TRAILING_STATE_COUNT: u64 = 600;
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GameEngine {
-    pub entity_id_counter: u64,
     pub start_timestamp: f64,
     pub map: MapData,
     // entity id keyed to struct
-    pub entities: HashMap<u64, EngineEntity>,
-    // tick index keyed to entity id to struct
-    pub entities_by_tick: HashMap<u64, HashMap<u64, EngineEntity>>,
+    pub entities: HashMap<u128, EngineEntity>,
+    // step index keyed to entity id to struct
+    #[serde(skip)]
+    pub entities_by_step: HashMap<u64, HashMap<u128, EngineEntity>>,
+    #[serde(skip)]
+    pub new_entities_by_step: HashMap<u64, Vec<EngineEntity>>,
     // inputs by entity id, by step index
-    pub inputs: HashMap<u64, BTreeMap<u64, EntityInput>>,
-    // pub players: HashMap<String, Player>,
-    // pub mobs: Vec<Mob>,
+    pub inputs: HashMap<u128, BTreeMap<u64, EntityInput>>,
     pub step_index: u64,
 }
 
 impl GameEngine {
     pub fn new(map: MapData) -> Self {
         Self {
-            entity_id_counter: 0,
             start_timestamp: timestamp(),
             map,
             entities: HashMap::new(),
-            entities_by_tick: HashMap::new(),
+            entities_by_step: HashMap::new(),
+            new_entities_by_step: HashMap::new(),
             inputs: HashMap::new(),
             step_index: 0,
         }
     }
 
-    pub fn insert_player(&mut self) -> &EngineEntity {
-        self.entity_id_counter += 1;
-        let id = self.entity_id_counter;
+    /// generate a strong random id that isn't in use
+    pub fn generate_id(&self) -> u128 {
+        loop {
+            let id = generate_strong_u128();
+            if !self.entities.contains_key(&id) {
+                return id;
+            }
+        }
+    }
+
+    pub fn engine_at_step(&self, step_index: &u64) -> anyhow::Result<Self> {
+        if let Some(entities) = self.entities_by_step.get(step_index) {
+            let mut out = self.clone();
+            out.entities = entities.clone();
+            out.entities_by_step = HashMap::new();
+            out.new_entities_by_step = HashMap::new();
+            out.step_index = *step_index;
+            Ok(out)
+        } else {
+            anyhow::bail!("WARNING: step index {step_index} is too far in the past")
+        }
+    }
+
+    /// TODO: generic implementation
+    /// e.g. spawn_entity::<PlayerEntity>(&mut self)
+    pub fn spawn_player_entity(&mut self) -> &EngineEntity {
+        let id = self.generate_id();
         let player_entity = PlayerEntity {
             id,
             position: Vec2::new(100., 100.),
             size: Vec2::new(40., 40.),
-            player_id: "asfjashf".to_string(),
         };
-        self.entities
-            .insert(id, EngineEntity::Player(player_entity));
+        let engine_entity = EngineEntity::Player(player_entity);
+        self.entities.insert(id, engine_entity.clone());
+        if let Some(new_entities) = self.new_entities_by_step.get_mut(&self.step_index) {
+            new_entities.push(engine_entity);
+        } else {
+            self.new_entities_by_step
+                .insert(self.step_index, vec![engine_entity]);
+        }
         self.entities.get(&id).unwrap()
+    }
+
+    pub fn remove_entity(&mut self, entity_id: &u128) {
+        self.entities.remove(entity_id);
     }
 
     /// Register a new input for an entity. Optionally provide a step index the
     /// input should be applied from.
     ///
     /// TODO: replay history from step_index if it's in the past.
-    pub fn register_input(&mut self, step_index: Option<u64>, entity_id: u64, input: EntityInput) {
+    pub fn register_input(&mut self, step_index: Option<u64>, entity_id: u128, input: EntityInput) {
         let step_index = step_index.unwrap_or(self.step_index);
         let entity_inputs = self.inputs.entry(entity_id).or_insert(BTreeMap::new());
         let (latest_step_index, latest_input) = entity_inputs
@@ -93,11 +131,68 @@ impl GameEngine {
         entity_inputs.insert(step_index, input);
     }
 
+    /// Change an entities position in the world at a point in time
+    /// This is an authoritative change, history will be rewritten from step_index
+    /// TODO: disallow repositioning before latest input
+    /// TODO: include an optional RespositionMode that is Replay | Overwrite ?
+    pub fn reposition_entity(
+        &mut self,
+        entity_id: &u128,
+        step_index: &u64,
+        position: Vec2,
+    ) -> anyhow::Result<()> {
+        if step_index > &self.step_index {
+            anyhow::bail!("WARNING: position change is in the future")
+        } else if self.step_index - step_index >= TRAILING_STATE_COUNT {
+            anyhow::bail!("WARNING: position change is too far in the past");
+        }
+        // take the entities at the previous step and reposition one
+        if let Some(old_entities) = self.entities_by_step.get(step_index) {
+            if !old_entities.contains_key(&entity_id) {
+                anyhow::bail!("entity {entity_id} does not exist at step {step_index}")
+            }
+            // in each step we replay we need to check for new entities
+            let replay_steps = self.step_index - step_index;
+            self.entities = old_entities.clone();
+            // unwrapping is safe due to check above
+            let entity = self.entities.get_mut(&entity_id).unwrap();
+            *entity.position_mut() = position;
+            self.step_index = *step_index;
+            println!("WARNING: engine replaying {replay_steps} steps");
+            for i in 0..replay_steps {
+                let step_index = step_index + i;
+                let new_entities = self
+                    .new_entities_by_step
+                    .get(&step_index)
+                    .cloned()
+                    .unwrap_or_else(|| vec![]);
+                for entity in new_entities {
+                    self.entities.insert(entity.id(), entity);
+                }
+                self.step();
+            }
+        } else {
+            anyhow::bail!("entities do not exist for step {step_index}");
+        }
+        Ok(())
+    }
+
     pub fn expected_step_index(&self) -> u64 {
         let now = timestamp();
         assert!(now >= self.start_timestamp, "GameEngine time ran backward");
         // rounds toward 0
         ((now - self.start_timestamp) / STEP_LEN_S) as u64
+    }
+
+    /// TODO: memory cleanup here
+    pub fn latest_input(&self, entity_id: &u128) -> Option<EntityInput> {
+        let empty_inputs: BTreeMap<u64, EntityInput> = BTreeMap::new();
+        let entity_input_map = self.inputs.get(entity_id).unwrap_or(&empty_inputs);
+        entity_input_map
+            .range(..=self.step_index)
+            .next_back()
+            .map(|(_step_index, input)| input)
+            .cloned()
     }
 
     /// Automatically step forward in time as much as needed
@@ -117,10 +212,18 @@ impl GameEngine {
         let empty_inputs: BTreeMap<u64, EntityInput> = BTreeMap::new();
         for entity in &mut self.entities.values_mut() {
             let entity_input_map = self.inputs.get(&entity.id()).unwrap_or(&empty_inputs);
-            // get the most recent inputs, if they exist
-            let input = entity_input_map.last_key_value().map(|(_, val)| val);
-            let new_entity = entity.step(input, &self.map);
+            let input_maybe = entity_input_map
+                .range(..=self.step_index)
+                .next_back()
+                .map(|(_step_index, input)| input);
+            let new_entity = entity.step(input_maybe, &self.map);
             *entity = new_entity;
+        }
+        self.entities_by_step
+            .insert(self.step_index, self.entities.clone());
+        if self.step_index >= TRAILING_STATE_COUNT {
+            self.entities_by_step
+                .remove(&(self.step_index - TRAILING_STATE_COUNT));
         }
         self.step_index += 1;
     }

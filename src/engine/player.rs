@@ -1,27 +1,31 @@
 use bevy::math::Vec2;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::actor::move_x;
 use crate::actor::move_y;
-use crate::actor::GRAVITY_ACCEL;
 use crate::MapData;
 
 use super::entity::{Entity, EntityInput};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlayerEntity {
-    pub id: u64,
+    pub id: u128,
     pub position: Vec2,
     pub size: Vec2,
-    pub player_id: String,
 }
 
 impl Entity for PlayerEntity {
-    fn id(&self) -> u64 {
+    fn id(&self) -> u128 {
         self.id
     }
 
     fn position(&self) -> Vec2 {
         self.position
+    }
+
+    fn position_mut(&mut self) -> &mut Vec2 {
+        &mut self.position
     }
 
     fn size(&self) -> Vec2 {

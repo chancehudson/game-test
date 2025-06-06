@@ -12,7 +12,7 @@ where
     Ok(Vec2::new(arr[0], arr[1]))
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Npc {
     pub asset: String,
     #[serde(deserialize_with = "deserialize_vec2")]
@@ -21,7 +21,7 @@ pub struct Npc {
     pub size: Vec2,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Portal {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub position: Vec2,
@@ -43,7 +43,7 @@ impl Portal {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Platform {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub position: Vec2,
@@ -64,7 +64,7 @@ pub struct MobSpawn {
     pub last_spawn: f64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct MapData {
     pub name: String,
     #[serde(deserialize_with = "deserialize_vec2")]

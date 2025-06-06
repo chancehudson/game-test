@@ -17,7 +17,7 @@ pub struct ActiveGameEngine(pub GameEngine);
 pub struct ActivePlayer;
 
 #[derive(Component)]
-pub struct GameEntity(pub u64);
+pub struct GameEntity(pub u128);
 
 impl Default for ActiveGameEngine {
     fn default() -> Self {
@@ -56,7 +56,12 @@ fn setup_camera(mut commands: Commands) {
 }
 
 fn setup_engine(mut commands: Commands, mut engine: ResMut<ActiveGameEngine>) {
-    let player_entity = engine.0.insert_player();
+    // bindings between entity and user (or mob/etc) is managed outside of the engine.
+    // the engine has no concept of the game entities
+    //
+    // the physics is logically separate, even though the skills/abilities
+    // dictate the physics
+    let player_entity = engine.0.spawn_player_entity();
     let position = player_entity.position();
     let size = player_entity.size();
     commands.spawn((

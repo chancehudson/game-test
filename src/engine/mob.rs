@@ -1,25 +1,31 @@
 use bevy::math::Vec2;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::MapData;
 
 use super::entity::Entity;
 use super::entity::EntityInput;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MobEntity {
-    pub id: u64,
+    pub id: u128,
     pub position: Vec2,
     pub size: Vec2,
     pub mob_type: u64,
 }
 
 impl Entity for MobEntity {
-    fn id(&self) -> u64 {
+    fn id(&self) -> u128 {
         self.id
     }
 
     fn position(&self) -> Vec2 {
         self.position
+    }
+
+    fn position_mut(&mut self) -> &mut Vec2 {
+        &mut self.position
     }
 
     fn size(&self) -> Vec2 {

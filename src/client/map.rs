@@ -3,8 +3,9 @@ use bevy::prelude::*;
 
 use game_test::MapData;
 
-use crate::mob::MobRegistry;
+// use crate::mob::MobRegistry;
 use crate::smooth_camera::CAMERA_Y_PADDING;
+use crate::ActivePlayerState;
 
 use super::map_data_loader::MapDataAsset;
 use super::GameState;
@@ -156,20 +157,20 @@ fn update_map_loading(
 }
 
 fn exit_map(
-    mut mob_registry: ResMut<MobRegistry>,
+    // mut mob_registry: ResMut<MobRegistry>,
     mut commands: Commands,
     old_map_query: Query<Entity, With<MapEntity>>,
 ) {
     for v in &old_map_query {
         commands.entity(v).despawn_recursive();
     }
-    mob_registry.mobs.clear();
+    // mob_registry.mobs.clear();
 }
 
 fn begin_load_map(
     asset_server: Res<AssetServer>,
     mut loader: ResMut<MapLoader>,
-    active_map: Res<ActiveMap>,
+    active_player_state: Res<ActivePlayerState>,
 ) {
     // Clean up any previous loading state
     if !matches!(loader.state, MapLoadingState::Idle) {
@@ -177,19 +178,20 @@ fn begin_load_map(
     }
 
     // Validate we have a map to load
-    if active_map.name.is_empty() {
+    if active_player_state.0.is_none() {
         error!("Cannot start map load: no map name specified");
         loader.state = MapLoadingState::Failed("No map name specified".to_string());
         return;
     }
+    let active_player_state = active_player_state.0.as_ref().unwrap();
 
     // Start loading the map data
-    let map_path = format!("maps/{}.json5", active_map.name);
+    let map_path = format!("maps/{}.json5", active_player_state.current_map);
     let handle: Handle<MapDataAsset> = asset_server.load(&map_path);
 
-    info!("Starting to load map: {}", active_map.name);
+    info!("Starting to load map: {}", active_player_state.current_map);
     loader.state = MapLoadingState::LoadingMapData(handle);
-    loader.target_map = active_map.name.clone();
+    loader.target_map = active_player_state.current_map.clone();
 }
 
 pub fn spawn_background(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {

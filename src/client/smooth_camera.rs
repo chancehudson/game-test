@@ -1,8 +1,7 @@
-use bevy::prelude::*;
+use bevy::{ecs::entity, prelude::*};
+use game_test::engine::entity::Entity;
 
-use crate::map;
-use crate::player::Player;
-use crate::ActivePlayer;
+use crate::{map, ActiveGameEngine, ActivePlayerEntityId};
 
 const CAMERA_ACCELERATION: f32 = 1500.0;
 const CAMERA_MAX_SPEED: f32 = 300.0;
@@ -74,24 +73,31 @@ fn move_debug_marker(
 /// the screen. If the player moves out of this square the camera will
 /// smoothly accelerate to follow the player
 fn player_camera(
-    player: Query<(&Player, &Transform, &ActivePlayer), Without<Camera2d>>,
+    active_player_entity_id: Res<ActivePlayerEntityId>,
+    active_game_engine: Res<ActiveGameEngine>,
     mut camera: Query<(&mut Transform, &mut CameraMovement), With<Camera2d>>,
     windows: Query<&Window>,
     active_map: Res<map::ActiveMap>,
     time: Res<Time>,
 ) {
-    if player.is_empty() {
+    if active_player_entity_id.0.is_none() {
         return;
     }
+    let active_player_entity_id = active_player_entity_id.0.as_ref().unwrap();
+    let entity = active_game_engine.0.entities.get(active_player_entity_id);
+    if entity.is_none() {
+        return;
+    }
+    let entity = entity.unwrap();
     let delta = time.delta_secs();
-    let (player, player_transform, _) = player.single();
     let (mut camera_transform, mut camera_movement) = camera.single_mut();
     let window = windows.single();
     let screen_width = window.resolution.width();
     let screen_height = window.resolution.height();
     let movement_range = Vec2::new(f32::min(150., screen_width), f32::min(100., screen_height));
 
-    let player_pos = player_transform.translation.xy() + player.body.size / Vec2::splat(2.0);
+    // centered position
+    let player_pos = entity.position() + entity.size() / Vec2::splat(2.0);
     let dist = player_pos - camera_transform.translation.xy();
     // adjust the x velocity
     if dist.x.abs() > movement_range.x && !camera_movement.is_moving_x {
@@ -157,11 +163,11 @@ fn player_camera(
     camera_transform.translation.x += camera_movement.velocity.x * delta;
     camera_transform.translation.y += camera_movement.velocity.y * delta;
 
-    let max_y_dist = 200.0;
-    if dist.y.abs() > max_y_dist && player.body.velocity.y.abs() > camera_movement.velocity.y.abs()
-    {
-        camera_transform.translation.y = player_pos.y - max_y_dist * dist.y.signum();
-    }
+    // let max_y_dist = 200.0;
+    // if dist.y.abs() > max_y_dist && player.body.velocity.y.abs() > camera_movement.velocity.y.abs()
+    // {
+    //     camera_transform.translation.y = player_pos.y - max_y_dist * dist.y.signum();
+    // }
     // clamp the camera as needed
     if active_map.size == Vec2::ZERO {
         return;

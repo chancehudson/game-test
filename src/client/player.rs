@@ -1,37 +1,33 @@
 use bevy::prelude::*;
 
-use game_test::action::PlayerAction;
-use game_test::action::PlayerBody;
+use game_test::action::Action;
+use game_test::action::PlayerState;
 use game_test::action::Response;
 use game_test::actor::move_x;
 use game_test::actor::move_y;
+use game_test::engine::entity::Entity;
+use game_test::engine::entity::EntityInput;
 use game_test::timestamp;
+use game_test::STEP_DELAY;
 use game_test::TICK_RATE_S;
 
 use crate::animated_sprite::AnimatedSprite;
+use crate::ActiveGameEngine;
+use crate::ActivePlayerEntityId;
 
 use super::map::ActiveMap;
-use super::map::MapEntity;
 use super::network::NetworkAction;
-use super::network::NetworkMessage;
-use super::ActivePlayerState;
 use super::GameState;
 
 pub struct PlayerPlugin;
 
 #[derive(Component)]
-pub struct ActivePlayer;
-
-#[derive(Component)]
-pub struct Player {
-    pub id: String,
-    pub username: String,
-    pub current_map: String,
-    pub last_update: f64,
-    pub body: PlayerBody, // data necessary to render the player
+pub struct PlayerComponent {
+    pub state: PlayerState,
+    pub entity_id: u128,
 }
 
-impl Player {
+impl PlayerComponent {
     pub fn default_sprite(
         asset_server: &Res<AssetServer>,
         texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
@@ -61,215 +57,48 @@ impl Player {
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            FixedUpdate,
-            (
-                handle_player_data,
-                handle_player_change,
-                handle_player_removed,
-            ),
-        )
-        .add_systems(Update, flip_player)
-        .add_systems(
-            Update,
-            (input_system, step_physics, step_movement)
-                .chain()
-                .run_if(in_state(GameState::OnMap)),
-        )
-        .add_systems(OnEnter(GameState::LoggedOut), despawn_all_players);
-    }
-}
-
-fn despawn_all_players(mut player_query: Query<Entity, With<Player>>, mut commands: Commands) {
-    for entity in player_query.iter_mut() {
-        commands.entity(entity).despawn_recursive();
-    }
-}
-
-fn handle_player_removed(
-    mut action_events: EventReader<NetworkMessage>,
-    mut commands: Commands,
-    mut player_query: Query<(Entity, &mut Player, &mut Transform)>,
-) {
-    for event in action_events.read() {
-        if let Response::PlayerRemoved(id) = &event.0 {
-            for (entity, player, _) in player_query.iter_mut() {
-                if &player.id == id {
-                    commands.entity(entity).despawn();
-                    return;
-                }
-            }
-            println!("Received remove for unknown player: {}", id);
-        }
-    }
-}
-
-fn handle_player_change(
-    mut action_events: EventReader<NetworkMessage>,
-    mut player_query: Query<(Entity, &mut Player, &mut Transform)>,
-    mut active_player_state: ResMut<ActivePlayerState>,
-) {
-    for event in action_events.read() {
-        if let Response::PlayerChange(body, maybe_state) = &event.0 {
-            if body.id == active_player_state.0.id {
-                if let Some(state) = maybe_state {
-                    active_player_state.0 = state.clone();
-                }
-            }
-            for (_entity, mut existing_player, mut transform) in player_query.iter_mut() {
-                if &existing_player.id != &body.id {
-                    continue;
-                }
-                existing_player.body = body.clone();
-                transform.translation.x = body.position.x;
-                transform.translation.y = body.position.y;
-                return;
-            }
-            println!("Received update for unknown player: {}", body.id);
-        }
-    }
-}
-
-fn handle_player_data(
-    mut action_events: EventReader<NetworkMessage>,
-    mut commands: Commands,
-    mut player_query: Query<(Entity, &mut Player, &mut Transform)>,
-    asset_server: Res<AssetServer>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-) {
-    for event in action_events.read() {
-        if let Response::PlayerData(state, body) = &event.0 {
-            for (_entity, mut existing_player, mut transform) in player_query.iter_mut() {
-                if &existing_player.id != &state.id {
-                    continue;
-                }
-                existing_player.body = body.clone();
-                transform.translation.x = body.position.x;
-                transform.translation.y = body.position.y;
-                return;
-            }
-            commands.spawn((
-                MapEntity,
-                Player {
-                    id: state.id.clone(),
-                    username: state.username.clone(),
-                    current_map: state.current_map.clone(),
-                    body: body.clone(),
-                    last_update: timestamp(),
-                },
-                Transform::from_translation(Vec3::new(body.position.x, body.position.y, 0.0)),
-                Player::default_sprite(&asset_server, &mut texture_atlas_layouts),
-            ));
-        }
-    }
-}
-
-fn flip_player(mut query: Query<(&Player, &mut Sprite)>) {
-    for (player, mut sprite) in query.iter_mut() {
-        if let Some(action) = player.body.action.as_ref() {
-            sprite.flip_x = action.facing_left;
-        }
+        app.add_systems(Update, input_system.run_if(in_state(GameState::OnMap)));
+        // .add_systems(OnEnter(GameState::LoggedOut), despawn_all_players);
     }
 }
 
 fn input_system(
-    mut query: Query<(&mut Player, &Transform), With<ActivePlayer>>,
+    active_player_entity_id: Res<ActivePlayerEntityId>,
+    mut active_game_engine: ResMut<ActiveGameEngine>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut action_events: EventWriter<NetworkAction>,
 ) {
-    if query.is_empty() {
+    if active_player_entity_id.0.is_none() {
+        println!("WARNING: no active entity id for player");
         return;
     }
-    let (mut active_player, transform) = query.single_mut();
-    let mut player_action = PlayerAction {
-        facing_left: active_player
-            .body
-            .action
-            .clone()
-            .unwrap_or_default()
-            .facing_left,
+    let active_player_entity_id = active_player_entity_id.0.as_ref().unwrap();
+    let entity = active_game_engine.0.entities.get(active_player_entity_id);
+    if entity.is_none() {
+        println!("WARNING: no entity for input");
+        return;
+    }
+    let entity = entity.unwrap();
+    let input = EntityInput {
+        jump: false,
         move_left: keyboard.pressed(KeyCode::ArrowLeft),
         move_right: keyboard.pressed(KeyCode::ArrowRight),
-        jump: keyboard.just_pressed(KeyCode::Space) && !keyboard.pressed(KeyCode::ArrowDown),
-        downward_jump: keyboard.pressed(KeyCode::ArrowDown)
-            && keyboard.just_pressed(KeyCode::Space),
-        enter_portal: keyboard.just_pressed(KeyCode::ArrowUp),
-        attack: keyboard.just_pressed(KeyCode::KeyA),
-        ..default()
+        crouch: keyboard.pressed(KeyCode::ArrowDown),
+        attack: keyboard.pressed(KeyCode::KeyA),
     };
-    if player_action.move_left {
-        player_action.facing_left = true;
-    } else if player_action.move_right {
-        player_action.facing_left = false;
-    }
-    if active_player.body.action.as_ref() != Some(&player_action)
-        || timestamp() - active_player.last_update > TICK_RATE_S
-    {
-        active_player.last_update = timestamp();
-        action_events.send(NetworkAction(game_test::action::Action::SetPlayerAction(
-            player_action.clone(),
-            Vec2::new(transform.translation.x, transform.translation.y),
-            active_player.body.velocity,
-        )));
-    }
-    active_player.body.action = Some(player_action);
-}
-
-fn step_physics(mut query: Query<(&mut Player, &mut Transform)>, time: Res<Time>) {
-    let delta = time.delta_secs();
-    for (mut player, mut transform) in query.iter_mut() {
-        let action = player.body.action.clone();
-        if action.is_none() {
-            continue;
+    if let Some(last_input) = active_game_engine.0.latest_input(active_player_entity_id) {
+        if last_input == input {
+            return;
         }
-        let action = action.unwrap();
-        let (new_position, velocity, out_action) = action.step_action_raw(
-            Vec2::new(transform.translation.x, transform.translation.y),
-            player.body.velocity,
-            delta,
-        );
-        player.body.action = Some(out_action);
-        player.body.velocity = Vec2::new(velocity.x, velocity.y);
-        player.body.velocity.y += -game_test::actor::GRAVITY_ACCEL * delta;
-        player.body.position = new_position;
-        transform.translation.x = new_position.x;
-        transform.translation.y = new_position.y;
     }
-}
-
-fn step_movement(
-    mut players: Query<(&mut Player, &mut Transform)>,
-    time: Res<Time>,
-    active_map: Res<ActiveMap>,
-) {
-    let delta = time.delta_secs();
-    let map_data = active_map.data.as_ref().unwrap();
-    for (mut player, mut transform) in players.iter_mut() {
-        let (new_x, new_vel_x) = move_x(
-            Rect::new(
-                transform.translation.x,
-                transform.translation.y,
-                transform.translation.x + player.body.size.x,
-                transform.translation.y + player.body.size.y,
-            ),
-            player.body.velocity,
-            player.body.velocity.x * delta,
-            map_data,
-        );
-        let (new_y, new_vel_y) = move_y(
-            Rect::new(
-                new_x,
-                transform.translation.y,
-                new_x + player.body.size.x,
-                transform.translation.y + player.body.size.y,
-            ),
-            Vec2::new(new_vel_x, player.body.velocity.y),
-            player.body.velocity.y * delta,
-            map_data,
-        );
-        transform.translation.x = new_x;
-        transform.translation.y = new_y;
-        player.body.velocity.x = new_vel_x;
-        player.body.velocity.y = new_vel_y;
-    }
+    // send the new input to the server
+    action_events.send(NetworkAction(Action::PlayerInput(
+        // 30 is map_instance::STEP_DELAY
+        active_game_engine.0.step_index + STEP_DELAY,
+        entity.position(),
+        input.clone(),
+    )));
+    active_game_engine
+        .0
+        .register_input(None, *active_player_entity_id, input);
 }

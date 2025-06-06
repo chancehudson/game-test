@@ -1,12 +1,14 @@
 use bevy::math::Rect;
 use bevy::math::Vec2;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::mob::MobEntity;
 use super::player::PlayerEntity;
 use crate::MapData;
 
 /// Inputs that may be applied to any entity.
-#[derive(Default, PartialEq, Clone)]
+#[derive(Default, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub struct EntityInput {
     pub jump: bool,
     pub move_left: bool,
@@ -17,8 +19,9 @@ pub struct EntityInput {
 
 /// An entity that exists inside the engine.
 pub trait Entity {
-    fn id(&self) -> u64;
+    fn id(&self) -> u128;
     fn position(&self) -> Vec2;
+    fn position_mut(&mut self) -> &mut Vec2;
     fn size(&self) -> Vec2;
     fn step(&mut self, inputs: Option<&EntityInput>, map: &MapData) -> Self;
 
@@ -30,7 +33,7 @@ pub trait Entity {
 }
 
 /// Enum to wrap all possible entity types
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EngineEntity {
     Player(PlayerEntity),
     Mob(MobEntity),
@@ -38,7 +41,7 @@ pub enum EngineEntity {
 }
 
 impl Entity for EngineEntity {
-    fn id(&self) -> u64 {
+    fn id(&self) -> u128 {
         match self {
             EngineEntity::Player(p) => p.id(),
             EngineEntity::Mob(m) => m.id(),
@@ -58,6 +61,14 @@ impl Entity for EngineEntity {
         match self {
             EngineEntity::Player(p) => p.position(),
             EngineEntity::Mob(m) => m.position(),
+            // EngineEntity::Item(i) => i.position(),
+        }
+    }
+
+    fn position_mut(&mut self) -> &mut Vec2 {
+        match self {
+            EngineEntity::Player(p) => p.position_mut(),
+            EngineEntity::Mob(m) => m.position_mut(),
             // EngineEntity::Item(i) => i.position(),
         }
     }

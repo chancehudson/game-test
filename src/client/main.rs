@@ -1,14 +1,18 @@
+use std::collections::BTreeMap;
+
 use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
 use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::prelude::*;
 use bevy::text::FontSmoothing;
 
 pub use game_test::action::Action;
-pub use game_test::action::PlayerAction;
 use game_test::action::PlayerState;
 pub use game_test::action::Response;
 pub use game_test::actor::move_x;
 pub use game_test::actor::move_y;
+use game_test::engine::entity::EngineEntity;
+use game_test::engine::GameEngine;
+use game_test::engine::STEP_LEN_S;
 use game_test::timestamp;
 pub use game_test::Actor;
 pub use game_test::MapData;
@@ -19,21 +23,16 @@ mod loading_screen;
 mod login;
 mod map;
 mod map_data_loader;
-mod mob;
-mod mob_health_bar;
+// mod mob;
+// mod mob_health_bar;
 mod network;
 mod player;
 mod smooth_camera;
 
-use map::ActiveMap;
-use map::MapEntity;
-use mob::MobEntity;
-use mob::MobRegistry;
-use mob_health_bar::MobHealthBar;
 use network::NetworkMessage;
 use network::NetworkPlugin;
-use player::ActivePlayer;
-use player::Player;
+
+use crate::player::PlayerComponent;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum GameState {
@@ -44,7 +43,18 @@ pub enum GameState {
 }
 
 #[derive(Resource, Default)]
-pub struct ActivePlayerState(pub PlayerState);
+pub struct ActiveGameEngine(pub GameEngine);
+
+#[derive(Component, Default)]
+pub struct GameEntityComponent {
+    entity_id: u128,
+}
+
+#[derive(Resource, Default)]
+pub struct ActivePlayerEntityId(pub Option<u128>);
+
+#[derive(Resource, Default)]
+pub struct ActivePlayerState(pub Option<PlayerState>);
 
 fn main() {
     let mut app = App::new();
@@ -64,6 +74,8 @@ fn main() {
         },
     ))
     .init_state::<GameState>()
+    .init_resource::<ActiveGameEngine>()
+    .init_resource::<ActivePlayerEntityId>()
     .init_resource::<ActivePlayerState>()
     .add_plugins(loading_screen::LoadingScreenPlugin)
     .add_plugins(smooth_camera::SmoothCameraPlugin)
@@ -74,120 +86,125 @@ fn main() {
     .add_plugins(gui::GuiPlugin)
     .add_plugins(NetworkPlugin)
     .add_plugins(player::PlayerPlugin)
-    .add_plugins(mob::MobPlugin)
-    .add_plugins(mob_health_bar::MobHealthBarPlugin)
-    .add_systems(FixedUpdate, response_handler_system)
-    .add_systems(FixedUpdate, handle_login)
-    .add_systems(FixedUpdate, handle_map_state)
-    .add_systems(Update, step_mobs.run_if(in_state(GameState::OnMap)));
+    // .add_plugins(mob::MobPlugin)
+    // .add_plugins(mob_health_bar::MobHealthBarPlugin)
+    .add_systems(
+        FixedUpdate,
+        (handle_login, handle_player_entity_id, handle_engine_state),
+    )
+    .add_systems(Update, (step_game_engine, sync_engine_components));
     app.run();
 }
 
-fn step_mobs(
-    mut mobs: Query<(&mut MobEntity, &mut Transform)>,
-    // players: Query<(&Player, &Transform), Without<MobEntity>>,
-    time: Res<Time>,
-    active_map: Res<ActiveMap>,
-) {
-    let delta = time.delta_secs();
-    let map_data = active_map.data.as_ref().unwrap();
-    for (mut mob, mut transform) in &mut mobs {
-        mob.step(delta, map_data);
-        transform.translation.x = mob.mob.position.x;
-        transform.translation.y = mob.mob.position.y;
-    }
+fn step_game_engine(mut active_game_engine: ResMut<ActiveGameEngine>) {
+    active_game_engine.0.step();
 }
 
-fn response_handler_system(
+fn handle_player_entity_id(
     mut action_events: EventReader<NetworkMessage>,
-    mut active_map: ResMut<ActiveMap>,
-    mut next_state: ResMut<NextState<GameState>>,
+    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
 ) {
     for event in action_events.read() {
-        match &event.0 {
-            Response::ChangeMap(new_map) => {
-                active_map.name = new_map.clone();
-                next_state.set(GameState::LoadingMap);
-            }
-            Response::LoginError(err) => {
-                println!("Error logging in: {err}");
-            }
-            Response::Log(msg) => {
-                println!("Server message: {msg}");
-            }
-            _ => {}
+        if let Response::PlayerEntityId(id) = &event.0 {
+            println!("entity: {id}");
+            active_player_entity_id.0 = Some(*id);
         }
     }
 }
 
-fn handle_map_state(
-    mut mob_registry: ResMut<MobRegistry>,
+fn handle_engine_state(
     mut action_events: EventReader<NetworkMessage>,
+    mut active_engine_state: ResMut<ActiveGameEngine>,
+    active_player_entity_id: Res<ActivePlayerEntityId>,
+) {
+    for event in action_events.read() {
+        if let Response::EngineState(engine, server_step_index) = &event.0 {
+            if active_player_entity_id.0.is_none() {
+                println!("WARNING: received map state without an active entity id");
+                return;
+            }
+            let player_entity_id = active_player_entity_id.0.unwrap();
+            let mut engine = engine.clone();
+            // println!("{} {}", active_engine_state.0.step_index, engine.step_index);
+            // compute a local start timestamp
+            engine.start_timestamp = timestamp() - STEP_LEN_S * (engine.step_index as f64);
+            // treat engine like it's the latest point in time
+            // copy our local player entity into the engine
+            let local_inputs = active_engine_state
+                .0
+                .inputs
+                .get(&player_entity_id)
+                .cloned()
+                .unwrap_or_else(|| BTreeMap::new());
+            if let Some(local_entity) = active_engine_state.0.entities.get(&player_entity_id) {
+                engine
+                    .entities
+                    .insert(player_entity_id, local_entity.clone());
+            }
+            engine.inputs.insert(player_entity_id, local_inputs.clone());
+            active_engine_state.0 = engine;
+        }
+    }
+}
+
+fn sync_engine_components(
     mut commands: Commands,
-    // mut mob_query: Query<(Entity, &mut MobEntity, &mut Transform)>,
+    active_engine_state: Res<ActiveGameEngine>,
+    mut entity_query: Query<(Entity, &GameEntityComponent, &mut Transform, &mut Sprite)>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
-    for event in action_events.read() {
-        if let Response::MapState(mobs) = &event.0 {
-            for mob in mobs {
-                if mob_registry.mobs.get(&mob.id).is_some() {
-                    // update the mob state if needed
-                    // currently do nothing
-                } else {
-                    // insert the mob
-                    println!("spawned entity {} with health {}", mob.id, mob.health);
-                    let mut entity = commands.spawn((
-                        MapEntity,
-                        Transform::from_translation(Vec3::new(mob.position.x, mob.position.y, 1.0)),
-                        MobEntity::new(mob.clone(), &asset_server, &mut texture_atlas_layouts),
-                    ));
-                    entity.with_child(MobHealthBar::new(mob.clone()));
-                    mob_registry.mobs.insert(mob.id, entity.id());
+    // TODO:::::::::::::
+    use game_test::engine::entity::Entity;
+    let mut entity_ids = active_engine_state.0.entities.clone();
+    for (entity, entity_component, mut transform, mut sprite) in entity_query.iter_mut() {
+        if let Some(game_entity) = active_engine_state
+            .0
+            .entities
+            .get(&entity_component.entity_id)
+        {
+            transform.translation = game_entity.position().extend(0.0);
+            if let Some(latest_input) = active_engine_state
+                .0
+                .latest_input(&entity_component.entity_id)
+            {
+                if latest_input.move_left {
+                    sprite.flip_x = true;
+                } else if latest_input.move_right {
+                    sprite.flip_x = false;
                 }
+            }
+            entity_ids.remove(&game_entity.id());
+        } else {
+            commands.entity(entity).despawn_recursive();
+        }
+    }
+    // we're left with game entities we need to spawn
+    for (id, game_entity) in entity_ids {
+        match game_entity {
+            EngineEntity::Player(p) => {
+                commands.spawn((
+                    GameEntityComponent { entity_id: id },
+                    Transform::from_translation(p.position().extend(0.0)),
+                    PlayerComponent::default_sprite(&asset_server, &mut texture_atlas_layouts),
+                ));
+            }
+            EngineEntity::Mob(p) => {
+                unreachable!();
             }
         }
     }
 }
 
 fn handle_login(
-    mut commands: Commands,
     mut action_events: EventReader<NetworkMessage>,
-    mut active_player: Query<(&mut Player, &mut Transform), With<ActivePlayer>>,
-    asset_server: Res<AssetServer>,
     mut next_state: ResMut<NextState<GameState>>,
-    mut active_map: ResMut<ActiveMap>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     mut active_player_state: ResMut<ActivePlayerState>,
 ) {
     for event in action_events.read() {
-        if let Response::PlayerLoggedIn(state, body) = &event.0 {
-            active_map.name = state.current_map.clone();
+        if let Response::PlayerLoggedIn(state) = &event.0 {
+            active_player_state.0 = Some(state.clone());
             next_state.set(GameState::LoadingMap);
-            active_player_state.0 = state.clone();
-
-            if active_player.is_empty() {
-                commands.spawn((
-                    ActivePlayer,
-                    Player {
-                        id: state.id.clone(),
-                        username: state.username.clone(),
-                        current_map: state.current_map.clone(),
-                        body: body.clone(),
-                        last_update: timestamp(),
-                    },
-                    Transform::from_translation(Vec3::new(body.position.x, body.position.y, 1.0)),
-                    Player::default_sprite(&asset_server, &mut texture_atlas_layouts),
-                ));
-            } else {
-                let (mut player, mut transform) = active_player.single_mut();
-                player.id = state.id.clone();
-                player.username = state.username.clone();
-                player.current_map = state.current_map.clone();
-                player.body = body.clone();
-                transform.translation.x = body.position.x;
-                transform.translation.y = body.position.y;
-            }
         }
     }
 }
