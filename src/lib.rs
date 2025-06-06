@@ -3,6 +3,8 @@ use std::time::Instant;
 use once_cell::sync::Lazy;
 use rand::rng;
 use rand::Rng;
+use serde::Deserialize;
+use serde::Serialize;
 
 pub mod action;
 pub mod actor;
@@ -14,6 +16,14 @@ pub use mob::MobData;
 
 pub use actor::Actor;
 pub use map::MapData;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnimationData {
+    pub frame_count: usize,
+    pub fps: usize,
+    pub sprite_sheet: String,
+    pub width: usize,
+}
 
 // how many steps each client is behind the server
 pub static STEP_DELAY: u64 = 30;
