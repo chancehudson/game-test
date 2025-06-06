@@ -123,7 +123,7 @@ impl Entity for MobEntity {
             velocity.y = 0.;
         }
 
-        let lower_speed_limit = Vec2::new(-150., -250.);
+        let lower_speed_limit = Vec2::new(-150., -350.);
         let upper_speed_limit = Vec2::new(150., 700.);
         velocity = velocity.clamp(lower_speed_limit, upper_speed_limit);
         let x_pos = move_x(self.rect(), velocity.x * STEP_LEN_S_F32, map);

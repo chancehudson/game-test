@@ -9,7 +9,6 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 

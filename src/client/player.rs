@@ -2,9 +2,7 @@ use bevy::prelude::*;
 
 use game_test::action::Action;
 use game_test::action::PlayerState;
-use game_test::engine::entity::Entity;
 use game_test::engine::entity::EntityInput;
-use game_test::STEP_DELAY;
 
 use crate::animated_sprite::AnimatedSprite;
 use crate::ActiveGameEngine;
@@ -72,7 +70,7 @@ fn input_system(
         println!("WARNING: no entity for input");
         return;
     }
-    let entity = entity.unwrap();
+    let entity = entity.unwrap().clone();
     let input = EntityInput {
         jump: keyboard.pressed(KeyCode::Space),
         move_left: keyboard.pressed(KeyCode::ArrowLeft),
@@ -85,14 +83,13 @@ fn input_system(
             return;
         }
     }
-    // send the new input to the server
-    action_events.send(NetworkAction(Action::PlayerInput(
-        // 30 is map_instance::STEP_DELAY
-        active_game_engine.0.step_index + STEP_DELAY,
-        entity.clone(),
-        input.clone(),
-    )));
     active_game_engine
         .0
-        .register_input(None, *active_player_entity_id, input);
+        .register_input(None, *active_player_entity_id, input.clone());
+    // send the new input to the server
+    action_events.send(NetworkAction(Action::PlayerInput(
+        active_game_engine.0.step_index,
+        entity,
+        input,
+    )));
 }

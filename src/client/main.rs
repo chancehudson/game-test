@@ -85,14 +85,14 @@ fn main() {
     .add_plugins(login::LoginPlugin)
     .add_plugins(gui::GuiPlugin)
     .add_plugins(NetworkPlugin)
-    .add_plugins(player::PlayerPlugin)
     .add_plugins(mob::MobPlugin)
     // .add_plugins(mob_health_bar::MobHealthBarPlugin)
     .add_systems(
         FixedUpdate,
         (handle_login, handle_player_entity_id, handle_engine_state),
     )
-    .add_systems(Update, (step_game_engine, sync_engine_components));
+    .add_systems(Update, (step_game_engine, sync_engine_components))
+    .add_plugins(player::PlayerPlugin);
     app.run();
 }
 

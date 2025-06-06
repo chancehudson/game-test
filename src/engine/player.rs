@@ -5,6 +5,7 @@ use serde::Serialize;
 use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
+use crate::engine::entity::EngineEntity;
 use crate::engine::GameEngine;
 use crate::engine::STEP_LEN_S_F32;
 use crate::MapData;
@@ -18,6 +19,7 @@ pub struct PlayerEntity {
     pub size: Vec2,
     velocity: Vec2,
     weightless_until: Option<u64>,
+    attacking_until: Option<u64>,
 }
 
 impl PlayerEntity {
@@ -28,6 +30,7 @@ impl PlayerEntity {
             size: Vec2::new(52., 52.),
             velocity: Vec2::new(0.0, 0.0),
             weightless_until: None,
+            attacking_until: None,
         }
     }
 }
@@ -80,6 +83,11 @@ impl Entity for PlayerEntity {
         } else {
             velocity.y += -20.0;
         }
+        if let Some(attacking_until) = self.attacking_until {
+            if step_index >= &attacking_until {
+                next_self.attacking_until = None;
+            }
+        }
         // check if the player is standing on a platform
         if input.jump && can_jump && last_velocity.y.round() == 0.0 {
             velocity.y = 350.0;
@@ -87,8 +95,23 @@ impl Entity for PlayerEntity {
         } else if can_jump && last_velocity.y.floor() < 0.0 {
             velocity.y = 0.;
         }
+        if input.attack && self.attacking_until.is_none() {
+            // 15 is the step length of the attack animation
+            next_self.attacking_until = Some(step_index + 15);
+            // look for a mob that we can hit
+            for (id, entity) in &engine.entities {
+                match entity {
+                    EngineEntity::Mob(mob) => {
+                        if !mob.rect().inflate(5.0).intersect(self.rect()).is_empty() {
+                            //
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
 
-        let lower_speed_limit = Vec2::new(-250., -250.);
+        let lower_speed_limit = Vec2::new(-250., -350.);
         let upper_speed_limit = Vec2::new(250., 700.);
         velocity = velocity.clamp(lower_speed_limit, upper_speed_limit);
         let x_pos = move_x(self.rect(), velocity.x * STEP_LEN_S_F32, map);

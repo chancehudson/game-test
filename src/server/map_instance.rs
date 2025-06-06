@@ -94,6 +94,9 @@ impl MapInstance {
         entity: EngineEntity,
         input: EntityInput,
     ) -> anyhow::Result<()> {
+        // the client is behind the server. We take our inputs as
+        // happening _now_, which is offset by STEP_DELAY
+        let step_index = self.engine.expected_step_index();
         // use the expected index in case the tick rate is low
         let current_step = self.engine.step_index;
         // if step_index <= current_step {
@@ -111,10 +114,10 @@ impl MapInstance {
             }
             self.engine
                 .register_input(Some(step_index), *entity_id, input);
-            if step_index < current_step {
-                // replay with the new position
-                self.engine.reposition_entity(entity, &step_index)?;
-            }
+            // if step_index < current_step {
+            //     // replay with the new position
+            //     self.engine.reposition_entity(entity, &step_index)?;
+            // }
         } else {
             anyhow::bail!("received player position update for player with no entity");
         }
