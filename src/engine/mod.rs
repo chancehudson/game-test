@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use bevy::math::Vec2;
+use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -141,9 +141,8 @@ impl GameEngine {
     /// TODO: include an optional RespositionMode that is Replay | Overwrite ?
     pub fn reposition_entity(
         &mut self,
-        entity_id: &u128,
+        new_entity: EngineEntity,
         step_index: &u64,
-        position: Vec2,
     ) -> anyhow::Result<()> {
         if step_index > &self.step_index {
             anyhow::bail!("WARNING: position change is in the future")
@@ -152,15 +151,16 @@ impl GameEngine {
         }
         // take the entities at the previous step and reposition one
         if let Some(old_entities) = self.entities_by_step.get(step_index) {
-            if !old_entities.contains_key(&entity_id) {
-                anyhow::bail!("entity {entity_id} does not exist at step {step_index}")
+            if !old_entities.contains_key(&new_entity.id()) {
+                anyhow::bail!(
+                    "entity {} does not exist at step {step_index}",
+                    new_entity.id()
+                )
             }
             // in each step we replay we need to check for new entities
             let replay_steps = self.step_index - step_index;
             self.entities = old_entities.clone();
-            // unwrapping is safe due to check above
-            let entity = self.entities.get_mut(&entity_id).unwrap();
-            *entity.position_mut() = position;
+            self.entities.insert(new_entity.id(), new_entity);
             self.step_index = *step_index;
             println!("WARNING: engine replaying {replay_steps} steps");
             for i in 0..replay_steps {
@@ -188,7 +188,6 @@ impl GameEngine {
         ((now - self.start_timestamp) / STEP_LEN_S) as u64
     }
 
-    /// TODO: memory cleanup here
     pub fn latest_input(&self, entity_id: &u128) -> Option<EntityInput> {
         let empty_inputs: BTreeMap<u64, EntityInput> = BTreeMap::new();
         let entity_input_map = self.inputs.get(entity_id).unwrap_or(&empty_inputs);

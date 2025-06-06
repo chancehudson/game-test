@@ -1,5 +1,5 @@
-use bevy::math::Rect;
-use bevy::math::Vec2;
+use bevy_math::Rect;
+use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 

@@ -1,8 +1,10 @@
-use bevy::math::Vec2;
+use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::engine::entity::EngineEntity;
 use crate::engine::entity::EntityInput;
+use crate::engine::player::PlayerEntity;
 use crate::engine::GameEngine;
 
 /// Types of messages that can be sent to the server
@@ -14,7 +16,7 @@ pub enum Action {
     LoginPlayer(String),
     LogoutPlayer,
     // step index, position, input
-    PlayerInput(u64, Vec2, EntityInput),
+    PlayerInput(u64, EngineEntity, EntityInput),
     Ping,
 }
 
@@ -24,7 +26,7 @@ pub enum Response {
     PlayerLoggedIn(PlayerState),
     PlayerRemoved(String),
     // step index, position, input
-    PlayerInput(u64, Vec2, EntityInput),
+    PlayerInput(u64, EngineEntity, EntityInput),
     PlayerEntityId(u128),
     // engine, server_step_index
     EngineState(GameEngine, u64),

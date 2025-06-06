@@ -1,6 +1,7 @@
-use bevy::math::Vec2;
-use bevy::utils::HashMap;
-use bevy::utils::HashSet;
+use std::collections::HashMap;
+use std::collections::HashSet;
+
+use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 

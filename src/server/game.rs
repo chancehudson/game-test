@@ -155,7 +155,7 @@ impl Game {
                         .await?;
                 }
             }
-            Action::PlayerInput(step_index, position, input) => {
+            Action::PlayerInput(step_index, entity, input) => {
                 let player_id = self.network_server.player_by_socket_id(&socket_id).await;
                 if player_id.is_none() {
                     println!("No player id for socket {} !", socket_id);
@@ -167,7 +167,7 @@ impl Game {
                     if let Some(map_instance) = self.map_instances.get(&player_state.current_map) {
                         let mut map_instance = map_instance.write().await;
                         map_instance
-                            .update_player_input(&player_id, step_index, position, input)
+                            .update_player_input(&player_id, step_index, entity, input)
                             .await?;
                     } else {
                         println!(

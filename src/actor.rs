@@ -1,5 +1,5 @@
-use bevy::math::Rect;
-use bevy::math::Vec2;
+use bevy_math::Rect;
+use bevy_math::Vec2;
 
 use super::MapData;
 
@@ -32,7 +32,7 @@ pub fn move_x(body: Rect, dx: f32, map: &MapData) -> f32 {
     body.min.x
 }
 
-pub fn move_y(body: bevy::math::Rect, dy: f32, map: &MapData) -> f32 {
+pub fn move_y(body: Rect, dy: f32, map: &MapData) -> f32 {
     if dy == 0. {
         return body.min.y;
     }
@@ -54,7 +54,7 @@ pub fn move_y(body: bevy::math::Rect, dy: f32, map: &MapData) -> f32 {
         new_player_rect.max.y += sign * moved;
 
         for solid in &map.platforms {
-            let solid_rect = bevy::math::Rect::new(
+            let solid_rect = Rect::new(
                 solid.position.x,
                 solid.position.y,
                 solid.position.x + solid.size.x,

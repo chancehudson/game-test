@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bevy::math::Vec2;
+use bevy_math::Vec2;
 use game_test::action::PlayerState;
-use game_test::engine::entity::{Entity, EntityInput};
+use game_test::engine::entity::{EngineEntity, Entity, EntityInput};
+use game_test::engine::player::PlayerEntity;
 use game_test::engine::GameEngine;
 
 use game_test::action::Response;
@@ -90,7 +91,7 @@ impl MapInstance {
         &mut self,
         player_id: &str,
         step_index: u64,
-        position: Vec2,
+        entity: EngineEntity,
         input: EntityInput,
     ) -> anyhow::Result<()> {
         // use the expected index in case the tick rate is low
@@ -101,13 +102,18 @@ impl MapInstance {
         //         current_step - step_index
         //     );
         // }
+        if !matches!(entity, EngineEntity::Player(_)) {
+            anyhow::bail!("received incorrect entity type");
+        }
         if let Some(entity_id) = self.player_id_to_entity_id.get(player_id) {
+            if &entity.id() != entity_id {
+                anyhow::bail!("received incorrect entity id");
+            }
             self.engine
                 .register_input(Some(step_index), *entity_id, input);
             if step_index < current_step {
                 // replay with the new position
-                self.engine
-                    .reposition_entity(&entity_id, &step_index, position)?;
+                self.engine.reposition_entity(entity, &step_index)?;
             }
         } else {
             anyhow::bail!("received player position update for player with no entity");

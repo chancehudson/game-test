@@ -89,7 +89,7 @@ fn input_system(
     action_events.send(NetworkAction(Action::PlayerInput(
         // 30 is map_instance::STEP_DELAY
         active_game_engine.0.step_index + STEP_DELAY,
-        entity.position(),
+        entity.clone(),
         input.clone(),
     )));
     active_game_engine

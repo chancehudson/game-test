@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bevy::math::Vec2;
+use bevy_math::Vec2;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
