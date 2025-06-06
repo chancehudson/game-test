@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
-use bevy::math::Vec2;
+use bevy_math::Vec2;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
 
 use walkdir::WalkDir;
+
+use super::AnimationData;
 
 /// Key the mob type to the data
 pub static MOB_DATA: Lazy<HashMap<u64, MobAnimationData>> = Lazy::new(|| {
@@ -28,14 +30,6 @@ pub static MOB_DATA: Lazy<HashMap<u64, MobAnimationData>> = Lazy::new(|| {
     }
     mob_data
 });
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AnimationData {
-    pub frame_count: usize,
-    pub fps: usize,
-    pub sprite_sheet: String,
-    pub width: usize,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MobAnimationData {

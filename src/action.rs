@@ -1,14 +1,11 @@
-use bevy::math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::actor::MAX_VELOCITY;
-use super::MobData;
-use crate::Actor;
+use crate::engine::entity::EngineEntity;
+use crate::engine::entity::EntityInput;
+use crate::engine::GameEngine;
 
-const ACCEL_RATE: f32 = 700.0;
-const DECEL_RATE: f32 = 800.0;
-
+/// Types of messages that can be sent to the server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Action {
     // provide a username
@@ -16,27 +13,24 @@ pub enum Action {
     // provide a username
     LoginPlayer(String),
     LogoutPlayer,
-    // action and a current position + velocity
-    SetPlayerAction(PlayerAction, Vec2, Vec2),
+    // step index, position, input
+    PlayerInput(u64, EngineEntity, EntityInput),
     Ping,
 }
 
+/// Types of messages the client can receive from the server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Response {
-    // current_map_id, experience
-    PlayerLoggedIn(PlayerState, PlayerBody),
-    MapState(Vec<MobData>),
-    MobChange(MobData), // id, new moving_to
+    PlayerLoggedIn(PlayerState),
     PlayerRemoved(String),
-    PlayerChange(PlayerBody, Option<PlayerState>),
-    MobDamage(u64, u64),                 // mob id, damage amount
-    PlayerDamage(String, u64),           // player id, damage amount
-    PlayerData(PlayerState, PlayerBody), // data about another player
-    ChangeMap(String),
+    // step index, position, input
+    PlayerInput(u64, EngineEntity, EntityInput),
+    PlayerEntityId(u128),
+    // engine, server_step_index
+    EngineState(GameEngine, u64),
     LoginError(String),
-    Tick(),
-    Log(String),
     Pong,
+    Tick,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -47,122 +41,4 @@ pub struct PlayerState {
     pub experience: u64,
     pub max_health: u64,
     pub health: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PlayerBody {
-    pub id: String,
-    pub position: Vec2,
-    pub velocity: Vec2,
-    pub size: Vec2,
-    pub action: Option<PlayerAction>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct PlayerAction {
-    pub attack: bool,
-    pub facing_left: bool,
-    pub move_left: bool,
-    pub move_right: bool,
-    pub enter_portal: bool,
-    pub jump: bool,
-    pub pickup: bool, // attempt to pick up an item
-    pub downward_jump: bool,
-}
-
-impl Default for PlayerAction {
-    fn default() -> Self {
-        Self {
-            attack: false,
-            facing_left: true,
-            move_left: false,
-            move_right: false,
-            enter_portal: false,
-            jump: false,
-            pickup: false,
-            downward_jump: false,
-        }
-    }
-}
-
-impl PlayerAction {
-    pub fn update(&mut self, other_new: Self) {
-        self.move_left = other_new.move_left;
-        self.move_right = other_new.move_right;
-        self.facing_left = other_new.facing_left;
-        if other_new.attack {
-            self.attack = true;
-        }
-        if other_new.enter_portal {
-            self.enter_portal = true;
-        }
-        if other_new.jump {
-            self.jump = true;
-        }
-        if other_new.downward_jump {
-            self.downward_jump = true;
-        }
-        if other_new.pickup {
-            self.pickup = true;
-        }
-    }
-
-    pub fn step_action_raw(
-        &self,
-        position: Vec2,
-        velocity: Vec2,
-        step_len: f32,
-    ) -> (Vec2, Vec2, Self) {
-        let mut updated_action = self.clone();
-        let mut velocity = velocity;
-        let mut position = position;
-        if self.move_right {
-            velocity.x += ACCEL_RATE * step_len;
-            if velocity.x < 0.0 {
-                velocity.x += DECEL_RATE * step_len;
-            }
-        } else if self.move_left {
-            velocity.x -= ACCEL_RATE * step_len;
-            if velocity.x > 0.0 {
-                velocity.x -= DECEL_RATE * step_len;
-            }
-        } else if velocity.x.abs() > 0.0 {
-            velocity.x = velocity.move_towards(Vec2::ZERO, DECEL_RATE * step_len).x;
-        }
-
-        if self.downward_jump && velocity.y == 0. {
-            updated_action.downward_jump = false;
-            position.y -= 2.0;
-        } else if self.jump {
-            updated_action.jump = false;
-            // TODO: check if we're standing on a platform first
-            velocity.y = 400.0;
-        }
-        updated_action.attack = false;
-        (
-            position,
-            velocity.clamp(-MAX_VELOCITY, MAX_VELOCITY),
-            updated_action,
-        )
-
-        // if is_key_pressed(KeyCode::Z) {
-        //     // drop an item
-        //     state.actors.push(Box::new(Item::new(
-        //         "assets/stick.png",
-        //         state.player.position.clone(),
-        //         Vec2::new(0., -200.),
-        //     )));
-        // }
-    }
-
-    pub fn step_action(&self, actor: &mut dyn Actor, step_len: f32) -> Self {
-        let (position, velocity, out) = self.step_action_raw(
-            actor.position_mut().clone(),
-            actor.velocity_mut().clone(),
-            step_len,
-        );
-        *actor.position_mut() = position;
-        *actor.velocity_mut() = velocity;
-        out
-    }
 }

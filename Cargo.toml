@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+default = ["client"]
+client = ["bevy", "bevy_simple_text_input", "websocket"]
 server = []
 
 [lib]
@@ -13,16 +15,23 @@ path = "src/lib.rs"
 [[bin]]
 name = "client"
 path = "src/client/main.rs"
+required-features = ["client"]
+
+[[bin]]
+name = "client_test"
+path = "src/client_test/main.rs"
+required-features = ["client"]
 
 [[bin]]
 name = "server"
 path = "src/server/main.rs"
-#required-features = ["server"]
+required-features = ["server"]
 
 [dependencies]
 anyhow = "1.0.95"
-bevy = { version = "0.15.2", features = ["bevy_dev_tools"] }
-bevy_simple_text_input = "0.10.2"
+bevy = { version = "0.15.2", features = ["bevy_dev_tools", "dynamic_linking"], optional = true }
+bevy_math = "0.15.3"
+bevy_simple_text_input = { version = "0.10.2", optional = true }
 bincode = "1.3.3"
 flume = "0.11.1"
 futures-util = "0.3.31"
@@ -36,4 +45,4 @@ tokio = { version = "1.43.0", features = ["full"] }
 tokio-tungstenite = "0.26.1"
 tungstenite = "0.26.1"
 walkdir = "2.5.0"
-websocket = "0.27.1"
+websocket = { version = "0.27.1", optional = true }

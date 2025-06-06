@@ -2,20 +2,15 @@ use std::time::Duration;
 
 use game_test::action::Action;
 use game_test::timestamp;
-use game_test::Actor;
-use game_test::TICK_RATE_MS;
+use game_test::TICK_RATE_S;
 
 mod db;
 mod game;
-mod item;
 mod map_instance;
-mod mob;
 mod network;
-mod player;
 
 pub use db::PlayerRecord;
 use map_instance::MapInstance;
-pub use player::Player;
 use tokio::signal::unix::signal;
 use tokio::signal::unix::SignalKind;
 use tokio::sync::broadcast;
@@ -85,14 +80,6 @@ async fn main() -> anyhow::Result<()> {
                 "server socket_sender len: {}",
                 game_clone.network_server.socket_sender.read().await.len()
             );
-            let mut total_mobs = 0usize;
-            let mut total_players = 0usize;
-            for map in game_clone.map_instances.values() {
-                total_mobs += map.read().await.mobs.len();
-                total_players += map.read().await.players.len();
-            }
-            println!("total mobs: {total_mobs}");
-            println!("total players: {total_players}");
         }
     });
 
@@ -111,7 +98,10 @@ async fn main() -> anyhow::Result<()> {
         let mut join_set = JoinSet::new();
         for map_instance in game.map_instances.values().cloned().collect::<Vec<_>>() {
             join_set.spawn(async move {
-                map_instance.write().await.tick().await;
+                if let Err(e) = map_instance.write().await.tick().await {
+                    println!("WARNING: error stepping map_instance!");
+                    println!("{}", e);
+                }
             });
         }
         // wait for all map ticks to complete
@@ -121,10 +111,10 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         let tick_time = timestamp() - tick_start;
-        if tick_time >= TICK_RATE_MS / 1000. {
+        if tick_time >= TICK_RATE_S {
             println!("WARNING: server tick took more than TICK_RATE_MS !");
         } else {
-            let remaining = TICK_RATE_MS / 1000. - tick_time;
+            let remaining = TICK_RATE_S - tick_time;
             // println!("wait time: {}", remaining);
             tokio::time::sleep(Duration::from_secs_f64(remaining)).await;
         }

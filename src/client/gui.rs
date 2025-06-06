@@ -1,11 +1,9 @@
 use bevy::prelude::*;
 
-use crate::player::ActivePlayer;
+use crate::ActivePlayerState;
 
 use super::network::NetworkAction;
-use super::ActivePlayerState;
 use super::GameState;
-use super::Player;
 
 pub struct GuiPlugin;
 
@@ -35,8 +33,7 @@ impl Plugin for GuiPlugin {
             .add_systems(
                 Update,
                 update_experience_bar.run_if(in_state(GameState::OnMap)),
-            )
-            .add_systems(Update, update_health_bar.run_if(in_state(GameState::OnMap)));
+            );
     }
 }
 
@@ -64,29 +61,16 @@ pub fn update_experience_bar(mut query: Query<&mut Node, With<ExperienceBar>>, t
     node.width = Val::Percent(percent);
 }
 
-pub fn update_health_bar(
-    mut query: Query<&mut Node, With<HealthBar>>,
-    active_player_state: Res<ActivePlayerState>,
-) {
-    if query.is_empty() {
-        return;
-    }
-    let mut node = query.single_mut();
-    let health_percent =
-        (100 * active_player_state.0.max_health) as f32 / active_player_state.0.health as f32;
-    node.width = Val::Percent(health_percent);
-}
-
 pub fn show_gui(
     mut commands: Commands,
     windows: Query<&Window>,
-    player_query: Query<&Player, With<ActivePlayer>>,
+    active_player_state: Res<ActivePlayerState>,
 ) {
-    if player_query.is_empty() {
-        println!("No player!");
+    if active_player_state.0.is_none() {
+        println!("no active player state!");
         return;
     }
-    let player = player_query.single();
+    let active_player_state = active_player_state.0.as_ref().unwrap();
     let window = windows.single();
     let screen_width = window.resolution.width();
     let screen_height = window.resolution.height();
@@ -120,7 +104,10 @@ pub fn show_gui(
                     ..default()
                 })
                 .with_children(|parent| {
-                    parent.spawn((Text::new(player.username.clone()), UsernameLabel));
+                    parent.spawn((
+                        Text::new(active_player_state.username.clone()),
+                        UsernameLabel,
+                    ));
                     parent.spawn((
                         Text::new("Level 1"),
                         TextFont {

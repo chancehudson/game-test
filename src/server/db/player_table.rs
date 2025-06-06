@@ -57,7 +57,7 @@ impl PlayerRecord {
 
     pub async fn change_map(
         db: sled::Db,
-        player_id: String,
+        player_id: &str,
         from_map: &str,
         to_map: &str,
     ) -> Result<()> {
@@ -72,7 +72,7 @@ impl PlayerRecord {
                 }
                 player.current_map = to_map.to_string();
                 player_tree.insert(
-                    player_id.clone().into_bytes(),
+                    player_id.to_string().into_bytes(),
                     bincode::serialize(&player).unwrap(),
                 )?;
                 Ok(())
@@ -89,11 +89,11 @@ impl PlayerRecord {
     // Load a player from the database
     pub async fn player_by_id(db: sled::Db, player_id: String) -> Result<Option<Self>> {
         let tree = db.open_tree(PLAYER_TREE)?;
-        if let Some(bytes) = tree.get(player_id)? {
+        if let Some(bytes) = tree.get(&player_id)? {
             let player = bincode::deserialize(bytes.as_ref())?;
             Ok(Some(player))
         } else {
-            Ok(None)
+            anyhow::bail!("DB: player not found for id {player_id}")
         }
     }
 
