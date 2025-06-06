@@ -8,7 +8,7 @@ In 2 separate windows:
 
 `cargo run --bin=server --features=server`
 
-`cargo run --bin=client`
+`cargo run --bin=client --features=client`
 
 <!--
 
