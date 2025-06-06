@@ -7,7 +7,6 @@ use super::mob::MobEntity;
 use super::mob_spawner::MobSpawnEntity;
 use super::player::PlayerEntity;
 use crate::engine::GameEngine;
-use crate::MapData;
 
 /// Inputs that may be applied to any entity.
 #[derive(Default, PartialEq, Clone, Debug, Serialize, Deserialize)]

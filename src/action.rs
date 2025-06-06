@@ -1,10 +1,8 @@
-use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::engine::entity::EngineEntity;
 use crate::engine::entity::EntityInput;
-use crate::engine::player::PlayerEntity;
 use crate::engine::GameEngine;
 
 /// Types of messages that can be sent to the server

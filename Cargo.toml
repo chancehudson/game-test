@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = ["client"]
 client = ["bevy", "bevy_simple_text_input", "websocket"]
+server = []
 
 [lib]
 name = "game_test"
@@ -24,7 +25,7 @@ required-features = ["client"]
 [[bin]]
 name = "server"
 path = "src/server/main.rs"
-#required-features = ["server"]
+required-features = ["server"]
 
 [dependencies]
 anyhow = "1.0.95"

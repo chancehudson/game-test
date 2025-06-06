@@ -1,18 +1,14 @@
 use bevy::prelude::*;
 
 use bevy::utils::HashMap;
-use game_test::actor::GRAVITY_ACCEL;
+use game_test::engine::entity::EngineEntity;
 use game_test::engine::mob::MobEntity;
-use game_test::MapData;
-use game_test::TICK_RATE_S_F32;
 
-use super::move_x;
-use super::move_y;
-use super::NetworkMessage;
-use game_test::action::Response;
-use game_test::mob::{MobData, MOB_DATA};
+use game_test::mob::MOB_DATA;
 
 use crate::animated_sprite::AnimatedSprite;
+use crate::ActiveGameEngine;
+use crate::GameEntityComponent;
 
 pub struct MobPlugin;
 
@@ -28,9 +24,9 @@ pub struct DamageText {
 
 impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<MobRegistry>();
-        // .add_systems(FixedUpdate, handle_mob_change)
-        // .add_systems(Update, animate_mobs)
+        app.init_resource::<MobRegistry>()
+            // .add_systems(FixedUpdate, handle_mob_change)
+            .add_systems(Update, animate_mobs);
         // .add_systems(Update, handle_mob_damage)
         // .add_systems(Update, animate_mob_damage);
     }
@@ -94,37 +90,50 @@ impl Plugin for MobPlugin {
 //     }
 // }
 
-// fn animate_mobs(mut query: Query<(&MobComponent, &mut AnimatedSprite, &mut Sprite)>) {
-//     for (mob, mut animated_sprite, mut sprite) in &mut query {
-//         let data = MOB_DATA.get(&mob.mob.mob_type).unwrap();
-//         if mob.velocity.x.abs() < 0.1 {
-//             if sprite.image != mob.standing_texture {
-//                 sprite.image = mob.standing_texture.clone();
-//                 sprite.texture_atlas = Some(TextureAtlas {
-//                     layout: mob.standing_texture_atlas_layout.clone(),
-//                     index: 0,
-//                 });
-//                 animated_sprite.fps = data.standing.fps as u8;
-//                 animated_sprite.frame_count = data.standing.frame_count as u8;
-//             }
-//         } else {
-//             if sprite.image != mob.walking_texture {
-//                 sprite.image = mob.walking_texture.clone();
-//                 sprite.texture_atlas = Some(TextureAtlas {
-//                     layout: mob.walking_texture_atlas_layout.clone(),
-//                     index: 0,
-//                 });
-//                 animated_sprite.fps = data.walking.fps as u8;
-//                 animated_sprite.frame_count = data.walking.frame_count as u8;
-//             }
-//         }
-//         if mob.velocity.x > 0. {
-//             sprite.flip_x = true;
-//         } else if mob.velocity.x < 0. {
-//             sprite.flip_x = false;
-//         }
-//     }
-// }
+fn animate_mobs(
+    mut query: Query<(
+        &GameEntityComponent,
+        &MobComponent,
+        &mut AnimatedSprite,
+        &mut Sprite,
+    )>,
+    active_game_engine: Res<ActiveGameEngine>,
+) {
+    for (e, mob, mut animated_sprite, mut sprite) in &mut query {
+        let entity = active_game_engine.0.entities.get(&e.entity_id);
+        if entity.is_none() {
+            continue;
+        }
+        let entity = entity.unwrap();
+        if let EngineEntity::Mob(mob_data) = &entity {
+            let data = MOB_DATA.get(&mob_data.mob_type).unwrap();
+            if mob_data.velocity.x.abs() < 0.1 {
+                if sprite.image != mob.standing_texture {
+                    sprite.image = mob.standing_texture.clone();
+                    sprite.texture_atlas = Some(TextureAtlas {
+                        layout: mob.standing_texture_atlas_layout.clone(),
+                        index: 0,
+                    });
+                    animated_sprite.fps = data.standing.fps as u8;
+                    animated_sprite.frame_count = data.standing.frame_count as u8;
+                }
+            } else {
+                if sprite.image != mob.walking_texture {
+                    sprite.image = mob.walking_texture.clone();
+                    sprite.texture_atlas = Some(TextureAtlas {
+                        layout: mob.walking_texture_atlas_layout.clone(),
+                        index: 0,
+                    });
+                    animated_sprite.fps = data.walking.fps as u8;
+                    animated_sprite.frame_count = data.walking.frame_count as u8;
+                }
+            }
+        } else {
+            println!("WARNING: MobComponent is keyed to a non-mob engine entity");
+            continue;
+        };
+    }
+}
 
 #[derive(Component)]
 pub struct MobComponent {

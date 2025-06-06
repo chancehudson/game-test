@@ -1,11 +1,6 @@
 use bevy_math::Rect;
-use bevy_math::Vec2;
 
 use super::MapData;
-
-// in pixels per second per second
-pub const GRAVITY_ACCEL: f32 = 1200.0;
-pub const MAX_VELOCITY: Vec2 = Vec2::new(300.0, 400.0);
 
 /// Are we standing with a platform beneath us, without a platform immediately above it?
 pub fn on_platform(body: Rect, map: &MapData) -> bool {

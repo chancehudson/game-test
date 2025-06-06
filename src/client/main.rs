@@ -86,7 +86,7 @@ fn main() {
     .add_plugins(gui::GuiPlugin)
     .add_plugins(NetworkPlugin)
     .add_plugins(player::PlayerPlugin)
-    // .add_plugins(mob::MobPlugin)
+    .add_plugins(mob::MobPlugin)
     // .add_plugins(mob_health_bar::MobHealthBarPlugin)
     .add_systems(
         FixedUpdate,
@@ -169,9 +169,9 @@ fn sync_engine_components(
                 .latest_input(&entity_component.entity_id)
             {
                 if latest_input.move_left {
-                    sprite.flip_x = true;
-                } else if latest_input.move_right {
                     sprite.flip_x = false;
+                } else if latest_input.move_right {
+                    sprite.flip_x = true;
                 }
             }
             entity_ids.remove(&game_entity.id());
@@ -185,7 +185,7 @@ fn sync_engine_components(
             EngineEntity::Player(p) => {
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
-                    Transform::from_translation(p.position().extend(0.0)),
+                    Transform::from_translation(p.position().extend(10.0)),
                     PlayerComponent::default_sprite(&asset_server, &mut texture_atlas_layouts),
                 ));
             }
@@ -194,7 +194,7 @@ fn sync_engine_components(
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
                     Transform::from_translation(p.position().extend(0.0)),
-                    MobComponent::new(p, &asset_server, &mut texture_atlas_layouts), // MobEntity::new(mob.clone(), &asset_server, &mut texture_atlas_layouts),
+                    MobComponent::new(p, &asset_server, &mut texture_atlas_layouts),
                 ));
             }
         }
