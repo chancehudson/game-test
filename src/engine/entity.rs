@@ -4,7 +4,9 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::mob::MobEntity;
+use super::mob_spawner::MobSpawnEntity;
 use super::player::PlayerEntity;
+use crate::engine::GameEngine;
 use crate::MapData;
 
 /// Inputs that may be applied to any entity.
@@ -23,7 +25,7 @@ pub trait Entity {
     fn position(&self) -> Vec2;
     fn position_mut(&mut self) -> &mut Vec2;
     fn size(&self) -> Vec2;
-    fn step(&mut self, inputs: Option<&EntityInput>, map: &MapData) -> Self;
+    fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self;
 
     fn rect(&self) -> Rect {
         let pos = self.position();
@@ -32,52 +34,71 @@ pub trait Entity {
     }
 }
 
-/// Enum to wrap all possible entity types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EngineEntity {
-    Player(PlayerEntity),
-    Mob(MobEntity),
-    // Item(Item),
+macro_rules! engine_entity_enum {
+    (
+        $enum_name:ident {
+            $(
+                $variant:ident($type:ty)
+            ),* $(,)?
+        }
+    ) => {
+        /// Enum to wrap all possible entity types
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        pub enum $enum_name {
+            $(
+                $variant($type),
+            )*
+        }
+
+        impl Entity for $enum_name {
+            fn id(&self) -> u128 {
+                match self {
+                    $(
+                        $enum_name::$variant(entity) => entity.id(),
+                    )*
+                }
+            }
+
+            fn size(&self) -> Vec2 {
+                match self {
+                    $(
+                        $enum_name::$variant(entity) => entity.size(),
+                    )*
+                }
+            }
+
+            fn position(&self) -> Vec2 {
+                match self {
+                    $(
+                        $enum_name::$variant(entity) => entity.position(),
+                    )*
+                }
+            }
+
+            fn position_mut(&mut self) -> &mut Vec2 {
+                match self {
+                    $(
+                        $enum_name::$variant(entity) => entity.position_mut(),
+                    )*
+                }
+            }
+
+            fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
+                match self {
+                    $(
+                        $enum_name::$variant(entity) => $enum_name::$variant(entity.step(engine, step_index)),
+                    )*
+                }
+            }
+        }
+    };
 }
 
-impl Entity for EngineEntity {
-    fn id(&self) -> u128 {
-        match self {
-            EngineEntity::Player(p) => p.id(),
-            EngineEntity::Mob(m) => m.id(),
-            // EngineEntity::Item(i) => i.id(),
-        }
-    }
-
-    fn size(&self) -> Vec2 {
-        match self {
-            EngineEntity::Player(p) => p.size(),
-            EngineEntity::Mob(m) => m.size(),
-            // EngineEntity::Item(i) => i.position(),
-        }
-    }
-
-    fn position(&self) -> Vec2 {
-        match self {
-            EngineEntity::Player(p) => p.position(),
-            EngineEntity::Mob(m) => m.position(),
-            // EngineEntity::Item(i) => i.position(),
-        }
-    }
-
-    fn position_mut(&mut self) -> &mut Vec2 {
-        match self {
-            EngineEntity::Player(p) => p.position_mut(),
-            EngineEntity::Mob(m) => m.position_mut(),
-            // EngineEntity::Item(i) => i.position(),
-        }
-    }
-
-    fn step(&mut self, inputs: Option<&EntityInput>, map: &MapData) -> Self {
-        match self {
-            EngineEntity::Player(p) => EngineEntity::Player(p.step(inputs, map)),
-            EngineEntity::Mob(m) => EngineEntity::Mob(m.step(inputs, map)),
-            // EngineEntity::Item(i) => i.step(inputs),
-        }
+engine_entity_enum! {
+    EngineEntity {
+        Player(PlayerEntity),
+        Mob(MobEntity),
+        MobSpawner(MobSpawnEntity),
+        // Item(ItemEntity),  // Uncomment when ready
     }
 }

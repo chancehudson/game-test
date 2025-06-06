@@ -99,7 +99,7 @@ fn player_input(
 ) {
     if let Ok(player) = player_query.get_single() {
         let input = EntityInput {
-            jump: false,
+            jump: keyboard.pressed(KeyCode::Space),
             move_left: keyboard.pressed(KeyCode::ArrowLeft),
             move_right: keyboard.pressed(KeyCode::ArrowRight),
             crouch: keyboard.pressed(KeyCode::ArrowDown),

@@ -14,7 +14,6 @@ use game_test::engine::entity::EngineEntity;
 use game_test::engine::GameEngine;
 use game_test::engine::STEP_LEN_S;
 use game_test::timestamp;
-pub use game_test::Actor;
 pub use game_test::MapData;
 
 mod animated_sprite;
@@ -23,7 +22,7 @@ mod loading_screen;
 mod login;
 mod map;
 mod map_data_loader;
-// mod mob;
+mod mob;
 // mod mob_health_bar;
 mod network;
 mod player;
@@ -32,6 +31,7 @@ mod smooth_camera;
 use network::NetworkMessage;
 use network::NetworkPlugin;
 
+use crate::mob::MobComponent;
 use crate::player::PlayerComponent;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
@@ -189,8 +189,13 @@ fn sync_engine_components(
                     PlayerComponent::default_sprite(&asset_server, &mut texture_atlas_layouts),
                 ));
             }
+            EngineEntity::MobSpawner(p) => {}
             EngineEntity::Mob(p) => {
-                unreachable!();
+                commands.spawn((
+                    GameEntityComponent { entity_id: id },
+                    Transform::from_translation(p.position().extend(0.0)),
+                    MobComponent::new(p, &asset_server, &mut texture_atlas_layouts), // MobEntity::new(mob.clone(), &asset_server, &mut texture_atlas_layouts),
+                ));
             }
         }
     }

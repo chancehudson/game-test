@@ -2,20 +2,14 @@ use bevy::prelude::*;
 
 use game_test::action::Action;
 use game_test::action::PlayerState;
-use game_test::action::Response;
-use game_test::actor::move_x;
-use game_test::actor::move_y;
 use game_test::engine::entity::Entity;
 use game_test::engine::entity::EntityInput;
-use game_test::timestamp;
 use game_test::STEP_DELAY;
-use game_test::TICK_RATE_S;
 
 use crate::animated_sprite::AnimatedSprite;
 use crate::ActiveGameEngine;
 use crate::ActivePlayerEntityId;
 
-use super::map::ActiveMap;
 use super::network::NetworkAction;
 use super::GameState;
 
@@ -80,7 +74,7 @@ fn input_system(
     }
     let entity = entity.unwrap();
     let input = EntityInput {
-        jump: false,
+        jump: keyboard.pressed(KeyCode::Space),
         move_left: keyboard.pressed(KeyCode::ArrowLeft),
         move_right: keyboard.pressed(KeyCode::ArrowRight),
         crouch: keyboard.pressed(KeyCode::ArrowDown),

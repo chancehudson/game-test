@@ -12,10 +12,8 @@ pub mod engine;
 pub mod map;
 pub mod mob;
 
-pub use mob::MobData;
-
-pub use actor::Actor;
 pub use map::MapData;
+pub use mob::MobData;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnimationData {

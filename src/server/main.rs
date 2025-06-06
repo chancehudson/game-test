@@ -2,12 +2,10 @@ use std::time::Duration;
 
 use game_test::action::Action;
 use game_test::timestamp;
-use game_test::Actor;
 use game_test::TICK_RATE_S;
 
 mod db;
 mod game;
-mod item;
 mod map_instance;
 mod network;
 

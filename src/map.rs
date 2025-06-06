@@ -3,6 +3,10 @@ use bevy::math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::engine::entity::EngineEntity;
+use crate::engine::mob_spawner::MobSpawnEntity;
+use crate::engine::GameEngine;
+
 // Custom deserializer for Vec2
 fn deserialize_vec2<'de, D>(deserializer: D) -> Result<Vec2, D::Error>
 where
@@ -51,17 +55,15 @@ pub struct Platform {
     pub size: Vec2,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct MobSpawn {
-    /// point at which we stop spawning
-    pub max_count: usize,
-    /// how quickly dead mobs respawn (mobs/second)
-    // pub spawn_rate: f32,
-    pub position: Vec2,
-    pub size: Vec2,
-    pub mob_type: u64,
-    #[serde(default)]
-    pub last_spawn: f64,
+impl Platform {
+    fn rect(&self) -> Rect {
+        Rect::new(
+            self.position.x,
+            self.position.y,
+            self.position.x + self.size.x,
+            self.position.y + self.size.y,
+        )
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -76,5 +78,32 @@ pub struct MapData {
     pub npc: Vec<Npc>,
     pub platforms: Vec<Platform>,
     #[serde(default)]
-    pub mob_spawns: Vec<MobSpawn>,
+    pub mob_spawns: Vec<MobSpawnEntity>,
+}
+
+impl MapData {
+    pub fn initialize(&self, engine: &mut GameEngine) {
+        for spawn in &self.mob_spawns {
+            engine.spawn_entity(EngineEntity::MobSpawner(spawn.clone()));
+        }
+    }
+
+    pub fn contains_platform(&self, rect: Rect) -> bool {
+        for platform in &self.platforms {
+            let intersection = rect.intersect(platform.rect());
+            if intersection.width() > 2.0 && intersection.height() >= 1.0 {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn not_contains_platform(&self, rect: Rect) -> bool {
+        for platform in &self.platforms {
+            if !rect.intersect(platform.rect()).is_empty() {
+                return false;
+            }
+        }
+        true
+    }
 }
