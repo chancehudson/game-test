@@ -119,6 +119,7 @@ impl Game {
             anyhow::bail!("player map instance non-existent")
         }
         let mut map_instance = map_instance.unwrap().write().await;
+        map_instance.remove_player(&player_state.id).await;
         map_instance.add_player(&player_state).await?;
         self.network_server
             .register_player(socket_id.to_string(), record.id.clone())
