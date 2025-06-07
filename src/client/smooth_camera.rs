@@ -1,7 +1,7 @@
-use bevy::{ecs::entity, prelude::*};
+use bevy::prelude::*;
 use game_test::engine::entity::Entity;
 
-use crate::{map, ActiveGameEngine, ActivePlayerEntityId};
+use crate::{map, map_data_loader::MapDataAsset, ActiveGameEngine, ActivePlayerEntityId};
 
 const CAMERA_ACCELERATION: f32 = 1500.0;
 const CAMERA_MAX_SPEED: f32 = 300.0;
@@ -77,7 +77,8 @@ fn player_camera(
     active_game_engine: Res<ActiveGameEngine>,
     mut camera: Query<(&mut Transform, &mut CameraMovement), With<Camera2d>>,
     windows: Query<&Window>,
-    active_map: Res<map::ActiveMap>,
+    map_loader: Res<map::MapLoader>,
+    map_assets: Res<Assets<MapDataAsset>>,
     time: Res<Time>,
 ) {
     if active_player_entity_id.0.is_none() {
@@ -88,6 +89,11 @@ fn player_camera(
     if entity.is_none() {
         return;
     }
+    let active_map = map_loader.map_data(map_assets);
+    if active_map.is_none() {
+        return;
+    }
+    let active_map = active_map.unwrap();
     let entity = entity.unwrap();
     let delta = time.delta_secs();
     let (mut camera_transform, mut camera_movement) = camera.single_mut().unwrap();

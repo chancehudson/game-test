@@ -1,18 +1,17 @@
 {
-    id: 0,
+    sprite_type: 1,
     name: "blue duck",
     size: [37, 62],
-    max_velocity: 200,
     standing: {
         fps: 3,
         frame_count: 3,
-        sprite_sheet: "duck_blue/standing.png",
+        sprite_sheet: "sprites/duck_blue/standing.png",
         width: 37,
     },
     walking: {
         fps: 5,
         frame_count: 4,
-        sprite_sheet: "duck_blue/walk.png",
+        sprite_sheet: "sprites/duck_blue/walk.png",
         width: 39,
     },
 }

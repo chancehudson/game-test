@@ -11,6 +11,7 @@ pub use game_test::action::Response;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::GameEngine;
 use game_test::engine::STEP_LEN_S;
+use game_test::mob::SPRITE_MANIFEST;
 use game_test::timestamp;
 pub use game_test::MapData;
 
@@ -21,6 +22,7 @@ mod login;
 mod map;
 mod map_data_loader;
 mod mob;
+mod sprite_data_loader;
 // mod mob_health_bar;
 mod network;
 mod player;
@@ -31,6 +33,7 @@ use network::NetworkMessage;
 use crate::map::MapEntity;
 use crate::mob::MobComponent;
 use crate::player::PlayerComponent;
+use crate::sprite_data_loader::SpriteDataAsset;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum GameState {
@@ -54,6 +57,10 @@ pub struct ActivePlayerEntityId(pub Option<u128>);
 
 #[derive(Resource, Default)]
 pub struct ActivePlayerState(pub Option<PlayerState>);
+
+// Event for incoming messages
+#[derive(Event, Debug)]
+pub struct LoadSpriteRequest(pub u64);
 
 fn main() {
     let mut app = App::new();
@@ -80,11 +87,13 @@ fn main() {
     .init_resource::<ActiveGameEngine>()
     .init_resource::<ActivePlayerEntityId>()
     .init_resource::<ActivePlayerState>()
+    .add_event::<LoadSpriteRequest>()
     .add_plugins(loading_screen::LoadingScreenPlugin)
     .add_plugins(smooth_camera::SmoothCameraPlugin)
     .add_plugins(animated_sprite::AnimatedSpritePlugin)
     .add_plugins(map::MapPlugin)
     .add_plugins(map_data_loader::MapDataLoaderPlugin)
+    .add_plugins(sprite_data_loader::SpriteDataLoaderPlugin)
     .add_plugins(login::LoginPlugin)
     .add_plugins(gui::GuiPlugin)
     .add_plugins(network::NetworkPlugin)
@@ -222,6 +231,22 @@ fn handle_login(
         if let Response::PlayerLoggedIn(state) = &event.0 {
             active_player_state.0 = Some(state.clone());
             next_state.set(GameState::LoadingMap);
+        }
+    }
+}
+
+fn handle_sprite_load_request(
+    mut sprite_load_reqs: EventReader<LoadSpriteRequest>,
+    asset_server: Res<AssetServer>,
+) {
+    for event in sprite_load_reqs.read() {
+        if let Some(data_path) = SPRITE_MANIFEST.get(&event.0) {
+            let handle: Handle<SpriteDataAsset> = asset_server.load(data_path);
+        } else {
+            println!(
+                "WARNING: trying to load sprite data for unknown id {}",
+                event.0
+            );
         }
     }
 }

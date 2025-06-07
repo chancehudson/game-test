@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::mob::MobEntity;
 
-use game_test::mob::MOB_DATA;
+use game_test::mob::SPRITE_DATA;
 
 use crate::animated_sprite::AnimatedSprite;
 use crate::ActiveGameEngine;
@@ -107,7 +107,7 @@ fn animate_mobs(
         }
         let entity = entity.unwrap();
         if let EngineEntity::Mob(mob_data) = &entity {
-            let data = MOB_DATA.get(&mob_data.mob_type).unwrap();
+            let data = SPRITE_DATA.get(&mob_data.mob_type).unwrap();
             if mob_data.velocity.x.abs() < 0.1 {
                 if sprite.image != mob.standing_texture {
                     sprite.image = mob.standing_texture.clone();
@@ -150,7 +150,7 @@ impl MobComponent {
         asset_server: &Res<AssetServer>,
         texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
     ) -> (Self, AnimatedSprite, Sprite) {
-        let data = MOB_DATA.get(&mob.mob_type).unwrap();
+        let data = SPRITE_DATA.get(&mob.mob_type).unwrap();
         let standing_texture = asset_server.load(data.standing.sprite_sheet.clone());
         let walking_texture: Handle<Image> = asset_server.load(data.walking.sprite_sheet.clone());
         let standing_layout = TextureAtlasLayout::from_grid(

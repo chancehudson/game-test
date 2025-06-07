@@ -1,0 +1,17 @@
+{
+    sprite_type: 0,
+    name: "banana",
+    size: [52, 52],
+    standing: {
+        fps: 1,
+        frame_count: 2,
+        sprite_sheet: "sprites/banana/standing.png",
+        width: 52,
+    },
+    walking: {
+        fps: 1,
+        frame_count: 2,
+        sprite_sheet: "sprites/banana/standing.png",
+        width: 52,
+    },
+}

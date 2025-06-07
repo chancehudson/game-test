@@ -24,7 +24,7 @@ impl PlayerComponent {
         asset_server: &Res<AssetServer>,
         texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
     ) -> (AnimatedSprite, Sprite) {
-        let texture = asset_server.load("banana.png");
+        let texture = asset_server.load("sprites/banana/standing.png");
 
         let layout = TextureAtlasLayout::from_grid(UVec2::splat(52), 2, 1, None, None);
         let texture_atlas_layout = texture_atlas_layouts.add(layout);

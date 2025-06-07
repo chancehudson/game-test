@@ -37,10 +37,12 @@ fn main() {
                     font_size: 12.0,
                     font: default(),
                     font_smoothing: FontSmoothing::default(),
+                    ..default()
                 },
                 // We can also change color of the overlay
                 text_color: Color::WHITE,
                 enabled: true,
+                ..default()
             },
         },
     ))

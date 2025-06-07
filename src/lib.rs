@@ -14,7 +14,7 @@ pub mod mob;
 pub use map::MapData;
 pub use mob::MobData;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AnimationData {
     pub frame_count: usize,
     pub fps: usize,
