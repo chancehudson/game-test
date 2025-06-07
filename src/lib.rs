@@ -1,10 +1,9 @@
-use std::time::Instant;
-
 use once_cell::sync::Lazy;
 use rand::rng;
 use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
+use web_time::Instant;
 
 pub mod action;
 pub mod actor;

@@ -45,10 +45,11 @@ pub fn handle_logout_click(
     if interaction_query.is_empty() {
         return;
     }
-    let interaction = interaction_query.single();
-    if interaction == &Interaction::Pressed {
-        action_events.send(NetworkAction(game_test::action::Action::LogoutPlayer));
-        next_state.set(GameState::LoggedOut);
+    if let Ok(interaction) = interaction_query.single() {
+        if interaction == &Interaction::Pressed {
+            action_events.send(NetworkAction(game_test::action::Action::LogoutPlayer));
+            next_state.set(GameState::LoggedOut);
+        }
     }
 }
 
@@ -57,8 +58,9 @@ pub fn update_experience_bar(mut query: Query<&mut Node, With<ExperienceBar>>, t
         return;
     }
     let percent = time.elapsed_secs() % 100.0;
-    let mut node = query.single_mut();
-    node.width = Val::Percent(percent);
+    if let Ok(mut node) = query.single_mut() {
+        node.width = Val::Percent(percent);
+    }
 }
 
 pub fn show_gui(
@@ -71,7 +73,7 @@ pub fn show_gui(
         return;
     }
     let active_player_state = active_player_state.0.as_ref().unwrap();
-    let window = windows.single();
+    let window = windows.single().unwrap();
     let screen_width = window.resolution.width();
     let screen_height = window.resolution.height();
     const BAR_BACKGROUND_COLOR: Color = Color::srgb(0.1, 0.1, 0.1);

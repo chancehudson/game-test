@@ -8,8 +8,6 @@ use bevy::text::FontSmoothing;
 pub use game_test::action::Action;
 use game_test::action::PlayerState;
 pub use game_test::action::Response;
-pub use game_test::actor::move_x;
-pub use game_test::actor::move_y;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::GameEngine;
 use game_test::engine::STEP_LEN_S;
@@ -29,7 +27,6 @@ mod player;
 mod smooth_camera;
 
 use network::NetworkMessage;
-use network::NetworkPlugin;
 
 use crate::map::MapEntity;
 use crate::mob::MobComponent;
@@ -60,6 +57,8 @@ pub struct ActivePlayerState(pub Option<PlayerState>);
 
 fn main() {
     let mut app = App::new();
+    #[cfg(target_arch = "wasm32")]
+    app.add_plugins(bevy_web_asset::WebAssetPlugin::default());
     app.add_plugins((
         DefaultPlugins.set(ImagePlugin::default_nearest()),
         FpsOverlayPlugin {
@@ -68,10 +67,12 @@ fn main() {
                     font_size: 12.0,
                     font: default(),
                     font_smoothing: FontSmoothing::default(),
+                    ..default()
                 },
                 // We can also change color of the overlay
                 text_color: Color::WHITE,
                 enabled: true,
+                ..default()
             },
         },
     ))
@@ -86,7 +87,7 @@ fn main() {
     .add_plugins(map_data_loader::MapDataLoaderPlugin)
     .add_plugins(login::LoginPlugin)
     .add_plugins(gui::GuiPlugin)
-    .add_plugins(NetworkPlugin)
+    .add_plugins(network::NetworkPlugin)
     .add_plugins(mob::MobPlugin)
     // .add_plugins(mob_health_bar::MobHealthBarPlugin)
     .add_systems(

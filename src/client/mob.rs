@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 
-use bevy::utils::HashMap;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::mob::MobEntity;
 

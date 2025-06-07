@@ -4,7 +4,7 @@ use bevy::asset::AsyncReadExt;
 use bevy::asset::LoadContext;
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
-use bevy::utils::ConditionalSendFuture;
+use bevy::tasks::ConditionalSendFuture;
 
 use game_test::MapData;
 

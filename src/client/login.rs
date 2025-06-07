@@ -47,12 +47,14 @@ fn handle_login_click(
     if interaction_query.is_empty() {
         return;
     }
-    let button = interaction_query.single();
-    let text = text_query.single();
-    if button == &Interaction::Pressed {
-        action_events.send(NetworkAction(game_test::action::Action::LoginPlayer(
-            text.0.clone(),
-        )));
+    if let Ok(button) = interaction_query.single() {
+        if let Ok(text) = text_query.single() {
+            if button == &Interaction::Pressed {
+                action_events.send(NetworkAction(game_test::action::Action::LoginPlayer(
+                    text.0.clone(),
+                )));
+            }
+        }
     }
 }
 
@@ -64,12 +66,14 @@ fn handle_signup_click(
     if interaction_query.is_empty() {
         return;
     }
-    let button = interaction_query.single();
-    let text = text_query.single();
-    if button == &Interaction::Pressed {
-        action_events.send(NetworkAction(game_test::action::Action::CreatePlayer(
-            text.0.clone(),
-        )));
+    if let Ok(button) = interaction_query.single() {
+        if let Ok(text) = text_query.single() {
+            if button == &Interaction::Pressed {
+                action_events.send(NetworkAction(game_test::action::Action::CreatePlayer(
+                    text.0.clone(),
+                )));
+            }
+        }
     }
 }
 
@@ -170,6 +174,6 @@ fn setup_login_screen(mut commands: Commands) {
 fn cleanup_login_screen(mut commands: Commands, login_ui: Query<Entity, With<LoginUI>>) {
     // Remove all entities with LoginUI component
     for entity in &login_ui {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
 }

@@ -63,8 +63,8 @@ fn move_debug_marker(
     if query.is_empty() {
         return;
     }
-    let (_, mut transform) = query.single_mut();
-    let camera_transform = camera_query.single_mut();
+    let (_, mut transform) = query.single_mut().unwrap();
+    let camera_transform = camera_query.single_mut().unwrap();
     transform.translation.x = camera_transform.translation.x;
     transform.translation.y = camera_transform.translation.y;
 }
@@ -90,8 +90,8 @@ fn player_camera(
     }
     let entity = entity.unwrap();
     let delta = time.delta_secs();
-    let (mut camera_transform, mut camera_movement) = camera.single_mut();
-    let window = windows.single();
+    let (mut camera_transform, mut camera_movement) = camera.single_mut().unwrap();
+    let window = windows.single().unwrap();
     let screen_width = window.resolution.width();
     let screen_height = window.resolution.height();
     let movement_range = Vec2::new(f32::min(150., screen_width), f32::min(100., screen_height));
