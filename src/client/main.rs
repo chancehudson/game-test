@@ -31,12 +31,14 @@ mod smooth_camera;
 use network::NetworkMessage;
 use network::NetworkPlugin;
 
+use crate::map::MapEntity;
 use crate::mob::MobComponent;
 use crate::player::PlayerComponent;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum GameState {
     #[default]
+    Disconnected,
     LoggedOut,
     LoadingMap,
     OnMap,
@@ -91,7 +93,10 @@ fn main() {
         FixedUpdate,
         (handle_login, handle_player_entity_id, handle_engine_state),
     )
-    .add_systems(Update, (step_game_engine, sync_engine_components))
+    .add_systems(
+        Update,
+        (step_game_engine, sync_engine_components).run_if(in_state(GameState::OnMap)),
+    )
     .add_plugins(player::PlayerPlugin);
     app.run();
 }
@@ -124,6 +129,10 @@ fn handle_engine_state(
                 return;
             }
             let player_entity_id = active_player_entity_id.0.unwrap();
+            if !engine.entities.contains_key(&player_entity_id) {
+                println!("WARNING: player is not in engine");
+                return;
+            }
             let mut engine = engine.clone();
             // println!("{} {}", active_engine_state.0.step_index, engine.step_index);
             // compute a local start timestamp
@@ -187,6 +196,7 @@ fn sync_engine_components(
                     GameEntityComponent { entity_id: id },
                     Transform::from_translation(p.position().extend(10.0)),
                     PlayerComponent::default_sprite(&asset_server, &mut texture_atlas_layouts),
+                    MapEntity,
                 ));
             }
             EngineEntity::MobSpawner(p) => {}
@@ -195,6 +205,7 @@ fn sync_engine_components(
                     GameEntityComponent { entity_id: id },
                     Transform::from_translation(p.position().extend(0.0)),
                     MobComponent::new(p, &asset_server, &mut texture_atlas_layouts),
+                    MapEntity,
                 ));
             }
         }
