@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::collections::HashSet;
+
 use bevy::asset::io::Reader;
 use bevy::asset::AssetLoader;
 use bevy::asset::AsyncReadExt;
@@ -7,12 +10,95 @@ use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
 
 use game_test::mob::SpriteAnimationData;
+use game_test::mob::SPRITE_MANIFEST;
+
+#[derive(Resource, Default)]
+pub struct SpriteManager {
+    // first load the sprite data handle
+    // then load the images specified in the data file
+    sprite_data_handle_map: HashMap<u64, Handle<SpriteDataAsset>>,
+    // filepath keyed to handle
+    sprite_image_handle_map: HashMap<String, Handle<Image>>,
+    sprite_texture_atlas_map: HashMap<String, Handle<TextureAtlasLayout>>,
+    sprite_id_to_images: HashMap<u64, HashSet<String>>,
+}
+
+impl SpriteManager {
+    pub fn is_loaded(&self, id: &u64, sprite_data: &Res<Assets<SpriteDataAsset>>) -> bool {
+        if let Some(data) = self.sprite_data_maybe(id, sprite_data) {
+            for (name, _atlas) in data.sprite_sheets() {
+                if self.sprite_texture_atlas_map.contains_key(&name)
+                    && self.sprite_image_handle_map.contains_key(&name)
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn load(&mut self, id: u64, asset_server: &Res<AssetServer>) {
+        if let Some(_) = self.sprite_data_handle_map.get(&id) {
+            return;
+        }
+        if let Some(filepath) = SPRITE_MANIFEST.get(&id) {
+            let handle = asset_server.load(filepath);
+            self.sprite_data_handle_map.insert(id, handle);
+        }
+    }
+
+    pub fn sprite(&self, name: &str) -> Option<(&Handle<Image>, &Handle<TextureAtlasLayout>)> {
+        if let Some(handle) = self.sprite_image_handle_map.get(name) {
+            if let Some(atlas) = self.sprite_texture_atlas_map.get(name) {
+                return Some((handle, atlas));
+            }
+        }
+        None
+    }
+
+    pub fn sprite_data_maybe(
+        &self,
+        id: &u64,
+        sprite_data: &Res<Assets<SpriteDataAsset>>,
+    ) -> Option<SpriteAnimationData> {
+        if let Some(handle) = self.sprite_data_handle_map.get(id) {
+            sprite_data.get(handle).and_then(|v| Some(v.0.clone()))
+        } else {
+            None
+        }
+    }
+
+    pub fn continue_loading(
+        &mut self,
+        asset_server: &Res<AssetServer>,
+        sprite_data: &Res<Assets<SpriteDataAsset>>,
+        texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
+    ) {
+        let loading_sprites = self
+            .sprite_data_handle_map
+            .iter()
+            .filter(|(id, _handle)| !self.sprite_id_to_images.contains_key(id))
+            .collect::<Vec<_>>();
+        for (id, handle) in loading_sprites {
+            if let Some(data) = sprite_data.get(handle) {
+                let mut sprite_id_images = HashSet::new();
+                for (name, atlas) in data.0.sprite_sheets() {
+                    let atlas_handle = texture_atlas_layouts.add(atlas);
+                    self.sprite_texture_atlas_map
+                        .insert(name.clone(), atlas_handle);
+                    self.sprite_image_handle_map
+                        .insert(name.clone(), asset_server.load(&name));
+                    sprite_id_images.insert(name.clone());
+                }
+                self.sprite_id_to_images.insert(*id, sprite_id_images);
+            }
+        }
+    }
+}
 
 // Custom asset to hold the config
 #[derive(Asset, TypePath, Debug)]
-pub struct SpriteDataAsset {
-    pub data: SpriteAnimationData,
-}
+pub struct SpriteDataAsset(pub SpriteAnimationData);
 
 // Asset loader for JSON files
 #[derive(Default)]
@@ -37,12 +123,12 @@ impl AssetLoader for SpriteDataLoader {
             let mut data_str = String::new();
             reader.read_to_string(&mut data_str).await?;
             let data = json5::from_str(&data_str)?;
-            Ok(SpriteDataAsset { data })
+            Ok(SpriteDataAsset(data))
         }
     }
 
     fn extensions(&self) -> &[&str] {
-        &["json5"]
+        &["sprite.json5"]
     }
 }
 

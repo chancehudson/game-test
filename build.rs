@@ -27,10 +27,7 @@ fn main() -> anyhow::Result<()> {
                     .as_u64()
                     .unwrap()
                     .to_string();
-                mob_data_path.insert(
-                    mob_type,
-                    format!("assets/sprites/{}", file_name.to_string()),
-                );
+                mob_data_path.insert(mob_type, format!("sprites/{}", file_name.to_string()));
             }
         }
     }

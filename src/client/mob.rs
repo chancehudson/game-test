@@ -1,35 +1,19 @@
-use std::collections::HashMap;
-
 use bevy::prelude::*;
 
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::mob::MobEntity;
 
-use game_test::mob::SPRITE_DATA;
-
 use crate::animated_sprite::AnimatedSprite;
+use crate::sprite_data_loader::SpriteDataAsset;
+use crate::sprite_data_loader::SpriteManager;
 use crate::ActiveGameEngine;
 use crate::GameEntityComponent;
 
 pub struct MobPlugin;
 
-#[derive(Resource, Default)]
-pub struct MobRegistry {
-    pub mobs: HashMap<u64, Entity>,
-}
-
-#[derive(Component)]
-pub struct DamageText {
-    pub created_at: f64,
-}
-
 impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<MobRegistry>()
-            // .add_systems(FixedUpdate, handle_mob_change)
-            .add_systems(Update, animate_mobs);
-        // .add_systems(Update, handle_mob_damage)
-        // .add_systems(Update, animate_mob_damage);
+        app.add_systems(Update, animate_mobs);
     }
 }
 
@@ -99,6 +83,8 @@ fn animate_mobs(
         &mut Sprite,
     )>,
     active_game_engine: Res<ActiveGameEngine>,
+    sprite_data: Res<Assets<SpriteDataAsset>>,
+    sprite_manager: Res<SpriteManager>,
 ) {
     for (e, mob, mut animated_sprite, mut sprite) in &mut query {
         let entity = active_game_engine.0.entities.get(&e.entity_id);
@@ -107,7 +93,9 @@ fn animate_mobs(
         }
         let entity = entity.unwrap();
         if let EngineEntity::Mob(mob_data) = &entity {
-            let data = SPRITE_DATA.get(&mob_data.mob_type).unwrap();
+            let data = sprite_manager
+                .sprite_data_maybe(&mob_data.mob_type, &sprite_data)
+                .unwrap();
             if mob_data.velocity.x.abs() < 0.1 {
                 if sprite.image != mob.standing_texture {
                     sprite.image = mob.standing_texture.clone();
@@ -147,34 +135,22 @@ pub struct MobComponent {
 impl MobComponent {
     pub fn new(
         mob: MobEntity,
-        asset_server: &Res<AssetServer>,
-        texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
+        sprite_data: &Res<Assets<SpriteDataAsset>>,
+        sprite_manager: &SpriteManager,
     ) -> (Self, AnimatedSprite, Sprite) {
-        let data = SPRITE_DATA.get(&mob.mob_type).unwrap();
-        let standing_texture = asset_server.load(data.standing.sprite_sheet.clone());
-        let walking_texture: Handle<Image> = asset_server.load(data.walking.sprite_sheet.clone());
-        let standing_layout = TextureAtlasLayout::from_grid(
-            UVec2::new(data.standing.width as u32, data.size.y as u32),
-            data.standing.frame_count as u32,
-            1,
-            None,
-            None,
-        );
-        let walking_layout = TextureAtlasLayout::from_grid(
-            UVec2::new(data.walking.width as u32, data.size.y as u32),
-            data.walking.frame_count as u32,
-            1,
-            None,
-            None,
-        );
-        let standing_texture_atlas_layout = texture_atlas_layouts.add(standing_layout);
-        let walking_texture_atlas_layout = texture_atlas_layouts.add(walking_layout);
+        let data = sprite_manager
+            .sprite_data_maybe(&mob.mob_type, sprite_data)
+            .unwrap();
+        let (walking_handle, walking_atlas) =
+            sprite_manager.sprite(&data.walking.sprite_sheet).unwrap();
+        let (standing_handle, standing_atlas) =
+            sprite_manager.sprite(&data.standing.sprite_sheet).unwrap();
         (
             MobComponent {
-                standing_texture: standing_texture.clone(),
-                walking_texture,
-                standing_texture_atlas_layout: standing_texture_atlas_layout.clone(),
-                walking_texture_atlas_layout,
+                standing_texture: standing_handle.clone(),
+                walking_texture: walking_handle.clone(),
+                standing_texture_atlas_layout: standing_atlas.clone(),
+                walking_texture_atlas_layout: walking_atlas.clone(),
             },
             AnimatedSprite {
                 frame_count: data.standing.frame_count as u8,
@@ -182,9 +158,9 @@ impl MobComponent {
                 time: 0.0,
             },
             Sprite {
-                image: standing_texture.clone(),
+                image: standing_handle.clone(),
                 texture_atlas: Some(TextureAtlas {
-                    layout: standing_texture_atlas_layout,
+                    layout: standing_atlas.clone(),
                     index: 0,
                 }),
                 anchor: bevy::sprite::Anchor::BottomLeft,

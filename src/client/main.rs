@@ -34,6 +34,7 @@ use crate::map::MapEntity;
 use crate::mob::MobComponent;
 use crate::player::PlayerComponent;
 use crate::sprite_data_loader::SpriteDataAsset;
+use crate::sprite_data_loader::SpriteManager;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum GameState {
@@ -84,6 +85,7 @@ fn main() {
         },
     ))
     .init_state::<GameState>()
+    .init_resource::<SpriteManager>()
     .init_resource::<ActiveGameEngine>()
     .init_resource::<ActivePlayerEntityId>()
     .init_resource::<ActivePlayerState>()
@@ -105,10 +107,24 @@ fn main() {
     )
     .add_systems(
         Update,
-        (step_game_engine, sync_engine_components).run_if(in_state(GameState::OnMap)),
+        (
+            load_sprite_manager,
+            step_game_engine,
+            sync_engine_components,
+        )
+            .run_if(in_state(GameState::OnMap)),
     )
     .add_plugins(player::PlayerPlugin);
     app.run();
+}
+
+fn load_sprite_manager(
+    mut sprite_manager: ResMut<SpriteManager>,
+    asset_server: Res<AssetServer>,
+    sprite_data: Res<Assets<SpriteDataAsset>>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+) {
+    sprite_manager.continue_loading(&asset_server, &sprite_data, &mut texture_atlas_layouts);
 }
 
 fn step_game_engine(mut active_game_engine: ResMut<ActiveGameEngine>) {
@@ -172,6 +188,8 @@ fn sync_engine_components(
     mut entity_query: Query<(Entity, &GameEntityComponent, &mut Transform, &mut Sprite)>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    mut sprite_manager: ResMut<SpriteManager>,
+    sprite_data: Res<Assets<SpriteDataAsset>>,
 ) {
     // TODO:::::::::::::
     use game_test::engine::entity::Entity;
@@ -195,26 +213,34 @@ fn sync_engine_components(
             }
             entity_ids.remove(&game_entity.id());
         } else {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
     }
     // we're left with game entities we need to spawn
     for (id, game_entity) in entity_ids {
         match game_entity {
             EngineEntity::Player(p) => {
+                if !sprite_manager.is_loaded(&0, &sprite_data) {
+                    sprite_manager.load(0, &asset_server);
+                    continue;
+                }
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
                     Transform::from_translation(p.position().extend(10.0)),
-                    PlayerComponent::default_sprite(&asset_server, &mut texture_atlas_layouts),
+                    PlayerComponent::default_sprite(sprite_manager.as_ref()),
                     MapEntity,
                 ));
             }
             EngineEntity::MobSpawner(p) => {}
             EngineEntity::Mob(p) => {
+                if !sprite_manager.is_loaded(&p.mob_type, &sprite_data) {
+                    sprite_manager.load(p.mob_type, &asset_server);
+                    continue;
+                }
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
                     Transform::from_translation(p.position().extend(0.0)),
-                    MobComponent::new(p, &asset_server, &mut texture_atlas_layouts),
+                    MobComponent::new(p, &sprite_data, sprite_manager.as_ref()),
                     MapEntity,
                 ));
             }
@@ -231,22 +257,6 @@ fn handle_login(
         if let Response::PlayerLoggedIn(state) = &event.0 {
             active_player_state.0 = Some(state.clone());
             next_state.set(GameState::LoadingMap);
-        }
-    }
-}
-
-fn handle_sprite_load_request(
-    mut sprite_load_reqs: EventReader<LoadSpriteRequest>,
-    asset_server: Res<AssetServer>,
-) {
-    for event in sprite_load_reqs.read() {
-        if let Some(data_path) = SPRITE_MANIFEST.get(&event.0) {
-            let handle: Handle<SpriteDataAsset> = asset_server.load(data_path);
-        } else {
-            println!(
-                "WARNING: trying to load sprite data for unknown id {}",
-                event.0
-            );
         }
     }
 }

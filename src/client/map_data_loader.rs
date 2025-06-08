@@ -34,6 +34,7 @@ impl AssetLoader for MapDataLoader {
         Output = Result<<Self as AssetLoader>::Asset, <Self as AssetLoader>::Error>,
     > {
         async move {
+            println!("hit map data loader");
             let mut data_str = String::new();
             reader.read_to_string(&mut data_str).await?;
             let data = json5::from_str(&data_str)?;
@@ -42,7 +43,7 @@ impl AssetLoader for MapDataLoader {
     }
 
     fn extensions(&self) -> &[&str] {
-        &["json5"]
+        &["map.json5"]
     }
 }
 

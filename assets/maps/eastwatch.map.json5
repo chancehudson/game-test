@@ -31,6 +31,6 @@
         { position: [0, 775], size: [600, 50] },
     ],
     mob_spawns: [
-        { position: [0, 230], size: [1000, 10], mob_type: 0, max_count: 10 },
+        { position: [0, 230], size: [1000, 10], mob_type: 1, max_count: 10 },
     ]
 }

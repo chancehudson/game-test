@@ -138,7 +138,7 @@ fn begin_load_map(
     let active_player_state = active_player_state.0.as_ref().unwrap();
 
     // Start loading the map data
-    let map_path = format!("maps/{}.json5", active_player_state.current_map);
+    let map_path = format!("maps/{}.map.json5", active_player_state.current_map);
     loader.begin_loading(
         active_player_state.current_map.clone(),
         map_path,

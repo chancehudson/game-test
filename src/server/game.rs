@@ -54,7 +54,12 @@ impl Game {
                 if extension != "json5" {
                     continue;
                 }
-                let name = path.file_stem().unwrap().to_str().unwrap();
+                let name = path
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .replace(".map", "");
                 if let Some(_file_name) = entry.file_name().to_str() {
                     let data_str = std::fs::read_to_string(path_str).unwrap();
                     let data = json5::from_str::<MapData>(&data_str).unwrap();

@@ -5,6 +5,7 @@ use game_test::action::PlayerState;
 use game_test::engine::entity::EntityInput;
 
 use crate::animated_sprite::AnimatedSprite;
+use crate::sprite_data_loader::SpriteManager;
 use crate::ActiveGameEngine;
 use crate::ActivePlayerEntityId;
 
@@ -20,14 +21,11 @@ pub struct PlayerComponent {
 }
 
 impl PlayerComponent {
-    pub fn default_sprite(
-        asset_server: &Res<AssetServer>,
-        texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
-    ) -> (AnimatedSprite, Sprite) {
-        let texture = asset_server.load("sprites/banana/standing.png");
+    pub fn default_sprite(sprite_manager: &SpriteManager) -> (AnimatedSprite, Sprite) {
+        let (handle, atlas) = sprite_manager
+            .sprite("sprites/banana/standing.png")
+            .unwrap();
 
-        let layout = TextureAtlasLayout::from_grid(UVec2::splat(52), 2, 1, None, None);
-        let texture_atlas_layout = texture_atlas_layouts.add(layout);
         (
             AnimatedSprite {
                 fps: 2,
@@ -35,9 +33,9 @@ impl PlayerComponent {
                 time: 0.0,
             },
             Sprite {
-                image: texture.clone(),
+                image: handle.clone(),
                 texture_atlas: Some(TextureAtlas {
-                    layout: texture_atlas_layout,
+                    layout: atlas.clone(),
                     index: 0,
                 }),
                 anchor: bevy::sprite::Anchor::BottomLeft,

@@ -21,7 +21,7 @@ pub struct GameEntity(pub u128);
 
 impl Default for ActiveGameEngine {
     fn default() -> Self {
-        let map_data_str = std::fs::read_to_string("./assets/maps/eastwatch.json5").unwrap();
+        let map_data_str = std::fs::read_to_string("./assets/maps/eastwatch.map.json5").unwrap();
         let map_data = json5::from_str::<MapData>(&map_data_str).unwrap();
         ActiveGameEngine(GameEngine::new(map_data))
     }

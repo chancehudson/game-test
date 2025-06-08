@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use bevy::image::TextureAtlasLayout;
+use bevy_math::UVec2;
 use bevy_math::Vec2;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
@@ -35,7 +37,6 @@ where
 pub static SPRITE_DATA: Lazy<HashMap<u64, SpriteAnimationData>> = Lazy::new(|| {
     let mut mob_data = HashMap::new();
     for (mob_type, filepath) in SPRITE_MANIFEST.iter() {
-        println!("{}", filepath);
         mob_data.insert(*mob_type, load_json5::<SpriteAnimationData>(&filepath));
     }
     mob_data
@@ -48,6 +49,33 @@ pub struct SpriteAnimationData {
     pub size: Vec2,
     pub standing: AnimationData,
     pub walking: AnimationData,
+}
+
+impl SpriteAnimationData {
+    pub fn sprite_sheets(&self) -> Vec<(String, TextureAtlasLayout)> {
+        vec![
+            (
+                self.standing.sprite_sheet.clone(),
+                TextureAtlasLayout::from_grid(
+                    UVec2::new(self.standing.width as u32, self.size.y as u32),
+                    self.standing.frame_count as u32,
+                    1,
+                    None,
+                    None,
+                ),
+            ),
+            (
+                self.walking.sprite_sheet.clone(),
+                TextureAtlasLayout::from_grid(
+                    UVec2::new(self.walking.width as u32, self.size.y as u32),
+                    self.walking.frame_count as u32,
+                    1,
+                    None,
+                    None,
+                ),
+            ),
+        ]
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
