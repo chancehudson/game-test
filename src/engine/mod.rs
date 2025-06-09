@@ -8,6 +8,8 @@
 ///
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::mem::discriminant;
+use std::mem::Discriminant;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -15,6 +17,7 @@ use serde::Serialize;
 pub mod entity;
 pub mod mob;
 pub mod mob_spawner;
+pub mod platform;
 pub mod player;
 
 use entity::EngineEntity;
@@ -22,6 +25,7 @@ use entity::Entity;
 use entity::EntityInput;
 use player::PlayerEntity;
 
+use crate::engine::platform::PlatformEntity;
 use crate::generate_strong_u128;
 use crate::map::MapData;
 use crate::timestamp;
@@ -33,7 +37,7 @@ pub const TRAILING_STATE_COUNT: u64 = 600;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GameEngine {
     pub start_timestamp: f64,
-    pub map: MapData,
+    map: MapData,
     // entity id keyed to struct
     pub entities: HashMap<u128, EngineEntity>,
     // step index keyed to entity id to struct
@@ -44,20 +48,33 @@ pub struct GameEngine {
     // inputs by entity id, by step index
     pub inputs: HashMap<u128, BTreeMap<u64, EntityInput>>,
     pub step_index: u64,
+    #[serde(skip)]
+    grouped_entities: (u64, HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>>),
 }
 
 impl GameEngine {
     pub fn new(map: MapData) -> Self {
+        // spawn the platforms when we initilize the map
         let mut engine = Self {
             start_timestamp: timestamp(),
             map: map.clone(),
-            entities: HashMap::new(),
-            entities_by_step: HashMap::new(),
-            new_entities_by_step: HashMap::new(),
-            inputs: HashMap::new(),
             step_index: 0,
+            ..Default::default()
         };
-        map.initialize(&mut engine);
+        // spawn the map components as needed
+        for platform in &map.platforms {
+            let id = engine.generate_id();
+            engine.spawn_entity(EngineEntity::Platform(PlatformEntity::new(
+                id,
+                platform.position.clone(),
+                platform.size.clone(),
+            )));
+        }
+        for spawn in &map.mob_spawns {
+            let mut spawn_with_id = spawn.clone();
+            spawn_with_id.id = engine.generate_id();
+            engine.spawn_entity(EngineEntity::MobSpawner(spawn_with_id));
+        }
         engine
     }
 
@@ -88,13 +105,23 @@ impl GameEngine {
     /// e.g. spawn_entity::<PlayerEntity>(&mut self)
     pub fn spawn_player_entity(&mut self) -> EngineEntity {
         let id = self.generate_id();
-        let player_entity = PlayerEntity::new(id, &self.map);
+        let player_entity = PlayerEntity::new(id);
         let engine_entity = EngineEntity::Player(player_entity);
         self.spawn_entity(engine_entity.clone());
         engine_entity
     }
 
     pub fn spawn_entity(&mut self, entity: EngineEntity) {
+        if self.entities.contains_key(&entity.id()) {
+            // TODO: decide how to handle this better?
+            println!(
+                "WARNING: attempting to insert entity with duplicate id, this is an error case"
+            );
+            panic!("encountered unrecoverable error");
+        }
+        if entity.id() == 0u128 {
+            println!("WARNING: attempting to insert an entity with a common id! you may not be setting this value correctly");
+        }
         let target_step_index = self.step_index + 1;
         if let Some(new_entities) = self.new_entities_by_step.get_mut(&target_step_index) {
             new_entities.push(entity);
@@ -208,6 +235,24 @@ impl GameEngine {
         for _ in 0..step_count {
             self.step();
         }
+    }
+
+    /// Construct or retrieve entities by type for the current step
+    pub fn grouped_entities(&mut self) -> &HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>> {
+        if self.grouped_entities.0 == self.step_index {
+            return &self.grouped_entities.1;
+        }
+        let mut groups: HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>> = HashMap::new();
+
+        for entity in self.entities.clone() {
+            let discriminant = discriminant(&entity.1);
+            groups
+                .entry(discriminant)
+                .or_insert_with(Vec::new)
+                .push(entity.1);
+        }
+        self.grouped_entities = (self.step_index, groups);
+        &self.grouped_entities.1
     }
 
     pub fn step(&mut self) {

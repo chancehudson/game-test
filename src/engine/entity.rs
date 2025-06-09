@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use super::mob::MobEntity;
 use super::mob_spawner::MobSpawnEntity;
+use super::platform::PlatformEntity;
 use super::player::PlayerEntity;
 use crate::engine::GameEngine;
 
@@ -98,6 +99,7 @@ engine_entity_enum! {
         Player(PlayerEntity),
         Mob(MobEntity),
         MobSpawner(MobSpawnEntity),
+        Platform(PlatformEntity),
         // Item(ItemEntity),  // Uncomment when ready
     }
 }

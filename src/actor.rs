@@ -1,4 +1,7 @@
 use bevy_math::Rect;
+use bevy_math::Vec2;
+
+use crate::engine::entity::{EngineEntity, Entity};
 
 use super::MapData;
 
@@ -27,7 +30,7 @@ pub fn move_x(body: Rect, dx: f32, map: &MapData) -> f32 {
     body.min.x
 }
 
-pub fn move_y(body: Rect, dy: f32, map: &MapData) -> f32 {
+pub fn move_y(body: Rect, dy: f32, platforms: &[EngineEntity], map_size: Vec2) -> f32 {
     if dy == 0. {
         return body.min.y;
     }
@@ -35,7 +38,7 @@ pub fn move_y(body: Rect, dy: f32, map: &MapData) -> f32 {
     let dy_abs = dy.abs();
     let mut moved = 0.;
     let min_y = 0.0;
-    let max_y = map.size.y - body.height();
+    let max_y = map_size.y - body.height();
     let mut position = body.min.clone();
 
     // if the character is jumping we don't care about collisions
@@ -48,12 +51,12 @@ pub fn move_y(body: Rect, dy: f32, map: &MapData) -> f32 {
         new_player_rect.min.y += sign * moved;
         new_player_rect.max.y += sign * moved;
 
-        for solid in &map.platforms {
+        for solid in platforms {
             let solid_rect = Rect::new(
-                solid.position.x,
-                solid.position.y,
-                solid.position.x + solid.size.x,
-                solid.position.y + solid.size.y,
+                solid.position().x,
+                solid.position().y,
+                solid.position().x + solid.size().x,
+                solid.position().y + solid.size().y,
             );
             let overlap = solid_rect.intersect(new_player_rect);
             if overlap.is_empty() {

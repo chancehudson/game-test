@@ -82,12 +82,6 @@ pub struct MapData {
 }
 
 impl MapData {
-    pub fn initialize(&self, engine: &mut GameEngine) {
-        for spawn in &self.mob_spawns {
-            engine.spawn_entity(EngineEntity::MobSpawner(spawn.clone()));
-        }
-    }
-
     pub fn contains_platform(&self, rect: Rect) -> bool {
         for platform in &self.platforms {
             let intersection = rect.intersect(platform.rect());

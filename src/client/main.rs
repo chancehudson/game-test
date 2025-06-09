@@ -244,6 +244,20 @@ fn sync_engine_components(
                     MapEntity,
                 ));
             }
+            EngineEntity::Platform(p) => {
+                println!("spawning platform");
+                commands.spawn((
+                    GameEntityComponent { entity_id: id },
+                    Transform::from_translation(p.position().extend(0.0)),
+                    MapEntity,
+                    Sprite {
+                        color: Color::srgb(0.0, 0.0, 1.0),
+                        custom_size: Some(Vec2::new(p.size.x, p.size.y)),
+                        anchor: bevy::sprite::Anchor::BottomLeft,
+                        ..default()
+                    },
+                ));
+            }
         }
     }
 }

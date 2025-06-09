@@ -112,7 +112,6 @@ fn update_map_loading(
     if loader.is_loaded() {
         let map_data = loader.map_data(map_assets).unwrap();
         spawn_background(&mut commands, &asset_server, &map_data);
-        spawn_platforms(&mut commands, &asset_server, &map_data);
         spawn_portals(&mut commands, &asset_server, &map_data);
         spawn_npcs(&mut commands, &asset_server, &map_data);
         next_state.set(GameState::OnMap);
@@ -160,21 +159,6 @@ pub fn spawn_background(commands: &mut Commands, asset_server: &AssetServer, map
         },
         Transform::from_translation(Vec3::new(0.0, -CAMERA_Y_PADDING, -10.0)),
     ));
-}
-
-pub fn spawn_platforms(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {
-    for platform in &map_data.platforms {
-        commands.spawn((
-            MapEntity,
-            Transform::from_translation(Vec3::new(platform.position.x, platform.position.y, -1.0)),
-            Sprite {
-                color: Color::srgb(0.0, 0.0, 1.0),
-                custom_size: Some(Vec2::new(platform.size.x, platform.size.y)),
-                anchor: bevy::sprite::Anchor::BottomLeft,
-                ..default()
-            },
-        ));
-    }
 }
 
 pub fn spawn_portals(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {

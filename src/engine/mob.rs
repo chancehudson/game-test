@@ -1,3 +1,6 @@
+use std::mem::discriminant;
+use std::mem::Discriminant;
+
 use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
@@ -5,6 +8,7 @@ use serde::Serialize;
 use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
+use crate::engine::entity::EngineEntity;
 use crate::engine::GameEngine;
 use crate::engine::STEP_LEN_S_F32;
 
@@ -86,12 +90,11 @@ impl Entity for MobEntity {
     fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
         let mut next_self = self.clone();
         next_self.prestep(engine, step_index);
-        let map = &engine.map;
         // velocity in the last frame based on movement
         let last_velocity = self.velocity.clone();
         let body = self.rect();
         let mut velocity = last_velocity.clone();
-        let can_jump = on_platform(body, map);
+        let can_jump = on_platform(body, &engine.map);
         let input = engine
             .latest_input(&self.id)
             .unwrap_or(EntityInput::default());
@@ -126,8 +129,18 @@ impl Entity for MobEntity {
         let lower_speed_limit = Vec2::new(-150., -350.);
         let upper_speed_limit = Vec2::new(150., 700.);
         velocity = velocity.clamp(lower_speed_limit, upper_speed_limit);
-        let x_pos = move_x(self.rect(), velocity.x * STEP_LEN_S_F32, map);
-        let y_pos = move_y(self.rect(), velocity.y * STEP_LEN_S_F32, map);
+        let x_pos = move_x(self.rect(), velocity.x * STEP_LEN_S_F32, &engine.map);
+        let map_size = engine.map.size.clone();
+        let y_pos = move_y(
+            self.rect(),
+            velocity.y * STEP_LEN_S_F32,
+            engine
+                .grouped_entities()
+                .get(&discriminant(&EngineEntity::Platform(Default::default())))
+                .map(|v| v.as_slice())
+                .unwrap_or_else(|| &[]),
+            map_size,
+        );
         next_self.position.x = x_pos;
         next_self.position.y = y_pos;
         next_self.velocity = velocity;
