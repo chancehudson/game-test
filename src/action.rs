@@ -1,3 +1,4 @@
+use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -25,9 +26,12 @@ pub enum Response {
     PlayerRemoved(String),
     // step index, position, input
     PlayerInput(u64, EngineEntity, EntityInput),
-    PlayerEntityId(u128),
+    // send the entity id, the engine, and the position the player will spawn
+    PlayerEntityId(u128, GameEngine, Vec2, PlayerState),
     // engine, server_step_index
     EngineState(GameEngine, u64),
+    // from_map
+    PlayerExitMap(String),
     LoginError(String),
     Pong,
     Tick,

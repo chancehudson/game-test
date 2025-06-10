@@ -75,6 +75,7 @@ fn input_system(
         move_right: keyboard.pressed(KeyCode::ArrowRight),
         crouch: keyboard.pressed(KeyCode::ArrowDown),
         attack: keyboard.pressed(KeyCode::KeyA),
+        enter_portal: keyboard.pressed(KeyCode::ArrowUp),
     };
     if let Some(last_input) = active_game_engine.0.latest_input(active_player_entity_id) {
         if last_input == input {
@@ -85,7 +86,7 @@ fn input_system(
         .0
         .register_input(None, *active_player_entity_id, input.clone());
     // send the new input to the server
-    action_events.send(NetworkAction(Action::PlayerInput(
+    action_events.write(NetworkAction(Action::PlayerInput(
         active_game_engine.0.step_index,
         entity,
         input,

@@ -11,7 +11,6 @@ pub use game_test::action::Response;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::GameEngine;
 use game_test::engine::STEP_LEN_S;
-use game_test::mob::SPRITE_MANIFEST;
 use game_test::timestamp;
 pub use game_test::MapData;
 
@@ -33,6 +32,7 @@ use network::NetworkMessage;
 use crate::map::MapEntity;
 use crate::mob::MobComponent;
 use crate::player::PlayerComponent;
+use crate::smooth_camera::CameraMovement;
 use crate::sprite_data_loader::SpriteDataAsset;
 use crate::sprite_data_loader::SpriteManager;
 
@@ -103,7 +103,12 @@ fn main() {
     // .add_plugins(mob_health_bar::MobHealthBarPlugin)
     .add_systems(
         FixedUpdate,
-        (handle_login, handle_player_entity_id, handle_engine_state),
+        (
+            handle_login,
+            handle_exit_map,
+            handle_player_entity_id,
+            handle_engine_state,
+        ),
     )
     .add_systems(
         Update,
@@ -129,16 +134,57 @@ fn load_sprite_manager(
 
 fn step_game_engine(mut active_game_engine: ResMut<ActiveGameEngine>) {
     active_game_engine.0.step();
+    // TODO: we end up stepping faster than the server and need to skip
+    // some steps. We can't do this without stuttering so instead adjust
+    // the step_index manually?
+    if active_game_engine.0.step_index > active_game_engine.0.expected_step_index() {
+        active_game_engine.0.step_index -= 1;
+    }
 }
 
 fn handle_player_entity_id(
     mut action_events: EventReader<NetworkMessage>,
     mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
+    mut active_engine_state: ResMut<ActiveGameEngine>,
+    mut camera_query: Query<(&mut Transform, &mut CameraMovement), With<Camera2d>>,
+    mut active_player_state: ResMut<ActivePlayerState>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
     for event in action_events.read() {
-        if let Response::PlayerEntityId(id) = &event.0 {
+        if let Response::PlayerEntityId(id, engine, player_position, player_state) = &event.0 {
             println!("entity: {id}");
             active_player_entity_id.0 = Some(*id);
+            active_engine_state.0 = engine.clone();
+            // get the player location and snap the camera
+            if let Ok((mut transform, mut camera_movement)) = camera_query.single_mut() {
+                transform.translation = player_position.extend(0.0);
+                camera_movement.is_moving_x = false;
+                camera_movement.is_moving_y = false;
+                camera_movement.velocity = Vec2::ZERO;
+            }
+
+            active_player_state.0 = Some(player_state.clone());
+            next_state.set(GameState::LoadingMap);
+        }
+    }
+}
+
+fn handle_exit_map(
+    mut action_events: EventReader<NetworkMessage>,
+    query: Query<Entity, With<MapEntity>>,
+    mut commands: Commands,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut active_player_state: ResMut<ActivePlayerState>,
+) {
+    for event in action_events.read() {
+        if let Response::PlayerExitMap(from_map) = &event.0 {
+            // despawn everything??
+            // TODO: check that from_map is the current map
+            for entity in query {
+                commands.entity(entity).despawn();
+            }
+            next_state.set(GameState::LoadingMap);
+            active_player_state.0 = None;
         }
     }
 }
@@ -187,7 +233,6 @@ fn sync_engine_components(
     active_engine_state: Res<ActiveGameEngine>,
     mut entity_query: Query<(Entity, &GameEntityComponent, &mut Transform, &mut Sprite)>,
     asset_server: Res<AssetServer>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     mut sprite_manager: ResMut<SpriteManager>,
     sprite_data: Res<Assets<SpriteDataAsset>>,
 ) {
@@ -239,19 +284,31 @@ fn sync_engine_components(
                 }
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
-                    Transform::from_translation(p.position().extend(0.0)),
+                    Transform::from_translation(p.position().extend(1.0)),
                     MobComponent::new(p, &sprite_data, sprite_manager.as_ref()),
                     MapEntity,
                 ));
             }
             EngineEntity::Platform(p) => {
-                println!("spawning platform");
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
                     Transform::from_translation(p.position().extend(0.0)),
                     MapEntity,
                     Sprite {
                         color: Color::srgb(0.0, 0.0, 1.0),
+                        custom_size: Some(Vec2::new(p.size.x, p.size.y)),
+                        anchor: bevy::sprite::Anchor::BottomLeft,
+                        ..default()
+                    },
+                ));
+            }
+            EngineEntity::Portal(p) => {
+                commands.spawn((
+                    GameEntityComponent { entity_id: id },
+                    Transform::from_translation(p.position().extend(0.0)),
+                    MapEntity,
+                    Sprite {
+                        color: Color::srgb(0.0, 1.0, 0.0),
                         custom_size: Some(Vec2::new(p.size.x, p.size.y)),
                         anchor: bevy::sprite::Anchor::BottomLeft,
                         ..default()

@@ -98,16 +98,28 @@ async fn main() -> anyhow::Result<()> {
         let mut join_set = JoinSet::new();
         for map_instance in game.map_instances.values().cloned().collect::<Vec<_>>() {
             join_set.spawn(async move {
-                if let Err(e) = map_instance.write().await.tick().await {
+                let mut map_instance = map_instance.write().await;
+                if let Err(e) = map_instance.tick().await {
                     println!("WARNING: error stepping map_instance!");
                     println!("{}", e);
+                    vec![]
+                } else {
+                    map_instance.engine.drain_events()
                 }
             });
         }
-        // wait for all map ticks to complete
+        // wait for all map ticks to complete then process game events
         while let Some(result) = join_set.join_next().await {
-            if let Err(e) = result {
-                eprintln!("Map tick failed: {e}");
+            match result {
+                Ok(events) => {
+                    for event in events.into_iter() {
+                        println!("handling event {:?}", event);
+                        if let Err(e) = game.handle_game_event(event).await {
+                            println!("Error handling game event: {:?}", e);
+                        }
+                    }
+                }
+                Err(e) => eprintln!("Map tick failed: {e}"),
             }
         }
         let tick_time = timestamp() - tick_start;

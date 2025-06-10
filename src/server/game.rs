@@ -8,6 +8,7 @@ use std::sync::Arc;
 use game_test::action::Action;
 use game_test::action::PlayerState;
 use game_test::action::Response;
+use game_test::engine::game_event::GameEvent;
 use game_test::map::MapData;
 use tokio::sync::RwLock;
 
@@ -80,33 +81,50 @@ impl Game {
         })
     }
 
-    pub async fn player_change_map(
-        &self,
-        player_id: &str,
-        new_map_name: &str,
-    ) -> anyhow::Result<()> {
-        // TODO: move this old/new map check into PlayerRecord::change_map
-        let player_record =
-            PlayerRecord::player_by_id(self.db.clone(), player_id.to_string()).await?;
-        let player_record = player_record.unwrap();
-        PlayerRecord::change_map(
-            self.db.clone(),
-            player_id,
-            &player_record.current_map,
-            new_map_name,
-        )
-        .await?;
+    pub async fn handle_game_event(&self, event: GameEvent) -> anyhow::Result<()> {
+        match event {
+            GameEvent::PlayerEnterPortal {
+                player_id,
+                entity_id,
+                from_map,
+                to_map,
+            } => {
+                let player_record =
+                    PlayerRecord::player_by_id(self.db.clone(), player_id.to_string())
+                        .await?
+                        .expect(&format!("player does not exist with id {player_id}"));
+                if player_record.current_map != from_map {
+                    println!("WARNING: deplicate game event, ignoring");
+                    return Ok(());
+                }
+                PlayerRecord::change_map(self.db.clone(), &player_id, &from_map, &to_map).await?;
+                let player_id_clone = player_id.clone();
+                let from_map_clone = from_map.clone();
+                let network_server_clone = self.network_server.clone();
+                tokio::spawn(async move {
+                    network_server_clone
+                        .send_to_player(&player_id_clone, Response::PlayerExitMap(from_map_clone))
+                        .await;
+                });
 
-        let mut player_state = self.player_state_map.write().await;
-        // remove the player from the old map
-        // and add to the new one
-        if let Some(state) = player_state.get_mut(player_id) {
-            state.current_map = new_map_name.to_string();
-            if let Some(map_instance) = self.map_instances.get(&state.current_map) {
-                map_instance.write().await.remove_player(player_id).await;
-            }
-            if let Some(map_instance) = self.map_instances.get(new_map_name) {
-                map_instance.write().await.add_player(state).await?;
+                if let Some(map_instance) = self.map_instances.get(&from_map) {
+                    map_instance.write().await.remove_player(&player_id).await;
+                }
+                let mut player_state = self.player_state_map.write().await;
+                // remove the player from the old map
+                // and add to the new one
+                let state = player_state
+                    .get_mut(&player_id)
+                    .expect("expected player state to exist");
+                state.current_map = to_map.to_string();
+                // remove the player from the new map if they exist
+                if let Some(map_instance) = self.map_instances.get(&state.current_map) {
+                    map_instance.write().await.remove_player(&player_id).await;
+                }
+                // then add them
+                if let Some(map_instance) = self.map_instances.get(&to_map) {
+                    map_instance.write().await.add_player(state).await?;
+                }
             }
         }
         Ok(())

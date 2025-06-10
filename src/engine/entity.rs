@@ -7,6 +7,7 @@ use super::mob::MobEntity;
 use super::mob_spawner::MobSpawnEntity;
 use super::platform::PlatformEntity;
 use super::player::PlayerEntity;
+use super::portal::PortalEntity;
 use crate::engine::GameEngine;
 
 /// Inputs that may be applied to any entity.
@@ -17,6 +18,7 @@ pub struct EntityInput {
     pub move_right: bool,
     pub crouch: bool,
     pub attack: bool,
+    pub enter_portal: bool,
 }
 
 /// An entity that exists inside the engine.
@@ -100,6 +102,7 @@ engine_entity_enum! {
         Mob(MobEntity),
         MobSpawner(MobSpawnEntity),
         Platform(PlatformEntity),
+        Portal(PortalEntity),
         // Item(ItemEntity),  // Uncomment when ready
     }
 }

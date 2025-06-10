@@ -17,7 +17,7 @@ use crate::network;
 /// responsible for player communication, mob management, and physics.
 pub struct MapInstance {
     pub map: MapData,
-    engine: GameEngine,
+    pub engine: GameEngine,
     pub player_id_to_entity_id: HashMap<String, u128>,
     network_server: Arc<network::Server>,
 }
@@ -63,14 +63,21 @@ impl MapInstance {
                 self.map.name
             );
         }
-        let entity = self.engine.spawn_player_entity();
+        let entity = self
+            .engine
+            .spawn_player_entity(player_state.id.clone(), None);
         self.player_id_to_entity_id
             .insert(player_state.id.clone(), entity.id());
 
         {
             let network_server = self.network_server.clone();
             let player_id = player_state.id.clone();
-            let response = Response::PlayerEntityId(entity.id());
+            let response = Response::PlayerEntityId(
+                entity.id(),
+                self.engine.clone(),
+                entity.position(),
+                player_state.clone(),
+            );
             tokio::spawn(async move {
                 network_server.send_to_player(&player_id, response).await;
             });
@@ -96,7 +103,7 @@ impl MapInstance {
     ) -> anyhow::Result<()> {
         // the client is behind the server. We take our inputs as
         // happening _now_, which is offset by STEP_DELAY
-        let step_index = self.engine.expected_step_index();
+        // let step_index = self.engine.expected_step_index();
         // use the expected index in case the tick rate is low
         let current_step = self.engine.step_index;
         // if step_index <= current_step {
@@ -108,6 +115,8 @@ impl MapInstance {
         if !matches!(entity, EngineEntity::Player(_)) {
             anyhow::bail!("received incorrect entity type");
         }
+        // rewind the engine to step_index, replay the input to here
+        // if it's valid then insert it?
         if let Some(entity_id) = self.player_id_to_entity_id.get(player_id) {
             if &entity.id() != entity_id {
                 anyhow::bail!("received incorrect entity id");
@@ -121,7 +130,8 @@ impl MapInstance {
         } else {
             anyhow::bail!("received player position update for player with no entity");
         }
-        // self.send_full_state(player_id.to_string())?;
+        self.engine.tick();
+        self.send_full_state(player_id.to_string())?;
         Ok(())
     }
 

@@ -11,20 +11,24 @@ use std::collections::HashMap;
 use std::mem::discriminant;
 use std::mem::Discriminant;
 
+use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
 pub mod entity;
+pub mod game_event;
 pub mod mob;
 pub mod mob_spawner;
 pub mod platform;
 pub mod player;
+pub mod portal;
 
 use entity::EngineEntity;
 use entity::Entity;
 use entity::EntityInput;
 use player::PlayerEntity;
 
+use crate::engine::game_event::GameEvent;
 use crate::engine::platform::PlatformEntity;
 use crate::generate_strong_u128;
 use crate::map::MapData;
@@ -50,6 +54,9 @@ pub struct GameEngine {
     pub step_index: u64,
     #[serde(skip)]
     grouped_entities: (u64, HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>>),
+    #[serde(skip)]
+    // map changes, experience gained, anything that needs to be written to db?
+    game_events: Vec<GameEvent>,
 }
 
 impl GameEngine {
@@ -75,7 +82,21 @@ impl GameEngine {
             spawn_with_id.id = engine.generate_id();
             engine.spawn_entity(EngineEntity::MobSpawner(spawn_with_id));
         }
+        for portal in &map.portals {
+            let id = engine.generate_id();
+            let mut portal_clone = portal.clone();
+            portal_clone.id = id;
+            engine.spawn_entity(EngineEntity::Portal(portal_clone));
+        }
         engine
+    }
+
+    pub fn drain_events(&mut self) -> Vec<GameEvent> {
+        std::mem::take(&mut self.game_events)
+    }
+
+    pub fn emit_event(&mut self, event: GameEvent) {
+        self.game_events.push(event);
     }
 
     /// generate a strong random id that isn't in use
@@ -103,10 +124,19 @@ impl GameEngine {
 
     /// TODO: generic implementation
     /// e.g. spawn_entity::<PlayerEntity>(&mut self)
-    pub fn spawn_player_entity(&mut self) -> EngineEntity {
+    pub fn spawn_player_entity(
+        &mut self,
+        player_id: String,
+        position_maybe: Option<Vec2>,
+    ) -> EngineEntity {
         let id = self.generate_id();
-        let player_entity = PlayerEntity::new(id);
-        let engine_entity = EngineEntity::Player(player_entity);
+        let player_entity = PlayerEntity::new(id, player_id);
+        let mut engine_entity = EngineEntity::Player(player_entity);
+        if let Some(position) = position_maybe {
+            *engine_entity.position_mut() = position;
+        } else {
+            *engine_entity.position_mut() = self.map.spawn_location;
+        }
         self.spawn_entity(engine_entity.clone());
         engine_entity
     }
@@ -147,7 +177,9 @@ impl GameEngine {
             .map(|(k, v)| (k, Some(v)))
             .unwrap_or((&0, None));
         if latest_step_index > &step_index {
-            println!("WARNING: attemping to provide input before the latest input");
+            println!(
+                "WARNING: attemping to provide input before the latest input step {step_index} latest {latest_step_index}"
+            );
         }
         if entity_inputs.contains_key(&step_index) {
             println!("WARNING: overwriting existing input for step {step_index}")
@@ -237,6 +269,14 @@ impl GameEngine {
         }
     }
 
+    pub fn entities_by_type(&mut self, discr: &Discriminant<EngineEntity>) -> &Vec<EngineEntity> {
+        self.grouped_entities();
+        self.grouped_entities
+            .1
+            .entry(discr.clone())
+            .or_insert(vec![])
+    }
+
     /// Construct or retrieve entities by type for the current step
     pub fn grouped_entities(&mut self) -> &HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>> {
         if self.grouped_entities.0 == self.step_index {
@@ -255,16 +295,9 @@ impl GameEngine {
         &self.grouped_entities.1
     }
 
+    /// A step is considered complete at the _end_ of this function
     pub fn step(&mut self) {
         let step_index = self.step_index;
-        let spawned_entities = self
-            .new_entities_by_step
-            .get(&step_index)
-            .cloned()
-            .unwrap_or_default();
-        for entity in spawned_entities {
-            self.entities.insert(entity.id(), entity);
-        }
         let entities_clone = self.entities.clone();
         let mut new_entities = HashMap::new();
         for (id, entity) in &entities_clone {
@@ -278,6 +311,16 @@ impl GameEngine {
                 .remove(&(step_index - TRAILING_STATE_COUNT));
         }
         self.step_index += 1;
+        let new_entities = self
+            .new_entities_by_step
+            .get(&(self.step_index))
+            .cloned()
+            .unwrap_or_default();
+        for entity in new_entities {
+            if let Some(_) = self.entities.insert(entity.id(), entity) {
+                println!("WARNING: inserting entity that already existed!");
+            }
+        }
     }
 }
 

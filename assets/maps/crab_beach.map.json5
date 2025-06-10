@@ -1,18 +1,28 @@
 {
     name: "crab_beach",
     size: [1500, 1000],
-    spawn_location: [100, 400],
+    spawn_location: [100, 800],
     background: "rainbow.png",
     npc: [],
     portals: [
-        { position: [0, 450], to: "eastwatch" },
+        { position: [0, 50], to: "eastwatch" },
         { position: [0, 1000], to: "eastwatch" },
     ],
     platforms: [
-        { position: [0, 450], size: [1000, 100] },
-        { position: [0, 1000], size: [1500, 10] },
+        // Main ground platform at bottom
+        { position: [0, 700], size: [100, 25] },
+
+        // Jumping platforms to reach upper portal
+        { position: [200, 650], size: [100, 20] },
+        { position: [400, 550], size: [100, 25] },
+        { position: [600, 350], size: [100, 25] },
+        { position: [800, 150], size: [100, 25] },
+        { position: [400, 550], size: [100, 25] },
+
+        // Platform at lower portal (ground level access)
+        { position: [0, -25], size: [1500, 25] },
     ],
     mob_spawns: [
-        { position: [0, 950], size: [1500, 10], mob_type: 1, max_count: 1 },
+        { position: [300, 850], size: [1200, 50], mob_type: 1, max_count: 1 },
     ]
 }

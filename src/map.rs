@@ -3,9 +3,8 @@ use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::engine::entity::EngineEntity;
 use crate::engine::mob_spawner::MobSpawnEntity;
-use crate::engine::GameEngine;
+use crate::engine::portal::PortalEntity;
 
 // Custom deserializer for Vec2
 fn deserialize_vec2<'de, D>(deserializer: D) -> Result<Vec2, D::Error>
@@ -23,28 +22,6 @@ pub struct Npc {
     pub position: Vec2,
     #[serde(deserialize_with = "deserialize_vec2")]
     pub size: Vec2,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Portal {
-    #[serde(deserialize_with = "deserialize_vec2")]
-    pub position: Vec2,
-    pub to: String,
-}
-
-impl Portal {
-    pub fn center(&self) -> Vec2 {
-        self.position - Vec2::new(50., 50.)
-    }
-
-    pub fn rect(&self) -> Rect {
-        Rect::new(
-            self.position.x,
-            self.position.y,
-            self.position.x + 150.,
-            self.position.y + 150.,
-        )
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -74,7 +51,7 @@ pub struct MapData {
     pub background: String,
     #[serde(deserialize_with = "deserialize_vec2")]
     pub size: Vec2,
-    pub portals: Vec<Portal>,
+    pub portals: Vec<PortalEntity>,
     pub npc: Vec<Npc>,
     pub platforms: Vec<Platform>,
     #[serde(default)]

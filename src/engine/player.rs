@@ -8,15 +8,17 @@ use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
 use crate::engine::entity::EngineEntity;
+use crate::engine::game_event::GameEvent;
+use crate::engine::portal::PortalEntity;
 use crate::engine::GameEngine;
 use crate::engine::STEP_LEN_S_F32;
-use crate::MapData;
 
 use super::entity::{Entity, EntityInput};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlayerEntity {
     pub id: u128,
+    pub player_id: String, // the game id, not entity id
     pub position: Vec2,
     pub size: Vec2,
     velocity: Vec2,
@@ -25,9 +27,10 @@ pub struct PlayerEntity {
 }
 
 impl PlayerEntity {
-    pub fn new(id: u128) -> Self {
+    pub fn new(id: u128, player_id: String) -> Self {
         PlayerEntity {
             id,
+            player_id,
             position: Vec2::new(100., 100.),
             size: Vec2::new(52., 52.),
             velocity: Vec2::new(0.0, 0.0),
@@ -71,6 +74,31 @@ impl Entity for PlayerEntity {
         if input.move_right {
             velocity.x += 100.;
         }
+        if input.enter_portal {
+            // TODO: clean up storage/memory in this if clause
+            let mut pending_events = vec![];
+            let map_name = engine.map.name.clone();
+            for entity in engine.entities_by_type(&discriminant(&EngineEntity::Portal(
+                PortalEntity::default(),
+            ))) {
+                match entity {
+                    EngineEntity::Portal(p) => {
+                        if p.can_enter(self) {
+                            pending_events.push(GameEvent::PlayerEnterPortal {
+                                player_id: self.player_id.clone(),
+                                entity_id: self.id,
+                                from_map: map_name.clone(),
+                                to_map: p.to.clone(),
+                            });
+                        }
+                    }
+                    _ => panic!("unexpected variant"),
+                }
+            }
+            for event in pending_events.into_iter() {
+                engine.emit_event(event);
+            }
+        }
         if !input.move_left && !input.move_right {
             // accelerate toward 0.0
             velocity.x = last_velocity.x.signum()
@@ -93,7 +121,7 @@ impl Entity for PlayerEntity {
         if input.jump && can_jump && last_velocity.y.round() == 0.0 {
             velocity.y = 350.0;
             next_self.weightless_until = Some(step_index + 3);
-        } else if can_jump && last_velocity.y.floor() < 0.0 {
+        } else if can_jump && last_velocity.y.floor() <= 0.0 {
             velocity.y = 0.;
         }
         if input.attack && self.attacking_until.is_none() {

@@ -178,13 +178,24 @@ fn player_camera(
     if active_map.size == Vec2::ZERO {
         return;
     }
-    camera_transform.translation.x = camera_transform
-        .translation
-        .x
-        .clamp(screen_width / 2., active_map.size.x - screen_width / 2.);
-    // we leave space at the bottom of the screen for the GUI
-    camera_transform.translation.y = camera_transform.translation.y.clamp(
-        screen_height / 2. - CAMERA_Y_PADDING,
-        active_map.size.y - screen_height / 2.,
-    );
+    // if the game window is larger than the size of the map the client
+    // crashes
+    //
+    if screen_width >= active_map.size.x {
+        camera_transform.translation.x = active_map.size.x / 2.0;
+    } else {
+        camera_transform.translation.x = camera_transform
+            .translation
+            .x
+            .clamp(screen_width / 2., active_map.size.x - screen_width / 2.);
+    }
+    if screen_height >= active_map.size.y {
+        camera_transform.translation.y = active_map.size.y / 2.0;
+    } else {
+        // we leave space at the bottom of the screen for the GUI
+        camera_transform.translation.y = camera_transform.translation.y.clamp(
+            screen_height / 2. - CAMERA_Y_PADDING,
+            active_map.size.y - screen_height / 2.,
+        );
+    }
 }
