@@ -20,6 +20,7 @@ pub struct MapInstance {
     pub engine: GameEngine,
     pub player_id_to_entity_id: HashMap<String, u128>,
     network_server: Arc<network::Server>,
+    last_sent_step_player_id: HashMap<String, u64>,
 }
 
 /// A MapInstance handles communication with the player.
@@ -34,6 +35,7 @@ impl MapInstance {
             engine: GameEngine::new(map.clone()),
             network_server,
             map,
+            last_sent_step_player_id: HashMap::new(),
         }
     }
 
@@ -48,6 +50,8 @@ impl MapInstance {
             self.engine.step_index,
         );
         let network_server = self.network_server.clone();
+        // self.last_sent_step_player_id
+        //     .insert(player_id.clone(), target_step);
         tokio::spawn(async move {
             network_server.send_to_player(&player_id, response).await;
         });
@@ -105,24 +109,36 @@ impl MapInstance {
         // happening _now_, which is offset by STEP_DELAY
         // let step_index = self.engine.expected_step_index();
         // use the expected index in case the tick rate is low
-        let current_step = self.engine.step_index;
-        // if step_index <= current_step {
-        //     println!(
-        //         "client is {} steps behind server",
-        //         current_step - step_index
-        //     );
-        // }
+        let current_step = self.engine.expected_step_index();
+        if step_index > current_step {
+            println!(
+                "WARNING: client is {} steps ahead of server, discarding input",
+                step_index - current_step
+            );
+            return Ok(());
+        }
+        if current_step - step_index > 2 * STEP_DELAY {
+            println!("WARNING: client input is too far in the past, max {STEP_DELAY} behind, received {} behind", current_step - step_index);
+            return Ok(());
+        }
+
         if !matches!(entity, EngineEntity::Player(_)) {
             anyhow::bail!("received incorrect entity type");
         }
-        // rewind the engine to step_index, replay the input to here
-        // if it's valid then insert it?
+
+        // we have the constant STEP_DELAY, but each player also has a packet RTT that must be
+        // less than STEP_DELAY
+        //
+        // approximation of packet RTT ??
+        // let offset_step = current_step - STEP_DELAY - (current_step - step_index);
         if let Some(entity_id) = self.player_id_to_entity_id.get(player_id) {
             if &entity.id() != entity_id {
                 anyhow::bail!("received incorrect entity id");
             }
             self.engine
-                .register_input(Some(step_index), *entity_id, input);
+                .register_input(Some(step_index + STEP_DELAY), *entity_id, input);
+            self.engine
+                .reposition_entity(entity, &(step_index + STEP_DELAY));
             // if step_index < current_step {
             //     // replay with the new position
             //     self.engine.reposition_entity(entity, &step_index)?;

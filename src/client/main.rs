@@ -117,6 +117,7 @@ fn main() {
             step_game_engine,
             sync_engine_components,
         )
+            .chain()
             .run_if(in_state(GameState::OnMap)),
     )
     .add_plugins(player::PlayerPlugin);
@@ -137,9 +138,9 @@ fn step_game_engine(mut active_game_engine: ResMut<ActiveGameEngine>) {
     // TODO: we end up stepping faster than the server and need to skip
     // some steps. We can't do this without stuttering so instead adjust
     // the step_index manually?
-    if active_game_engine.0.step_index > active_game_engine.0.expected_step_index() {
-        active_game_engine.0.step_index -= 1;
-    }
+    // if active_game_engine.0.step_index > active_game_engine.0.expected_step_index() {
+    //     active_game_engine.0.step_index -= 1;
+    // }
 }
 
 fn handle_player_entity_id(
