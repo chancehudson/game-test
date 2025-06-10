@@ -12,22 +12,37 @@
         { position: [700, 0], size: [100,100], asset: "flower.png" }
     ],
     platforms: [
+        // floor platform
         { position: [0, -25], size: [3000, 25] },
+
+        // straight vertical jumps
         { position: [1000, 25], size: [100, 25] },
         { position: [1000, 75], size: [100, 25] },
+
+        // raised platform
         { position: [1000, 125], size: [500, 25] },
+
+        // diagonal steps
         { position: [1600, 175], size: [100, 25] },
         { position: [1800, 225], size: [100, 25] },
         { position: [2000, 275], size: [100, 25] },
         { position: [2200, 325], size: [100, 25] },
+
+        // right side landing platform
         { position: [2400, 375], size: [600, 25] },
         { position: [2200, 425], size: [100, 25] },
         { position: [2000, 475], size: [100, 25] },
         { position: [1800, 525], size: [100, 25] },
         { position: [1600, 575], size: [100, 25] },
         { position: [1400, 625], size: [100, 25] },
+
+        // sky platform
         { position: [800, 675], size: [500, 25] },
+
+        // small jump platform
         { position: [700, 725], size: [50, 25] },
+
+        // left side nonsense platforms
         { position: [0, 625], size: [600, 50] },
         { position: [0, 775], size: [600, 50] },
     ],
