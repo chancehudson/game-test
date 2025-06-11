@@ -69,7 +69,8 @@ impl MobEntity {
                 if target_x < 0.0 {
                     target_x *= -1.;
                 } else if target_x + self.size.x >= engine.map.size.x {
-                    target_x *= -1.;
+                    target_x = (engine.map.size.x - self.size.x)
+                        - ((target_x + self.size.x) - engine.map.size.x);
                 }
                 self.moving_to_x = Some(target_x);
             }

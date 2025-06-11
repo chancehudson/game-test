@@ -7,3 +7,5 @@
 *.redb
 game_data
 profile.json
+
+assets/mob_manifest.json5
