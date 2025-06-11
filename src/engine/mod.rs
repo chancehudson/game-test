@@ -375,6 +375,10 @@ impl GameEngine {
         if step_index >= TRAILING_STATE_COUNT {
             self.entities_by_step
                 .remove(&(step_index - TRAILING_STATE_COUNT));
+            self.new_entities_by_step
+                .remove(&(step_index - TRAILING_STATE_COUNT));
+            self.removed_entities_by_step
+                .remove(&(step_index - TRAILING_STATE_COUNT));
         }
         self.step_index += 1;
         // add new entities at the beginning of the step

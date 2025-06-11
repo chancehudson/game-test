@@ -13,7 +13,7 @@ fn default_size() -> Vec2 {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct PortalEntity {
-    #[serde(skip)]
+    #[serde(default)]
     pub id: u128,
     pub position: Vec2,
     #[serde(default = "default_size")]

@@ -269,7 +269,7 @@ fn sync_engine_components(
             .entities
             .get(&entity_component.entity_id)
         {
-            transform.translation = game_entity.position().extend(0.0);
+            transform.translation = game_entity.position().extend(transform.translation.z);
             if let Some(latest_input) = active_engine_state
                 .0
                 .latest_input(&entity_component.entity_id)
@@ -295,7 +295,7 @@ fn sync_engine_components(
                 }
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
-                    Transform::from_translation(p.position().extend(10.0)),
+                    Transform::from_translation(p.position().extend(100.0)),
                     PlayerComponent::default_sprite(sprite_manager.as_ref()),
                     MapEntity,
                 ));
@@ -346,11 +346,9 @@ fn sync_engine_components(
 fn handle_login(
     mut action_events: EventReader<NetworkMessage>,
     mut next_state: ResMut<NextState<GameState>>,
-    mut active_player_state: ResMut<ActivePlayerState>,
 ) {
     for event in action_events.read() {
-        if let Response::PlayerLoggedIn(state) = &event.0 {
-            // active_player_state.0 = Some(state.clone());
+        if let Response::PlayerLoggedIn(_state) = &event.0 {
             next_state.set(GameState::Waiting);
         }
     }

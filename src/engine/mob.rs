@@ -65,7 +65,13 @@ impl MobEntity {
             // start moving every so often
             if rng.random_ratio(1, 600) {
                 let sign = if rng.random_bool(0.5) { 1. } else { -1. };
-                self.moving_to_x = Some(self.position.x + (sign * 150.0));
+                let mut target_x = self.position.x + (sign * 350.0);
+                if target_x < 0.0 {
+                    target_x *= -1.;
+                } else if target_x + self.size.x >= engine.map.size.x {
+                    target_x *= -1.;
+                }
+                self.moving_to_x = Some(target_x);
             }
         }
     }

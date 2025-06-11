@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+#[cfg(feature = "client")]
 use bevy::image::TextureAtlasLayout;
 use bevy_math::UVec2;
 use bevy_math::Vec2;
@@ -51,6 +52,7 @@ pub struct SpriteAnimationData {
     pub walking: AnimationData,
 }
 
+#[cfg(feature = "client")]
 impl SpriteAnimationData {
     pub fn sprite_sheets(&self) -> Vec<(String, TextureAtlasLayout)> {
         vec![
