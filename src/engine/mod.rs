@@ -120,6 +120,7 @@ impl GameEngine {
         if let Some(entities) = self.entities_by_step.get(target_step_index) {
             // let mut out = self.clone();
             let mut out = Self::default();
+            out.inputs = self.inputs.clone();
             out.start_timestamp = self.start_timestamp;
             out.map = self.map.clone();
             out.entities = entities.clone();

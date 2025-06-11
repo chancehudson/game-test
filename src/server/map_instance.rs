@@ -125,14 +125,15 @@ impl MapInstance {
         //
         // approximation of packet RTT ??
         // let offset_step = current_step - STEP_DELAY - (current_step - step_index);
+        self.engine.tick();
         if let Some(entity_id) = self.player_id_to_entity_id.get(player_id) {
             if &entity.id() != entity_id {
                 anyhow::bail!("received incorrect entity id");
             }
             self.engine
                 .register_input(Some(step_index + STEP_DELAY), *entity_id, input);
-            // self.engine
-            //     .reposition_entity(entity, &(step_index + STEP_DELAY))?;
+            self.engine
+                .reposition_entity(entity, &(step_index + STEP_DELAY))?;
             // if step_index < current_step {
             //     // replay with the new position
             //     self.engine.reposition_entity(entity, &step_index)?;
@@ -140,7 +141,6 @@ impl MapInstance {
         } else {
             anyhow::bail!("received player position update for player with no entity");
         }
-        self.engine.tick();
         self.send_full_state(player_id.to_string())?;
         Ok(())
     }
