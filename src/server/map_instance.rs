@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bevy_math::Vec2;
 use game_test::action::PlayerState;
 use game_test::engine::entity::{EngineEntity, Entity, EntityInput};
-use game_test::engine::player::PlayerEntity;
 use game_test::engine::GameEngine;
 
 use game_test::action::Response;
@@ -20,7 +18,6 @@ pub struct MapInstance {
     pub engine: GameEngine,
     pub player_id_to_entity_id: HashMap<String, u128>,
     network_server: Arc<network::Server>,
-    last_sent_step_player_id: HashMap<String, u64>,
 }
 
 /// A MapInstance handles communication with the player.
@@ -35,7 +32,6 @@ impl MapInstance {
             engine: GameEngine::new(map.clone()),
             network_server,
             map,
-            last_sent_step_player_id: HashMap::new(),
         }
     }
 
@@ -78,12 +74,8 @@ impl MapInstance {
         {
             let network_server = self.network_server.clone();
             let player_id = player_state.id.clone();
-            let response = Response::PlayerEntityId(
-                entity.id(),
-                self.engine.clone(),
-                entity.position(),
-                player_state.clone(),
-            );
+            let response =
+                Response::PlayerEntityId(entity.id(), self.engine.clone(), player_state.clone());
             tokio::spawn(async move {
                 network_server.send_to_player(&player_id, response).await;
             });
@@ -139,8 +131,8 @@ impl MapInstance {
             }
             self.engine
                 .register_input(Some(step_index + STEP_DELAY), *entity_id, input);
-            self.engine
-                .reposition_entity(entity, &(step_index + STEP_DELAY));
+            // self.engine
+            //     .reposition_entity(entity, &(step_index + STEP_DELAY))?;
             // if step_index < current_step {
             //     // replay with the new position
             //     self.engine.reposition_entity(entity, &step_index)?;

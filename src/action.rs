@@ -1,4 +1,3 @@
-use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -27,7 +26,7 @@ pub enum Response {
     // step index, position, input
     PlayerInput(u64, EngineEntity, EntityInput),
     // send the entity id, the engine, and the position the player will spawn
-    PlayerEntityId(u128, GameEngine, Vec2, PlayerState),
+    PlayerEntityId(u128, GameEngine, PlayerState),
     // engine, server_step_index
     EngineState(GameEngine, u64),
     // from_map

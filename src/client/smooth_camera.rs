@@ -142,11 +142,6 @@ fn player_camera(
     if entity.is_none() {
         return;
     }
-    let active_map = map_loader.map_data(&map_assets);
-    if active_map.is_none() {
-        return;
-    }
-    let active_map = active_map.unwrap();
     let entity = entity.unwrap();
     let delta = time.delta_secs();
     if let Ok((mut camera_transform, mut camera_movement)) = camera.single_mut() {

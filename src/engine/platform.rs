@@ -42,7 +42,7 @@ impl Entity for PlatformEntity {
         self.size
     }
 
-    fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
+    fn step(&self, _engine: &mut GameEngine, _step_index: &u64) -> Self {
         self.clone()
     }
 }

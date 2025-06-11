@@ -182,7 +182,7 @@ fn handle_player_entity_id(
     mut next_state: ResMut<NextState<GameState>>,
 ) {
     for event in action_events.read() {
-        if let Response::PlayerEntityId(id, engine, player_position, player_state) = &event.0 {
+        if let Response::PlayerEntityId(id, engine, player_state) = &event.0 {
             println!("entity: {id}");
             active_player_entity_id.0 = Some(*id);
             active_engine_state.0 = engine.clone();
@@ -201,7 +201,7 @@ fn handle_exit_map(
     mut active_player_state: ResMut<ActivePlayerState>,
 ) {
     for event in action_events.read() {
-        if let Response::PlayerExitMap(from_map) = &event.0 {
+        if let Response::PlayerExitMap(_from_map) = &event.0 {
             // despawn everything??
             // TODO: check that from_map is the current map
             for entity in query {
@@ -219,7 +219,7 @@ fn handle_engine_state(
     active_player_entity_id: Res<ActivePlayerEntityId>,
 ) {
     for event in action_events.read() {
-        if let Response::EngineState(engine, server_step_index) = &event.0 {
+        if let Response::EngineState(engine, _server_step_index) = &event.0 {
             if active_player_entity_id.0.is_none() {
                 println!("WARNING: received map state without an active entity id");
                 return;
@@ -300,7 +300,7 @@ fn sync_engine_components(
                     MapEntity,
                 ));
             }
-            EngineEntity::MobSpawner(p) => {}
+            EngineEntity::MobSpawner(_) => {}
             EngineEntity::Mob(p) => {
                 if !sprite_manager.is_loaded(&p.mob_type, &sprite_data) {
                     sprite_manager.load(p.mob_type, &asset_server);

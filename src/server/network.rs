@@ -45,12 +45,12 @@ impl Server {
     }
 
     /// Send to a player id
-    pub async fn send_to_player_err(&self, player_id: &str, res: Response) -> anyhow::Result<()> {
-        if let Some(socket_id) = self.socket_by_player_id(player_id).await {
-            self.send(&socket_id, res.clone()).await?;
-        }
-        Ok(())
-    }
+    // pub async fn send_to_player_err(&self, player_id: &str, res: Response) -> anyhow::Result<()> {
+    //     if let Some(socket_id) = self.socket_by_player_id(player_id).await {
+    //         self.send(&socket_id, res.clone()).await?;
+    //     }
+    //     Ok(())
+    // }
 
     /// Send to a player id
     /// eat any error that occurs

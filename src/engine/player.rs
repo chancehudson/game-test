@@ -129,7 +129,7 @@ impl Entity for PlayerEntity {
             // 15 is the step length of the attack animation
             next_self.attacking_until = Some(step_index + 15);
             // look for a mob that we can hit
-            for (id, entity) in &engine.entities {
+            for (_id, entity) in &engine.entities {
                 match entity {
                     EngineEntity::Mob(mob) => {
                         if !mob.rect().inflate(5.0).intersect(self.rect()).is_empty() {

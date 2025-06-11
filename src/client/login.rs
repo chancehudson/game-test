@@ -50,7 +50,7 @@ fn handle_login_click(
     if let Ok(button) = interaction_query.single() {
         if let Ok(text) = text_query.single() {
             if button == &Interaction::Pressed {
-                action_events.send(NetworkAction(game_test::action::Action::LoginPlayer(
+                action_events.write(NetworkAction(game_test::action::Action::LoginPlayer(
                     text.0.clone(),
                 )));
             }
@@ -69,7 +69,7 @@ fn handle_signup_click(
     if let Ok(button) = interaction_query.single() {
         if let Ok(text) = text_query.single() {
             if button == &Interaction::Pressed {
-                action_events.send(NetworkAction(game_test::action::Action::CreatePlayer(
+                action_events.write(NetworkAction(game_test::action::Action::CreatePlayer(
                     text.0.clone(),
                 )));
             }
@@ -82,7 +82,7 @@ fn handle_enter(
     mut action_events: EventWriter<NetworkAction>,
 ) {
     for event in enter_events.read() {
-        action_events.send(NetworkAction(game_test::action::Action::LoginPlayer(
+        action_events.write(NetworkAction(game_test::action::Action::LoginPlayer(
             event.value.clone(),
         )));
     }

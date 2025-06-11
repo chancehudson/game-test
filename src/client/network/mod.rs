@@ -42,7 +42,7 @@ fn initialize_network(
     query: Query<(Entity, &NetworkConnection)>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
-    if let Ok((entity, connection)) = query.get_single() {
+    if let Ok((entity, connection)) = query.single() {
         if connection.is_closed() {
             commands.entity(entity).despawn();
             next_state.set(GameState::Disconnected);
@@ -56,7 +56,7 @@ fn initialize_network(
 
 // System to handle sending messages
 fn send_system(query: Query<&NetworkConnection>, mut action_events: EventReader<NetworkAction>) {
-    if let Ok(connection) = query.get_single() {
+    if let Ok(connection) = query.single() {
         for action in action_events.read() {
             connection.write_connection(action.0.clone());
         }
@@ -71,13 +71,13 @@ fn receive_system(
     if query.is_empty() {
         println!("No network connection component in receive");
     }
-    if let Ok(connection) = query.get_single() {
+    if let Ok(connection) = query.single() {
         let messages = connection
             .read_connection()
             .iter()
             .cloned()
             .map(|v| NetworkMessage(v))
             .collect::<Vec<_>>();
-        message_events.send_batch(messages);
+        message_events.write_batch(messages);
     }
 }

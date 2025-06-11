@@ -146,10 +146,10 @@ impl GameEngine {
                 .filter(|event| match event {
                     GameEvent::PlayerEnterPortal {
                         step_index,
-                        player_id,
-                        entity_id,
-                        from_map,
-                        to_map,
+                        player_id: _,
+                        entity_id: _,
+                        from_map: _,
+                        to_map: _,
                     } => step_index <= target_step_index,
                 })
                 .cloned()

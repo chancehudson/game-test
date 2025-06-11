@@ -47,7 +47,7 @@ pub fn handle_logout_click(
     }
     if let Ok(interaction) = interaction_query.single() {
         if interaction == &Interaction::Pressed {
-            action_events.send(NetworkAction(game_test::action::Action::LogoutPlayer));
+            action_events.write(NetworkAction(game_test::action::Action::LogoutPlayer));
             next_state.set(GameState::LoggedOut);
         }
     }
@@ -212,6 +212,6 @@ pub fn show_gui(
 
 pub fn remove_gui(mut commands: Commands, query: Query<Entity, With<GuiWrapper>>) {
     for wrapper in query.iter() {
-        commands.entity(wrapper).despawn_recursive();
+        commands.entity(wrapper).despawn();
     }
 }

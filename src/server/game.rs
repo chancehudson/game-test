@@ -84,9 +84,9 @@ impl Game {
     pub async fn handle_game_event(&self, event: GameEvent) -> anyhow::Result<()> {
         match event {
             GameEvent::PlayerEnterPortal {
-                step_index,
+                step_index: _,
                 player_id,
-                entity_id,
+                entity_id: _,
                 from_map,
                 to_map,
             } => {

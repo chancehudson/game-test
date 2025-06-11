@@ -1,8 +1,5 @@
 use std::collections::HashMap;
 
-#[cfg(feature = "client")]
-use bevy::image::TextureAtlasLayout;
-use bevy_math::UVec2;
 use bevy_math::Vec2;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
@@ -54,12 +51,12 @@ pub struct SpriteAnimationData {
 
 #[cfg(feature = "client")]
 impl SpriteAnimationData {
-    pub fn sprite_sheets(&self) -> Vec<(String, TextureAtlasLayout)> {
+    pub fn sprite_sheets(&self) -> Vec<(String, bevy::image::TextureAtlasLayout)> {
         vec![
             (
                 self.standing.sprite_sheet.clone(),
-                TextureAtlasLayout::from_grid(
-                    UVec2::new(self.standing.width as u32, self.size.y as u32),
+                bevy::image::TextureAtlasLayout::from_grid(
+                    bevy_math::UVec2::new(self.standing.width as u32, self.size.y as u32),
                     self.standing.frame_count as u32,
                     1,
                     None,
@@ -68,8 +65,8 @@ impl SpriteAnimationData {
             ),
             (
                 self.walking.sprite_sheet.clone(),
-                TextureAtlasLayout::from_grid(
-                    UVec2::new(self.walking.width as u32, self.size.y as u32),
+                bevy::image::TextureAtlasLayout::from_grid(
+                    bevy_math::UVec2::new(self.walking.width as u32, self.size.y as u32),
                     self.walking.frame_count as u32,
                     1,
                     None,
