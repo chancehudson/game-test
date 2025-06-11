@@ -1,6 +1,7 @@
 use std::mem::discriminant;
 
 use bevy_math::Vec2;
+use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -28,6 +29,7 @@ pub struct MobEntity {
 
 impl MobEntity {
     fn prestep(&mut self, engine: &mut GameEngine, step_index: &u64) {
+        let mut rng = self.rng(step_index);
         if let Some(aggro_to) = self.aggro_to {
             if let Some(aggro_to_entity) = engine.entities.get(&aggro_to) {
                 let mut new_input = EntityInput::default();
@@ -61,8 +63,8 @@ impl MobEntity {
             }
         } else {
             // start moving every so often
-            if rand::random_ratio(1, 600) {
-                let sign = if rand::random_bool(0.5) { 1. } else { -1. };
+            if rng.random_ratio(1, 600) {
+                let sign = if rng.random_bool(0.5) { 1. } else { -1. };
                 self.moving_to_x = Some(self.position.x + (sign * 150.0));
             }
         }

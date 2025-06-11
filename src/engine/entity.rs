@@ -1,5 +1,7 @@
 use bevy_math::Rect;
 use bevy_math::Vec2;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -28,6 +30,16 @@ pub trait Entity {
     fn position_mut(&mut self) -> &mut Vec2;
     fn size(&self) -> Vec2;
     fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self;
+
+    /// deterministic rng for entities, safe for replay
+    fn rng(&self, step_index: &u64) -> StdRng {
+        let id = self.id();
+        let first_half = (id >> 64) as u64; // Upper 64 bits
+        let second_half = id as u64; // Lower 64 bits (cast truncates)
+
+        let seed = first_half ^ second_half ^ step_index;
+        StdRng::seed_from_u64(seed)
+    }
 
     fn rect(&self) -> Rect {
         let pos = self.position();

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use bevy_math::Vec2;
+use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -66,15 +67,16 @@ impl Entity for MobSpawnEntity {
         if timestamp() - self.last_spawn < 10.0 {
             return next_self;
         }
-        let spawn_count = rand::random_range(0..=self.max_count);
+        let mut rng = self.rng(step_index);
+        let spawn_count = rng.random_range(0..=self.max_count);
         for _ in 0..spawn_count {
             let id = engine.generate_id();
             next_self.owned_mob_ids.insert(id);
             let mut mob_entity = MobEntity::default();
             mob_entity.id = id;
             mob_entity.position = Vec2::new(
-                rand::random_range(self.position.x..self.position.x + self.size.x),
-                rand::random_range(self.position.y..self.position.y + self.size.y),
+                rng.random_range(self.position.x..self.position.x + self.size.x),
+                rng.random_range(self.position.y..self.position.y + self.size.y),
             );
             mob_entity.size = Vec2::new(37., 37.);
             mob_entity.mob_type = self.mob_type;
