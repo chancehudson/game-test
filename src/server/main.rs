@@ -72,14 +72,19 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(5)).await;
-            println!(
-                "server action_queue len: {}",
-                game_clone.network_server.action_queue.read().await.len()
-            );
-            println!(
-                "server socket_sender len: {}",
-                game_clone.network_server.socket_sender.read().await.len()
-            );
+            let network_action_queue_len =
+                game_clone.network_server.action_queue.read().await.len();
+            let connected_count = game_clone.network_server.socket_sender.read().await.len();
+            if network_action_queue_len > 0 || connected_count > 0 {
+                println!(
+                    "server action_queue len: {}",
+                    game_clone.network_server.action_queue.read().await.len()
+                );
+                println!(
+                    "server socket_sender len: {}",
+                    game_clone.network_server.socket_sender.read().await.len()
+                );
+            }
         }
     });
 

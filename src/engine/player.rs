@@ -85,6 +85,7 @@ impl Entity for PlayerEntity {
                     EngineEntity::Portal(p) => {
                         if p.can_enter(self) {
                             pending_events.push(GameEvent::PlayerEnterPortal {
+                                step_index: *step_index,
                                 player_id: self.player_id.clone(),
                                 entity_id: self.id,
                                 from_map: map_name.clone(),

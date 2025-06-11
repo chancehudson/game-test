@@ -30,6 +30,7 @@ mod smooth_camera;
 use network::NetworkMessage;
 
 use crate::map::MapEntity;
+use crate::map_data_loader::MapDataAsset;
 use crate::mob::MobComponent;
 use crate::player::PlayerComponent;
 use crate::smooth_camera::CameraMovement;
@@ -40,6 +41,7 @@ use crate::sprite_data_loader::SpriteManager;
 pub enum GameState {
     #[default]
     Disconnected,
+    Waiting,
     LoggedOut,
     LoadingMap,
     OnMap,
@@ -111,6 +113,10 @@ fn main() {
         ),
     )
     .add_systems(
+        OnExit(GameState::LoadingMap),
+        reposition_camera_on_map_entry,
+    )
+    .add_systems(
         Update,
         (
             load_sprite_manager,
@@ -143,11 +149,35 @@ fn step_game_engine(mut active_game_engine: ResMut<ActiveGameEngine>) {
     // }
 }
 
+fn reposition_camera_on_map_entry(
+    active_player_entity_id: Res<ActivePlayerEntityId>,
+    active_engine_state: Res<ActiveGameEngine>,
+    mut camera_query: Query<(&mut Transform, &mut CameraMovement), With<Camera2d>>,
+    map_loader: Res<map::MapLoader>,
+    map_assets: Res<Assets<MapDataAsset>>,
+    windows: Query<&Window>,
+) {
+    if let Some(active_player_entity_id) = active_player_entity_id.0 {
+        if let Some(game_entity) = active_engine_state.0.entities.get(&active_player_entity_id) {
+            if let Ok((mut camera_transform, _)) = camera_query.single_mut() {
+                use game_test::engine::entity::Entity;
+                camera_transform.translation = game_entity.position().extend(0.0);
+            }
+            smooth_camera::snap_to_position(
+                &mut camera_query,
+                &map_loader,
+                &map_assets,
+                windows,
+                true,
+            );
+        }
+    }
+}
+
 fn handle_player_entity_id(
     mut action_events: EventReader<NetworkMessage>,
     mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
     mut active_engine_state: ResMut<ActiveGameEngine>,
-    mut camera_query: Query<(&mut Transform, &mut CameraMovement), With<Camera2d>>,
     mut active_player_state: ResMut<ActivePlayerState>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
@@ -156,13 +186,6 @@ fn handle_player_entity_id(
             println!("entity: {id}");
             active_player_entity_id.0 = Some(*id);
             active_engine_state.0 = engine.clone();
-            // get the player location and snap the camera
-            if let Ok((mut transform, mut camera_movement)) = camera_query.single_mut() {
-                transform.translation = player_position.extend(0.0);
-                camera_movement.is_moving_x = false;
-                camera_movement.is_moving_y = false;
-                camera_movement.velocity = Vec2::ZERO;
-            }
 
             active_player_state.0 = Some(player_state.clone());
             next_state.set(GameState::LoadingMap);
@@ -184,7 +207,7 @@ fn handle_exit_map(
             for entity in query {
                 commands.entity(entity).despawn();
             }
-            next_state.set(GameState::LoadingMap);
+            next_state.set(GameState::Waiting);
             active_player_state.0 = None;
         }
     }
@@ -327,8 +350,8 @@ fn handle_login(
 ) {
     for event in action_events.read() {
         if let Response::PlayerLoggedIn(state) = &event.0 {
-            active_player_state.0 = Some(state.clone());
-            next_state.set(GameState::LoadingMap);
+            // active_player_state.0 = Some(state.clone());
+            next_state.set(GameState::Waiting);
         }
     }
 }

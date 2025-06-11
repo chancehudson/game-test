@@ -18,6 +18,7 @@ pub struct LoadingScreenPlugin;
 impl Plugin for LoadingScreenPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameState::LoadingMap), begin_loading)
+            .add_systems(OnEnter(GameState::Waiting), begin_loading)
             .add_systems(OnExit(GameState::LoadingMap), end_loading)
             .add_systems(Update, animate_loading_screen_fade);
     }
@@ -38,7 +39,7 @@ fn begin_loading(mut commands: Commands) {
             BackgroundColor(Color::srgba(0., 0., 0., 0.)),
             LoadingScreenFade {
                 timer: Timer::from_seconds(0.3, TimerMode::Once),
-                duration: 0.3,
+                duration: 0.1,
                 start_alpha: 0.,
                 end_alpha: 1.,
             },
@@ -79,7 +80,7 @@ fn animate_loading_screen_fade(
 
         if fade.timer.finished() {
             if fade.end_alpha <= 0.0 {
-                commands.entity(entity).despawn_recursive();
+                commands.entity(entity).despawn();
             } else {
                 // Remove component when done to stop updating
                 commands.entity(entity).remove::<LoadingScreenFade>();

@@ -5,12 +5,12 @@
     background: "rainbow.png",
     npc: [],
     portals: [
-        { position: [0, 50], to: "eastwatch" },
-        { position: [0, 1000], to: "eastwatch" },
+        { position: [50, 0], to: "eastwatch" },
+        { position: [50, 775], to: "eastwatch" },
     ],
     platforms: [
-        // Main ground platform at bottom
-        { position: [0, 700], size: [100, 25] },
+        // Main ground platform at top
+        { position: [0, 750], size: [150, 25] },
 
         // Jumping platforms to reach upper portal
         { position: [200, 650], size: [100, 20] },

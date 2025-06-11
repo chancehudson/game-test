@@ -1,6 +1,7 @@
 #[derive(Clone, Debug)]
 pub enum GameEvent {
     PlayerEnterPortal {
+        step_index: u64,
         player_id: String,
         entity_id: u128,
         // look at portals in the destination map and select the one farthest

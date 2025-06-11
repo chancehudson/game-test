@@ -67,9 +67,11 @@ impl MapInstance {
                 self.map.name
             );
         }
-        let entity = self
-            .engine
-            .spawn_player_entity(player_state.id.clone(), None);
+        let entity = self.engine.spawn_player_entity(
+            player_state.id.clone(),
+            None,
+            Some(self.engine.step_index - STEP_DELAY - 1),
+        );
         self.player_id_to_entity_id
             .insert(player_state.id.clone(), entity.id());
 

@@ -78,7 +78,7 @@ impl Entity for MobSpawnEntity {
             );
             mob_entity.size = Vec2::new(37., 37.);
             mob_entity.mob_type = self.mob_type;
-            engine.spawn_entity(EngineEntity::Mob(mob_entity));
+            engine.spawn_entity(EngineEntity::Mob(mob_entity), None, false);
         }
         next_self.last_spawn = timestamp();
         next_self

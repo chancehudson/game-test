@@ -69,6 +69,59 @@ fn move_debug_marker(
     transform.translation.y = camera_transform.translation.y;
 }
 
+pub fn snap_to_position(
+    camera_query: &mut Query<(&mut Transform, &mut CameraMovement), With<Camera2d>>,
+    map_loader: &Res<map::MapLoader>,
+    map_assets: &Res<Assets<MapDataAsset>>,
+    windows: Query<&Window>,
+    reset_velocity: bool,
+) {
+    if let Ok((mut camera_transform, mut camera_movement)) = camera_query.single_mut() {
+        if reset_velocity {
+            camera_movement.is_moving_x = false;
+            camera_movement.is_moving_y = false;
+            camera_movement.velocity = Vec2::ZERO;
+        }
+
+        let active_map = map_loader.map_data(map_assets);
+        if active_map.is_none() {
+            return;
+        }
+        let active_map = active_map.unwrap();
+        if active_map.size == Vec2::ZERO {
+            return;
+        }
+        if reset_velocity {
+            println!("snapping to position");
+        }
+        let window = windows.single().unwrap();
+        let screen_width = window.resolution.width();
+        let screen_height = window.resolution.height();
+
+        // if the game window is larger than the size of the map the client
+        // crashes
+        //
+        // then bound it to the viewbox
+        if screen_width >= active_map.size.x {
+            camera_transform.translation.x = active_map.size.x / 2.0;
+        } else {
+            camera_transform.translation.x = camera_transform
+                .translation
+                .x
+                .clamp(screen_width / 2., active_map.size.x - screen_width / 2.);
+        }
+        if screen_height >= active_map.size.y {
+            camera_transform.translation.y = active_map.size.y / 2.0;
+        } else {
+            // we leave space at the bottom of the screen for the GUI
+            camera_transform.translation.y = camera_transform.translation.y.clamp(
+                screen_height / 2. - CAMERA_Y_PADDING,
+                active_map.size.y - screen_height / 2.,
+            );
+        }
+    }
+}
+
 /// We'll allow the player to move in a small square near the center of
 /// the screen. If the player moves out of this square the camera will
 /// smoothly accelerate to follow the player
@@ -89,113 +142,87 @@ fn player_camera(
     if entity.is_none() {
         return;
     }
-    let active_map = map_loader.map_data(map_assets);
+    let active_map = map_loader.map_data(&map_assets);
     if active_map.is_none() {
         return;
     }
     let active_map = active_map.unwrap();
     let entity = entity.unwrap();
     let delta = time.delta_secs();
-    let (mut camera_transform, mut camera_movement) = camera.single_mut().unwrap();
-    let window = windows.single().unwrap();
-    let screen_width = window.resolution.width();
-    let screen_height = window.resolution.height();
-    let movement_range = Vec2::new(f32::min(150., screen_width), f32::min(100., screen_height));
+    if let Ok((mut camera_transform, mut camera_movement)) = camera.single_mut() {
+        let window = windows.single().unwrap();
+        let screen_width = window.resolution.width();
+        let screen_height = window.resolution.height();
+        let movement_range = Vec2::new(f32::min(150., screen_width), f32::min(100., screen_height));
 
-    // centered position
-    let player_pos = entity.position() + entity.size() / Vec2::splat(2.0);
-    let dist = player_pos - camera_transform.translation.xy();
-    // adjust the x velocity
-    if dist.x.abs() > movement_range.x && !camera_movement.is_moving_x {
-        camera_movement.is_moving_x = true;
-        camera_movement.velocity.x = dist.x.signum();
-    } else if (dist.x.abs() < 5.0
-        || (dist.x.abs() < movement_range.x && camera_movement.velocity.x.abs() < 10.0))
-        && camera_movement.is_moving_x
-    {
-        camera_movement.is_moving_x = false;
-        camera_movement.velocity.x = 0.0;
-    } else if camera_movement.is_moving_x {
-        if dist.x.abs() < movement_range.x {
-            let accel_diff_abs = (camera_movement.velocity.x.abs().powf(1.15))
-                .max(10.0)
-                .min(CAMERA_ACCELERATION)
-                * delta;
-            // moving toward 0
-            camera_movement.velocity.x = (camera_movement.velocity.x.abs() - accel_diff_abs)
-                .max(0.0)
-                * dist.x.signum().signum();
-        } else {
-            // moving toward max velocity
-            let accel_diff_abs = (2.0 * dist.x.abs()).max(10.0).min(CAMERA_ACCELERATION) * delta;
-            camera_movement.velocity.x = (camera_movement.velocity.x.abs() + accel_diff_abs)
-                .min(CAMERA_MAX_SPEED)
-                * dist.x.signum();
+        // centered position
+        let player_pos = entity.position() + entity.size() / Vec2::splat(2.0);
+        let dist = player_pos - camera_transform.translation.xy();
+        // adjust the x velocity
+        if dist.x.abs() > movement_range.x && !camera_movement.is_moving_x {
+            camera_movement.is_moving_x = true;
+            camera_movement.velocity.x = dist.x.signum();
+        } else if (dist.x.abs() < 5.0
+            || (dist.x.abs() < movement_range.x && camera_movement.velocity.x.abs() < 10.0))
+            && camera_movement.is_moving_x
+        {
+            camera_movement.is_moving_x = false;
+            camera_movement.velocity.x = 0.0;
+        } else if camera_movement.is_moving_x {
+            if dist.x.abs() < movement_range.x {
+                let accel_diff_abs = (camera_movement.velocity.x.abs().powf(1.15))
+                    .max(10.0)
+                    .min(CAMERA_ACCELERATION)
+                    * delta;
+                // moving toward 0
+                camera_movement.velocity.x = (camera_movement.velocity.x.abs() - accel_diff_abs)
+                    .max(0.0)
+                    * dist.x.signum().signum();
+            } else {
+                // moving toward max velocity
+                let accel_diff_abs =
+                    (2.0 * dist.x.abs()).max(10.0).min(CAMERA_ACCELERATION) * delta;
+                camera_movement.velocity.x = (camera_movement.velocity.x.abs() + accel_diff_abs)
+                    .min(CAMERA_MAX_SPEED)
+                    * dist.x.signum();
+            }
         }
-    }
-    // adjust the y velocity
-    if dist.y.abs() > movement_range.y && !camera_movement.is_moving_y {
-        camera_movement.is_moving_y = true;
-        camera_movement.velocity.y = dist.y.signum();
-    } else if (dist.y.abs() < 5.0
-        || (dist.y.abs() < movement_range.y && camera_movement.velocity.y.abs() < 10.0))
-        && camera_movement.is_moving_y
-    {
-        camera_movement.is_moving_y = false;
-        camera_movement.velocity.y = 0.0;
-    } else if camera_movement.is_moving_y {
-        if dist.y.abs() < movement_range.y {
-            let accel_diff_abs = (camera_movement.velocity.y.abs().powf(1.4))
-                .max(10.0)
-                .min(CAMERA_ACCELERATION)
-                * delta;
-            // moving toward 0
-            camera_movement.velocity.y = (camera_movement.velocity.y.abs() - accel_diff_abs)
-                .max(0.0)
-                * dist.y.signum().signum();
-        } else {
-            // moving toward may velocity
-            let accel_diff_abs = (2.0 * dist.y.abs()).max(10.0).min(CAMERA_ACCELERATION) * delta;
-            camera_movement.velocity.y = (camera_movement.velocity.y.abs() + accel_diff_abs)
-                .min(CAMERA_MAX_SPEED)
-                * dist.y.signum();
+        // adjust the y velocity
+        if dist.y.abs() > movement_range.y && !camera_movement.is_moving_y {
+            camera_movement.is_moving_y = true;
+            camera_movement.velocity.y = dist.y.signum();
+        } else if (dist.y.abs() < 5.0
+            || (dist.y.abs() < movement_range.y && camera_movement.velocity.y.abs() < 10.0))
+            && camera_movement.is_moving_y
+        {
+            camera_movement.is_moving_y = false;
+            camera_movement.velocity.y = 0.0;
+        } else if camera_movement.is_moving_y {
+            if dist.y.abs() < movement_range.y {
+                let accel_diff_abs = (camera_movement.velocity.y.abs().powf(1.4))
+                    .max(10.0)
+                    .min(CAMERA_ACCELERATION)
+                    * delta;
+                // moving toward 0
+                camera_movement.velocity.y = (camera_movement.velocity.y.abs() - accel_diff_abs)
+                    .max(0.0)
+                    * dist.y.signum().signum();
+            } else {
+                // moving toward may velocity
+                let accel_diff_abs =
+                    (2.0 * dist.y.abs()).max(10.0).min(CAMERA_ACCELERATION) * delta;
+                camera_movement.velocity.y = (camera_movement.velocity.y.abs() + accel_diff_abs)
+                    .min(CAMERA_MAX_SPEED)
+                    * dist.y.signum();
+            }
         }
-    }
-    camera_movement.velocity = camera_movement.velocity.clamp(
-        -Vec2::splat(CAMERA_MAX_SPEED),
-        Vec2::splat(CAMERA_MAX_SPEED),
-    );
-    // handle actually moving the camera based on the velocity
-    camera_transform.translation.x += camera_movement.velocity.x * delta;
-    camera_transform.translation.y += camera_movement.velocity.y * delta;
-
-    // let max_y_dist = 200.0;
-    // if dist.y.abs() > max_y_dist && player.body.velocity.y.abs() > camera_movement.velocity.y.abs()
-    // {
-    //     camera_transform.translation.y = player_pos.y - max_y_dist * dist.y.signum();
-    // }
-    // clamp the camera as needed
-    if active_map.size == Vec2::ZERO {
-        return;
-    }
-    // if the game window is larger than the size of the map the client
-    // crashes
-    //
-    if screen_width >= active_map.size.x {
-        camera_transform.translation.x = active_map.size.x / 2.0;
-    } else {
-        camera_transform.translation.x = camera_transform
-            .translation
-            .x
-            .clamp(screen_width / 2., active_map.size.x - screen_width / 2.);
-    }
-    if screen_height >= active_map.size.y {
-        camera_transform.translation.y = active_map.size.y / 2.0;
-    } else {
-        // we leave space at the bottom of the screen for the GUI
-        camera_transform.translation.y = camera_transform.translation.y.clamp(
-            screen_height / 2. - CAMERA_Y_PADDING,
-            active_map.size.y - screen_height / 2.,
+        camera_movement.velocity = camera_movement.velocity.clamp(
+            -Vec2::splat(CAMERA_MAX_SPEED),
+            Vec2::splat(CAMERA_MAX_SPEED),
         );
+        // handle actually moving the camera based on the velocity
+        camera_transform.translation.x += camera_movement.velocity.x * delta;
+        camera_transform.translation.y += camera_movement.velocity.y * delta;
     }
+    snap_to_position(&mut camera, &map_loader, &map_assets, windows, false);
 }

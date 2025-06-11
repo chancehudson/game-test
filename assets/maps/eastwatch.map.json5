@@ -1,7 +1,7 @@
 {
     name: "eastwatch",
     size: [3000, 1500],
-    spawn_location: [100, 500],
+    spawn_location: [200, 0],
     background: "eastwatch_background_blur.png",
     portals: [
         { position: [400, 1300], to: "crab_beach" },

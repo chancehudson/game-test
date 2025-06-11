@@ -22,7 +22,7 @@ pub struct MapLoader {
 
 impl MapLoader {
     /// TODO: don't clone in the return, this is potentially extremely inefficient
-    pub fn map_data(&self, map_assets: Res<Assets<MapDataAsset>>) -> Option<MapData> {
+    pub fn map_data(&self, map_assets: &Res<Assets<MapDataAsset>>) -> Option<MapData> {
         if let Some(map_data_handle) = &self.map_data_handle {
             if let Some(asset) = map_assets.get(map_data_handle.id()) {
                 return Some(asset.data.clone());
@@ -95,8 +95,8 @@ impl Plugin for MapPlugin {
             .add_systems(OnEnter(GameState::LoadingMap), begin_load_map)
             .add_systems(OnExit(GameState::OnMap), exit_map)
             .add_systems(
-                Update,
-                (update_map_loading,).run_if(in_state(GameState::LoadingMap)),
+                FixedUpdate,
+                (update_map_loading).run_if(in_state(GameState::LoadingMap)),
             );
     }
 }
@@ -110,7 +110,7 @@ fn update_map_loading(
 ) {
     loader.continue_loading(&asset_server, &map_assets);
     if loader.is_loaded() {
-        let map_data = loader.map_data(map_assets).unwrap();
+        let map_data = loader.map_data(&map_assets).unwrap();
         spawn_background(&mut commands, &asset_server, &map_data);
         spawn_npcs(&mut commands, &asset_server, &map_data);
         next_state.set(GameState::OnMap);
@@ -135,6 +135,7 @@ fn begin_load_map(
     }
     let active_player_state = active_player_state.0.as_ref().unwrap();
 
+    println!("starting map load 2");
     // Start loading the map data
     let map_path = format!("maps/{}.map.json5", active_player_state.current_map);
     loader.begin_loading(
