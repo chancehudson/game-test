@@ -9,3 +9,10 @@ game_data
 profile.json
 
 assets/mob_manifest.json5
+
+.wrangler/
+node_modules/
+
+web/*.js
+web/*.ts
+web/*.wasm
