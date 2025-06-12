@@ -76,6 +76,13 @@ async fn main() -> anyhow::Result<()> {
                 game_clone.network_server.action_queue.read().await.len();
             let connected_count = game_clone.network_server.socket_sender.read().await.len();
             if network_action_queue_len > 0 || connected_count > 0 {
+                for (name, instance) in game_clone.map_instances.iter() {
+                    let entity_count = instance.read().await.engine.entities.len();
+                    if entity_count > 50 {
+                        println!("{name} has {entity_count} entities present");
+                    }
+                }
+
                 println!(
                     "server action_queue len: {}",
                     game_clone.network_server.action_queue.read().await.len()

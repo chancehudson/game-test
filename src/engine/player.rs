@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::mem::discriminant;
 
 use bevy_math::Vec2;
+use rand::Rng;
 
 use crate::actor::move_x;
 use crate::actor::move_y;
@@ -9,6 +11,7 @@ use crate::engine::entity::EngineEntity;
 use crate::engine::entity::SEEntity;
 use crate::engine::game_event::GameEvent;
 use crate::engine::portal::PortalEntity;
+use crate::engine::rect::RectEntity;
 use crate::engine::GameEngine;
 use crate::engine::STEP_LEN_S_F32;
 use crate::entity_struct;
@@ -20,6 +23,9 @@ entity_struct!(
         pub player_id: String, // the game id, not entity id
         weightless_until: Option<u64>,
         attacking_until: Option<u64>,
+        pub created_ids: HashMap<u128, u64>,
+        pub facing_left: bool,
+        pub is_active: bool,
     }
 );
 
@@ -37,21 +43,30 @@ impl PlayerEntity {
 
 impl SEEntity for PlayerEntity {
     fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
+        #[cfg(feature = "server")]
+        let mut rng = self.rng(step_index);
+        #[cfg(not(feature = "server"))]
+        let mut rng = self.rng_client(step_index);
         let mut next_self = self.clone();
         // velocity in the last frame based on movement
         let last_velocity = self.velocity.clone();
         let body = self.rect();
         let mut velocity = last_velocity.clone();
-        let can_jump = on_platform(body, &engine.map);
-        let input = engine
+        let can_jump = on_platform(body, engine);
+        let (input_step_index, input) = engine
             .latest_input(&self.id)
-            .unwrap_or(EntityInput::default());
+            .unwrap_or((*step_index, EntityInput::default()));
+        if input.admin_enable_debug_markers && &input_step_index == step_index {
+            engine.enable_debug_markers = !engine.enable_debug_markers;
+        }
 
         if input.move_left {
             velocity.x -= 100.;
+            next_self.facing_left = true;
         }
         if input.move_right {
             velocity.x += 100.;
+            next_self.facing_left = false;
         }
         if input.enter_portal {
             // TODO: clean up storage/memory in this if clause
@@ -106,18 +121,24 @@ impl SEEntity for PlayerEntity {
         }
         if input.attack && self.attacking_until.is_none() {
             // 15 is the step length of the attack animation
-            next_self.attacking_until = Some(step_index + 15);
-            // look for a mob that we can hit
-            for (_id, entity) in &engine.entities {
-                match entity {
-                    EngineEntity::Mob(mob) => {
-                        if !mob.rect().inflate(5.0).intersect(self.rect()).is_empty() {
-                            //
-                        }
-                    }
-                    _ => {}
-                }
+            next_self.attacking_until = Some(step_index + 10);
+            let id = rng.random();
+            next_self.created_ids.insert(id, step_index + 1);
+            let move_sign = if self.facing_left { -1.0 } else { 1.0 };
+            let mut projectile = RectEntity::new(
+                id,
+                Vec2::new(
+                    self.center().x + move_sign * self.size.x / 2.0,
+                    self.center().y,
+                ),
+                Vec2::new(30., 5.),
+            );
+            if self.is_active {
+                projectile.pure = true;
             }
+            projectile.velocity.x = 800. * move_sign;
+            projectile.disappears_at_step_index = Some(step_index + 30);
+            engine.spawn_entity(EngineEntity::Rect(projectile), None, false);
         }
 
         let lower_speed_limit = Vec2::new(-250., -350.);

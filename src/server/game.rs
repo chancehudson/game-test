@@ -94,6 +94,7 @@ impl Game {
                     PlayerRecord::player_by_id(self.db.clone(), player_id.to_string())
                         .await?
                         .expect(&format!("player does not exist with id {player_id}"));
+                println!("{} {}", player_record.current_map, from_map);
                 if player_record.current_map != from_map {
                     println!("WARNING: deplicate game event, ignoring");
                     return Ok(());

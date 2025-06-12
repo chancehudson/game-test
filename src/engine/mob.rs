@@ -3,6 +3,8 @@ use std::mem::discriminant;
 use bevy_math::Vec2;
 use rand::Rng;
 
+use crate::actor::can_move_left_right;
+use crate::actor::can_move_left_right_without_falling;
 use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
@@ -10,6 +12,7 @@ use crate::engine::entity::EEntity;
 use crate::engine::entity::EngineEntity;
 use crate::engine::entity::SEEntity;
 use crate::engine::GameEngine;
+use crate::engine::STEPS_PER_SECOND;
 use crate::engine::STEP_LEN_S_F32;
 use crate::entity_struct;
 
@@ -19,7 +22,8 @@ entity_struct!(
     pub struct MobEntity {
         pub mob_type: u64,
         weightless_until: Option<u64>,
-        moving_to_x: Option<f32>,
+        moving_sign: f32,
+        moving_until: Option<u64>,
         aggro_to: Option<u128>,
     }
 );
@@ -43,34 +47,40 @@ impl MobEntity {
                 // aggro target is no longer on map
                 self.aggro_to = None;
             }
-        } else if let Some(moving_to_x) = self.moving_to_x {
-            if (self.velocity.x < 0. && self.position.x <= moving_to_x)
-                || (self.velocity.x > 0. && self.position.x >= moving_to_x)
-            {
+        } else if let Some(moving_until) = self.moving_until {
+            if step_index >= &moving_until {
+                self.moving_until = None;
+                self.moving_sign = 0.0;
                 engine.register_input(Some(step_index + 1), self.id, EntityInput::default());
-                self.moving_to_x = None;
             } else {
-                let mut new_input = EntityInput::default();
-                if moving_to_x > self.position.x {
-                    new_input.move_right = true;
-                } else {
-                    new_input.move_left = true;
+                let (can_move_left_without_falling, can_move_right_without_falling) =
+                    can_move_left_right_without_falling(self.rect(), engine);
+                let (can_move_left, can_move_right) = can_move_left_right(self.rect(), engine);
+                let (can_move_left, can_move_right) = (
+                    can_move_left_without_falling && can_move_left,
+                    can_move_right_without_falling && can_move_right,
+                );
+                if (self.moving_sign == 1.0 && !can_move_right)
+                    || (self.moving_sign == -1.0 && !can_move_left)
+                {
+                    let mut new_input = EntityInput::default();
+                    new_input.move_right = self.moving_sign == -1.0 && can_move_right;
+                    new_input.move_left = self.moving_sign == 1.0 && can_move_left;
+                    engine.register_input(Some(step_index + 1), self.id, new_input);
+                    self.moving_sign = self.moving_sign * -1.0;
                 }
-                engine.register_input(Some(step_index + 1), self.id, new_input);
             }
-        } else {
+        } else if rng.random_ratio(1, 300) {
             // start moving every so often
-            if rng.random_ratio(1, 600) {
-                let sign = if rng.random_bool(0.5) { 1. } else { -1. };
-                let mut target_x = self.position.x + (sign * 350.0);
-                if target_x < 0.0 {
-                    target_x *= -1.;
-                } else if target_x + self.size.x >= engine.map.size.x {
-                    target_x = (engine.map.size.x - self.size.x)
-                        - ((target_x + self.size.x) - engine.map.size.x);
-                }
-                self.moving_to_x = Some(target_x);
-            }
+            let sign = if rng.random_bool(0.5) { 1. } else { -1. };
+            let move_len_s: u64 = rng.random_range(3..10);
+            let move_len_steps = move_len_s * STEPS_PER_SECOND;
+            self.moving_until = Some(*step_index + move_len_steps);
+            self.moving_sign = sign;
+            let mut new_input = EntityInput::default();
+            new_input.move_right = self.moving_sign == 1.0;
+            new_input.move_left = self.moving_sign == -1.0;
+            engine.register_input(Some(step_index + 1), self.id, new_input);
         }
     }
 }
@@ -83,10 +93,10 @@ impl SEEntity for MobEntity {
         let last_velocity = self.velocity.clone();
         let body = self.rect();
         let mut velocity = last_velocity.clone();
-        let can_jump = on_platform(body, &engine.map);
-        let input = engine
+        let can_jump = on_platform(body, engine);
+        let (_input_step_index, input) = engine
             .latest_input(&self.id)
-            .unwrap_or(EntityInput::default());
+            .unwrap_or((*step_index, EntityInput::default()));
 
         if input.move_left {
             velocity.x -= 100.;

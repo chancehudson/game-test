@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
 use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
@@ -8,6 +9,7 @@ use bevy::text::FontSmoothing;
 pub use game_test::action::Action;
 use game_test::action::PlayerState;
 pub use game_test::action::Response;
+use game_test::engine;
 use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::entity::SEEntity;
@@ -242,6 +244,14 @@ fn handle_engine_state(
                 return;
             }
             let mut engine = engine.clone();
+            for (id, entity) in active_engine_state
+                .0
+                .entities
+                .iter()
+                .filter(|(_id, entity)| entity.pure() || entity.id() == player_entity_id)
+            {
+                engine.entities.insert(*id, entity.clone());
+            }
             // println!("{} {}", active_engine_state.0.step_index, engine.step_index);
             // compute a local start timestamp
             engine.start_timestamp = timestamp() - STEP_LEN_S * (engine.step_index as f64);
@@ -253,12 +263,15 @@ fn handle_engine_state(
                 .get(&player_entity_id)
                 .cloned()
                 .unwrap_or_else(|| BTreeMap::new());
-            if let Some(local_entity) = active_engine_state.0.entities.get(&player_entity_id) {
-                engine
-                    .entities
-                    .insert(player_entity_id, local_entity.clone());
-            }
             engine.inputs.insert(player_entity_id, local_inputs.clone());
+            if let Some(entity) = engine.entities.get_mut(&player_entity_id) {
+                match entity {
+                    EngineEntity::Player(p) => {
+                        p.is_active = true;
+                    }
+                    _ => unreachable!(),
+                }
+            }
             active_engine_state.0 = engine;
         }
     }
@@ -272,7 +285,7 @@ fn sync_engine_components(
     mut sprite_manager: ResMut<SpriteManager>,
     sprite_data: Res<Assets<SpriteDataAsset>>,
 ) {
-    let mut entity_ids = active_engine_state.0.entities.clone();
+    let mut to_spawn = active_engine_state.0.entities.clone();
     for (entity, entity_component, mut transform, mut sprite) in entity_query.iter_mut() {
         if let Some(game_entity) = active_engine_state
             .0
@@ -280,7 +293,7 @@ fn sync_engine_components(
             .get(&entity_component.entity_id)
         {
             transform.translation = game_entity.position().extend(transform.translation.z);
-            if let Some(latest_input) = active_engine_state
+            if let Some((_, latest_input)) = active_engine_state
                 .0
                 .latest_input(&entity_component.entity_id)
             {
@@ -290,13 +303,13 @@ fn sync_engine_components(
                     sprite.flip_x = true;
                 }
             }
-            entity_ids.remove(&game_entity.id());
+            to_spawn.remove(&game_entity.id());
         } else {
             commands.entity(entity).despawn();
         }
     }
     // we're left with game entities we need to spawn
-    for (id, game_entity) in entity_ids {
+    for (id, game_entity) in to_spawn {
         match game_entity {
             EngineEntity::Player(p) => {
                 if !sprite_manager.is_loaded(&0, &sprite_data) {
@@ -343,6 +356,19 @@ fn sync_engine_components(
                     MapEntity,
                     Sprite {
                         color: Color::srgb(0.0, 1.0, 0.0),
+                        custom_size: Some(Vec2::new(p.size.x, p.size.y)),
+                        anchor: bevy::sprite::Anchor::BottomLeft,
+                        ..default()
+                    },
+                ));
+            }
+            EngineEntity::Rect(p) => {
+                commands.spawn((
+                    GameEntityComponent { entity_id: id },
+                    Transform::from_translation(p.position().extend(0.0)),
+                    MapEntity,
+                    Sprite {
+                        color: Color::srgb(p.color.x, p.color.y, p.color.z),
                         custom_size: Some(Vec2::new(p.size.x, p.size.y)),
                         anchor: bevy::sprite::Anchor::BottomLeft,
                         ..default()

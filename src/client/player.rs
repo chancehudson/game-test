@@ -76,8 +76,11 @@ fn input_system(
         crouch: keyboard.pressed(KeyCode::ArrowDown),
         attack: keyboard.pressed(KeyCode::KeyA),
         enter_portal: keyboard.pressed(KeyCode::ArrowUp),
+        admin_enable_debug_markers: keyboard.pressed(KeyCode::Digit9),
     };
-    if let Some(last_input) = active_game_engine.0.latest_input(active_player_entity_id) {
+    if let Some((_step_index, last_input)) =
+        active_game_engine.0.latest_input(active_player_entity_id)
+    {
         if last_input == input {
             return;
         }

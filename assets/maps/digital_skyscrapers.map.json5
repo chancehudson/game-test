@@ -1,8 +1,8 @@
 {
-    name: "crab_beach",
+    name: "digital_skyscrapers",
     size: [1500, 1000],
     spawn_location: [100, 800],
-    background: "rainbow.png",
+    background: "skyscrapers.jpg",
     npc: [],
     portals: [
         { position: [50, 0], to: "eastwatch" },
@@ -23,6 +23,6 @@
         { position: [0, -25], size: [1500, 25] },
     ],
     mob_spawns: [
-        { position: [300, 850], size: [1200, 50], mob_type: 1, max_count: 1 },
+        { position: [600, 375], size: [100, 25], mob_type: 1, max_count: 1 },
     ]
 }

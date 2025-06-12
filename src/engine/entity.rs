@@ -10,7 +10,9 @@ use super::mob_spawner::MobSpawnEntity;
 use super::platform::PlatformEntity;
 use super::player::PlayerEntity;
 use super::portal::PortalEntity;
+use super::rect::RectEntity;
 use crate::engine::GameEngine;
+use crate::STEP_DELAY;
 
 /// Inputs that may be applied to any entity.
 #[derive(Default, PartialEq, Clone, Debug, Serialize, Deserialize)]
@@ -21,6 +23,7 @@ pub struct EntityInput {
     pub crouch: bool,
     pub attack: bool,
     pub enter_portal: bool,
+    pub admin_enable_debug_markers: bool,
 }
 
 /// An entity that exists inside the engine.
@@ -31,6 +34,9 @@ pub trait EEntity {
     fn size(&self) -> Vec2;
     fn velocity(&self) -> Vec2;
 
+    // can the entity be simulated using public information
+    fn pure(&self) -> bool;
+
     /// deterministic rng for entities, safe for replay
     fn rng(&self, step_index: &u64) -> StdRng {
         let id = self.id();
@@ -39,6 +45,19 @@ pub trait EEntity {
 
         let seed = first_half ^ second_half ^ step_index;
         StdRng::seed_from_u64(seed)
+    }
+
+    /// Get an rng for the current state of the server
+    fn rng_client(&self, step_index: &u64) -> StdRng {
+        self.rng(&(step_index + STEP_DELAY))
+    }
+
+    fn center(&self) -> Vec2 {
+        let mut out = self.position();
+        let size = self.size();
+        out.x += size.x / 2.0;
+        out.y += size.y / 2.0;
+        out
     }
 
     fn rect(&self) -> Rect {
@@ -123,12 +142,21 @@ macro_rules! engine_entity_enum {
                     )*
                 }
             }
+
+            fn pure(&self) -> bool {
+                match self {
+                    $(
+                        $enum_name::$variant(entity) => entity.pure(),
+                    )*
+                }
+            }
         }
     };
 }
 
 engine_entity_enum! {
     EngineEntity {
+        Rect(RectEntity),
         Player(PlayerEntity),
         Mob(MobEntity),
         MobSpawner(MobSpawnEntity),
@@ -174,6 +202,8 @@ macro_rules! entity_struct {
             pub size: bevy_math::Vec2,
             #[serde(default)]
             pub velocity: bevy_math::Vec2,
+            #[serde(default)]
+            pub pure: bool,
             $(
                 $(#[$field_attr])*
                 $field_vis $field_name: $field_type,
@@ -210,6 +240,10 @@ macro_rules! entity_struct {
 
             fn velocity(&self) -> bevy_math::Vec2 {
                 self.velocity
+            }
+
+            fn pure(&self) -> bool {
+                self.pure
             }
         }
     };

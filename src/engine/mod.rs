@@ -21,6 +21,7 @@ use std::mem::Discriminant;
 use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
+use serde::Serializer;
 
 pub mod entity;
 pub mod game_event;
@@ -30,6 +31,7 @@ pub mod mob_spawner;
 pub mod platform;
 pub mod player;
 pub mod portal;
+pub mod rect;
 
 use entity::EEntity;
 use entity::EngineEntity;
@@ -45,13 +47,15 @@ use crate::timestamp;
 
 pub const STEP_LEN_S: f64 = 1. / 60.;
 pub const STEP_LEN_S_F32: f32 = 1. / 60.;
-pub const TRAILING_STATE_COUNT: u64 = 600;
+pub const STEPS_PER_SECOND: u64 = (1.0 / STEP_LEN_S_F32) as u64;
+pub const TRAILING_STATE_COUNT: u64 = 180;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GameEngine {
     pub start_timestamp: f64,
-    map: MapData,
+    pub map: MapData,
     // entity id keyed to struct
+    #[serde(serialize_with = "serialize_unpure_entities")]
     pub entities: HashMap<u128, EngineEntity>,
     // step index keyed to entity id to struct
     #[serde(skip)]
@@ -69,6 +73,21 @@ pub struct GameEngine {
     #[serde(skip)]
     // map changes, experience gained, anything that needs to be written to db?
     game_events: Vec<GameEvent>,
+    pub enable_debug_markers: bool,
+}
+
+fn serialize_unpure_entities<S>(
+    entities: &HashMap<u128, EngineEntity>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    entities
+        .iter()
+        .filter(|(_id, entity)| !entity.pure())
+        .collect::<Vec<_>>()
+        .serialize(serializer)
 }
 
 impl GameEngine {
@@ -135,6 +154,7 @@ impl GameEngine {
             out.start_timestamp = self.start_timestamp;
             out.map = self.map.clone();
             out.entities = entities.clone();
+            out.enable_debug_markers = self.enable_debug_markers;
 
             // some entities spawn regardless, some are caused by game events
             // we need to differentiate
@@ -253,6 +273,10 @@ impl GameEngine {
                 "WARNING: attemping to provide input before the latest input step {step_index} latest {latest_step_index}"
             );
         }
+        if !self.entities.contains_key(&entity_id) {
+            println!("entity does not exist");
+            return;
+        }
         if entity_inputs.contains_key(&step_index) {
             println!("WARNING: overwriting existing input for step {step_index}")
         }
@@ -318,14 +342,13 @@ impl GameEngine {
         ((now - self.start_timestamp) / STEP_LEN_S) as u64
     }
 
-    pub fn latest_input(&self, entity_id: &u128) -> Option<EntityInput> {
+    pub fn latest_input(&self, entity_id: &u128) -> Option<(u64, EntityInput)> {
         let empty_inputs: BTreeMap<u64, EntityInput> = BTreeMap::new();
         let entity_input_map = self.inputs.get(entity_id).unwrap_or(&empty_inputs);
         entity_input_map
             .range(..=self.step_index)
             .next_back()
-            .map(|(_step_index, input)| input)
-            .cloned()
+            .map(|(si, input)| (*si, input.clone()))
     }
 
     /// Automatically step forward in time as much as needed
@@ -371,11 +394,6 @@ impl GameEngine {
     pub fn step(&mut self) {
         let step_index = self.step_index;
         // remove entities at the end of the step
-        if let Some(entity_ids_to_remove) = self.removed_entities_by_step.get(&step_index) {
-            for (id, _) in entity_ids_to_remove {
-                self.entities.remove(id);
-            }
-        }
         let entities_clone = self.entities.clone();
         let mut stepped_entities = HashMap::new();
         for (id, entity) in &entities_clone {
@@ -383,14 +401,28 @@ impl GameEngine {
             stepped_entities.insert(*id, stepped);
         }
         self.entities = stepped_entities;
+        if let Some(entity_ids_to_remove) = self.removed_entities_by_step.get(&step_index) {
+            for (id, _) in entity_ids_to_remove {
+                self.entities.remove(id);
+            }
+        }
         self.entities_by_step.insert(step_index, entities_clone);
         if step_index >= TRAILING_STATE_COUNT {
-            self.entities_by_step
-                .remove(&(step_index - TRAILING_STATE_COUNT));
-            self.new_entities_by_step
-                .remove(&(step_index - TRAILING_STATE_COUNT));
-            self.removed_entities_by_step
-                .remove(&(step_index - TRAILING_STATE_COUNT));
+            let step_to_remove = step_index - TRAILING_STATE_COUNT;
+            self.entities_by_step.remove(&step_to_remove);
+            self.new_entities_by_step.remove(&step_to_remove);
+            if let Some(removed_entities) = self.removed_entities_by_step.remove(&step_to_remove) {
+                for (entity_id, _) in removed_entities {
+                    self.inputs.remove(&entity_id);
+                }
+            }
+            for (_id, inputs) in self.inputs.iter_mut() {
+                if let Some((si, _)) = inputs.last_key_value() {
+                    if si > &step_to_remove {
+                        inputs.retain(|step_index, _| step_index > &step_to_remove);
+                    }
+                }
+            }
         }
         self.step_index += 1;
         // add new entities at the beginning of the step
@@ -404,18 +436,5 @@ impl GameEngine {
                 println!("WARNING: inserting entity that already existed!");
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn spawn_and_step() {
-        let map_data_str = std::fs::read_to_string("./assets/maps/eastwatch.map.json5").unwrap();
-        let map_data = json5::from_str::<MapData>(&map_data_str).unwrap();
-        let mut engine = GameEngine::new(map_data);
-        engine.tick();
     }
 }

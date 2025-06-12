@@ -57,24 +57,3 @@ pub struct MapData {
     #[serde(default)]
     pub mob_spawns: Vec<MobSpawnEntity>,
 }
-
-impl MapData {
-    pub fn contains_platform(&self, rect: Rect) -> bool {
-        for platform in &self.platforms {
-            let intersection = rect.intersect(platform.rect());
-            if intersection.width() > 2.0 && intersection.height() >= 1.0 {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn not_contains_platform(&self, rect: Rect) -> bool {
-        for platform in &self.platforms {
-            if !rect.intersect(platform.rect()).is_empty() {
-                return false;
-            }
-        }
-        true
-    }
-}
