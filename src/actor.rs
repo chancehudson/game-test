@@ -1,7 +1,8 @@
 use bevy_math::Rect;
 use bevy_math::Vec2;
 
-use crate::engine::entity::{EngineEntity, Entity};
+use crate::engine::entity::EEntity;
+use crate::engine::entity::EngineEntity;
 
 use super::MapData;
 

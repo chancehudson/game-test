@@ -6,6 +6,13 @@
 /// tick: a variable numbers of steps
 /// step: the smallest unit of time in the engine
 ///
+/// anatomy of a step
+///
+/// step:
+///   creation: entities scheduled for creation are created
+///   modification: entities modify themselves and schedule entities for creation/removal
+///   removal: entities pending removal are removed
+///
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::mem::discriminant;
@@ -17,15 +24,17 @@ use serde::Serialize;
 
 pub mod entity;
 pub mod game_event;
+pub mod image_tmp;
 pub mod mob;
 pub mod mob_spawner;
 pub mod platform;
 pub mod player;
 pub mod portal;
 
+use entity::EEntity;
 use entity::EngineEntity;
-use entity::Entity;
 use entity::EntityInput;
+use entity::SEEntity;
 use player::PlayerEntity;
 
 use crate::engine::game_event::GameEvent;
@@ -92,6 +101,9 @@ impl GameEngine {
         for portal in &map.portals {
             let id = engine.generate_id();
             let mut portal_clone = portal.clone();
+            if portal_clone.size.x == 0. {
+                portal_clone.size = Vec2::new(60., 60.);
+            }
             portal_clone.id = id;
             engine.spawn_entity(EngineEntity::Portal(portal_clone), None, true);
         }
@@ -118,13 +130,11 @@ impl GameEngine {
 
     pub fn engine_at_step(&self, target_step_index: &u64) -> anyhow::Result<Self> {
         if let Some(entities) = self.entities_by_step.get(target_step_index) {
-            // let mut out = self.clone();
             let mut out = Self::default();
             out.inputs = self.inputs.clone();
             out.start_timestamp = self.start_timestamp;
             out.map = self.map.clone();
             out.entities = entities.clone();
-            out.entities_by_step = HashMap::new(); // this will get overwritten
 
             // some entities spawn regardless, some are caused by game events
             // we need to differentiate
@@ -171,7 +181,7 @@ impl GameEngine {
         step_index: Option<u64>,
     ) -> EngineEntity {
         let id = self.generate_id();
-        let player_entity = PlayerEntity::new(id, player_id);
+        let player_entity = PlayerEntity::new_with_ids(id, player_id);
         let mut engine_entity = EngineEntity::Player(player_entity);
         if let Some(position) = position_maybe {
             *engine_entity.position_mut() = position;
@@ -200,30 +210,31 @@ impl GameEngine {
         }
         let target_step_index = step_index.unwrap_or(self.step_index + 1);
         if target_step_index > self.step_index {
-            if let Some(new_entities) = self.new_entities_by_step.get_mut(&target_step_index) {
-                new_entities.push((entity, is_universal));
-            } else {
-                self.new_entities_by_step
-                    .insert(target_step_index, vec![(entity, is_universal)]);
-            }
+            self.new_entities_by_step
+                .entry(target_step_index)
+                .or_insert(vec![])
+                .push((entity, is_universal));
         } else {
-            // spawn in the past and replay
-            if let Ok(mut past_engine) = self.engine_at_step(&(target_step_index - 1)) {
-                past_engine.spawn_entity(entity, None, is_universal);
-                past_engine.tick();
-                // IF SOMETHING GOES INCREDIBLY WRONG FOR AN UNEXPLAINABLE REASON THIS IS
-                // PROBABLY WHY RIGHT HERE
-                *self = past_engine; // absolutely absurd thing to do
+            // backdate the position without stepping
+            self.entities.insert(entity.id(), entity.clone());
+            for step_index in target_step_index..self.step_index {
+                self.entities_by_step
+                    .entry(step_index)
+                    .or_default()
+                    .insert(entity.id(), entity.clone());
             }
+            self.new_entities_by_step
+                .entry(target_step_index)
+                .or_default()
+                .push((entity.clone(), is_universal));
         }
     }
 
     pub fn remove_entity(&mut self, entity_id: &u128) {
-        let e = self
-            .removed_entities_by_step
+        self.removed_entities_by_step
             .entry(self.step_index)
-            .or_default();
-        e.push((*entity_id, true));
+            .or_default()
+            .push((*entity_id, true));
     }
 
     /// Register a new input for an entity. Optionally provide a step index the
@@ -366,12 +377,12 @@ impl GameEngine {
             }
         }
         let entities_clone = self.entities.clone();
-        let mut new_entities = HashMap::new();
+        let mut stepped_entities = HashMap::new();
         for (id, entity) in &entities_clone {
-            let new_entity = entity.step(self, &step_index);
-            new_entities.insert(*id, new_entity);
+            let stepped = entity.step(self, &step_index);
+            stepped_entities.insert(*id, stepped);
         }
-        self.entities = new_entities;
+        self.entities = stepped_entities;
         self.entities_by_step.insert(step_index, entities_clone);
         if step_index >= TRAILING_STATE_COUNT {
             self.entities_by_step

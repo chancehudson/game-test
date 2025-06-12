@@ -8,7 +8,9 @@ use bevy::text::FontSmoothing;
 pub use game_test::action::Action;
 use game_test::action::PlayerState;
 pub use game_test::action::Response;
+use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
+use game_test::engine::entity::SEEntity;
 use game_test::engine::GameEngine;
 use game_test::engine::STEP_LEN_S;
 use game_test::timestamp;
@@ -130,6 +132,17 @@ fn main() {
     app.run();
 }
 
+fn handle_login(
+    mut action_events: EventReader<NetworkMessage>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    for event in action_events.read() {
+        if let Response::PlayerLoggedIn(_state) = &event.0 {
+            next_state.set(GameState::Waiting);
+        }
+    }
+}
+
 fn load_sprite_manager(
     mut sprite_manager: ResMut<SpriteManager>,
     asset_server: Res<AssetServer>,
@@ -160,7 +173,6 @@ fn reposition_camera_on_map_entry(
     if let Some(active_player_entity_id) = active_player_entity_id.0 {
         if let Some(game_entity) = active_engine_state.0.entities.get(&active_player_entity_id) {
             if let Ok((mut camera_transform, _)) = camera_query.single_mut() {
-                use game_test::engine::entity::Entity;
                 camera_transform.translation = game_entity.position().extend(0.0);
             }
             smooth_camera::snap_to_position(
@@ -260,8 +272,6 @@ fn sync_engine_components(
     mut sprite_manager: ResMut<SpriteManager>,
     sprite_data: Res<Assets<SpriteDataAsset>>,
 ) {
-    // TODO:::::::::::::
-    use game_test::engine::entity::Entity;
     let mut entity_ids = active_engine_state.0.entities.clone();
     for (entity, entity_component, mut transform, mut sprite) in entity_query.iter_mut() {
         if let Some(game_entity) = active_engine_state
@@ -339,17 +349,6 @@ fn sync_engine_components(
                     },
                 ));
             }
-        }
-    }
-}
-
-fn handle_login(
-    mut action_events: EventReader<NetworkMessage>,
-    mut next_state: ResMut<NextState<GameState>>,
-) {
-    for event in action_events.read() {
-        if let Response::PlayerLoggedIn(_state) = &event.0 {
-            next_state.set(GameState::Waiting);
         }
     }
 }

@@ -2,56 +2,36 @@ use std::collections::HashSet;
 
 use bevy_math::Vec2;
 use rand::Rng;
-use serde::Deserialize;
-use serde::Serialize;
 
+use super::entity::EEntity;
 use super::entity::EngineEntity;
-use super::entity::Entity;
+use super::entity::SEEntity;
 use crate::engine::mob::MobEntity;
 use crate::engine::GameEngine;
-use crate::timestamp;
+use crate::entity_struct;
+use crate::TICK_RATE_S;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct MobSpawnEntity {
-    #[serde(skip)]
-    pub id: u128,
-    /// point at which we stop spawning
-    pub max_count: usize,
-    /// how quickly dead mobs respawn (mobs/second)
-    // pub spawn_rate: f32,
-    pub position: Vec2,
-    pub size: Vec2,
-    pub mob_type: u64,
-    #[serde(default)]
-    pub last_spawn: f64,
-    #[serde(skip)]
-    owned_mob_ids: HashSet<u128>,
-}
-
-impl MobSpawnEntity {}
-
-impl Entity for MobSpawnEntity {
-    fn id(&self) -> u128 {
-        self.id
+entity_struct!(
+    pub struct MobSpawnEntity {
+        /// point at which we stop spawning
+        pub max_count: usize,
+        /// how quickly dead mobs respawn (mobs/second)
+        // pub spawn_rate: f32,
+        pub mob_type: u64,
+        #[serde(default)]
+        pub last_spawn_step: u64,
+        #[serde(skip)]
+        owned_mob_ids: HashSet<u128>,
     }
+);
 
-    fn position(&self) -> Vec2 {
-        self.position
-    }
-
-    fn position_mut(&mut self) -> &mut Vec2 {
-        &mut self.position
-    }
-
-    fn size(&self) -> Vec2 {
-        self.size
-    }
-
+impl SEEntity for MobSpawnEntity {
     fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
         let mut next_self = self.clone();
         if !cfg!(feature = "server") {
             return next_self;
         }
+        // TODO: potentially use btrees here ???
         for id in &self.owned_mob_ids {
             if !engine.entities.contains_key(id) {
                 next_self.owned_mob_ids.remove(id);
@@ -61,13 +41,15 @@ impl Entity for MobSpawnEntity {
         if next_self.owned_mob_ids.len() >= self.max_count {
             return next_self;
         }
-        if timestamp() - self.last_spawn < 10.0 {
+        if step_index - self.last_spawn_step < 10 * ((1.0 / TICK_RATE_S).ceil() as u64) {
             return next_self;
         }
         let mut rng = self.rng(step_index);
         let spawn_count = rng.random_range(0..=self.max_count);
         for _ in 0..spawn_count {
-            let id = engine.generate_id();
+            // deterministically generate future mob ids
+            // absolutely disgusting
+            let id = rng.random();
             next_self.owned_mob_ids.insert(id);
             let mut mob_entity = MobEntity::default();
             mob_entity.id = id;
@@ -79,7 +61,7 @@ impl Entity for MobSpawnEntity {
             mob_entity.mob_type = self.mob_type;
             engine.spawn_entity(EngineEntity::Mob(mob_entity), None, false);
         }
-        next_self.last_spawn = timestamp();
+        next_self.last_spawn_step = *step_index;
         next_self
     }
 }

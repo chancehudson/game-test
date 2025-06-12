@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use game_test::action::PlayerState;
-use game_test::engine::entity::{EngineEntity, Entity, EntityInput};
+use game_test::engine::entity::{EEntity, EngineEntity, EntityInput};
 use game_test::engine::GameEngine;
 
 use game_test::action::Response;

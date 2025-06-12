@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["client"]
+default = ["server", "client"]
 client = ["bevy", "bevy_simple_text_input"]
 server = ["sled"]
 trace = ["bevy/trace", "bevy/trace_tracy", "tracy-client"]

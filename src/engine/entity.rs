@@ -24,12 +24,12 @@ pub struct EntityInput {
 }
 
 /// An entity that exists inside the engine.
-pub trait Entity {
+pub trait EEntity {
     fn id(&self) -> u128;
     fn position(&self) -> Vec2;
     fn position_mut(&mut self) -> &mut Vec2;
     fn size(&self) -> Vec2;
-    fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self;
+    fn velocity(&self) -> Vec2;
 
     /// deterministic rng for entities, safe for replay
     fn rng(&self, step_index: &u64) -> StdRng {
@@ -45,6 +45,15 @@ pub trait Entity {
         let pos = self.position();
         let size = self.size();
         Rect::new(pos.x, pos.y, pos.x + size.x, pos.y + size.y)
+    }
+}
+
+pub trait SEEntity: EEntity + Clone {
+    fn step(&self, _engine: &mut GameEngine, _step_index: &u64) -> Self
+    where
+        Self: Sized + Clone,
+    {
+        self.clone()
     }
 }
 
@@ -64,7 +73,17 @@ macro_rules! engine_entity_enum {
             )*
         }
 
-        impl Entity for $enum_name {
+        impl SEEntity for $enum_name {
+            fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
+                match self {
+                    $(
+                        $enum_name::$variant(entity) => $enum_name::$variant(entity.step(engine, step_index)),
+                    )*
+                }
+            }
+        }
+
+        impl EEntity for $enum_name {
             fn id(&self) -> u128 {
                 match self {
                     $(
@@ -97,10 +116,10 @@ macro_rules! engine_entity_enum {
                 }
             }
 
-            fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
+            fn velocity(&self) -> Vec2 {
                 match self {
                     $(
-                        $enum_name::$variant(entity) => $enum_name::$variant(entity.step(engine, step_index)),
+                        $enum_name::$variant(entity) => entity.velocity(),
                     )*
                 }
             }
@@ -117,4 +136,81 @@ engine_entity_enum! {
         Portal(PortalEntity),
         // Item(ItemEntity),  // Uncomment when ready
     }
+}
+
+/// Macro to generate an entity struct with EEntity trait implementation
+///
+/// Usage:
+/// ```
+/// // Basic entity with default trait implementation
+/// entity_struct! {
+///     pub struct MyEntity {
+///         pub custom_field: f32,
+///         private_field: String,
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! entity_struct {
+    // Pattern for struct with additional fields and trait implementation
+    (
+        $(#[$struct_attr:meta])*
+        $vis:vis struct $name:ident {
+            $(
+                $(#[$field_attr:meta])*
+                $field_vis:vis $field_name:ident: $field_type:ty
+            ),*
+            $(,)?
+        }
+    ) => {
+        $(#[$struct_attr])*
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
+        $vis struct $name {
+            #[serde(default)]
+            pub id: u128,
+            #[serde(default)]
+            pub position: bevy_math::Vec2,
+            #[serde(default)]
+            pub size: bevy_math::Vec2,
+            #[serde(default)]
+            pub velocity: bevy_math::Vec2,
+            $(
+                $(#[$field_attr])*
+                $field_vis $field_name: $field_type,
+            )*
+        }
+
+        impl $name {
+            pub fn new(id: u128, position: bevy_math::Vec2, size: bevy_math::Vec2) -> Self {
+                Self {
+                    id,
+                    position,
+                    size,
+                    ..Default::default()
+                }
+            }
+        }
+
+        impl EEntity for $name {
+            fn id(&self) -> u128 {
+                self.id
+            }
+
+            fn position(&self) -> bevy_math::Vec2 {
+                self.position
+            }
+
+            fn position_mut(&mut self) -> &mut bevy_math::Vec2 {
+                &mut self.position
+            }
+
+            fn size(&self) -> bevy_math::Vec2 {
+                self.size
+            }
+
+            fn velocity(&self) -> bevy_math::Vec2 {
+                self.velocity
+            }
+        }
+    };
 }

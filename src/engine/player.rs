@@ -1,62 +1,41 @@
 use std::mem::discriminant;
 
 use bevy_math::Vec2;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
 use crate::engine::entity::EngineEntity;
+use crate::engine::entity::SEEntity;
 use crate::engine::game_event::GameEvent;
 use crate::engine::portal::PortalEntity;
 use crate::engine::GameEngine;
 use crate::engine::STEP_LEN_S_F32;
+use crate::entity_struct;
 
-use super::entity::{Entity, EntityInput};
+use super::entity::{EEntity, EntityInput};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PlayerEntity {
-    pub id: u128,
-    pub player_id: String, // the game id, not entity id
-    pub position: Vec2,
-    pub size: Vec2,
-    velocity: Vec2,
-    weightless_until: Option<u64>,
-    attacking_until: Option<u64>,
-}
+entity_struct!(
+    pub struct PlayerEntity {
+        pub player_id: String, // the game id, not entity id
+        weightless_until: Option<u64>,
+        attacking_until: Option<u64>,
+    }
+);
 
 impl PlayerEntity {
-    pub fn new(id: u128, player_id: String) -> Self {
+    pub fn new_with_ids(id: u128, player_id: String) -> Self {
         PlayerEntity {
             id,
             player_id,
             position: Vec2::new(100., 100.),
             size: Vec2::new(52., 52.),
-            velocity: Vec2::new(0.0, 0.0),
-            weightless_until: None,
-            attacking_until: None,
+            ..Default::default()
         }
     }
 }
 
-impl Entity for PlayerEntity {
-    fn id(&self) -> u128 {
-        self.id
-    }
-
-    fn position(&self) -> Vec2 {
-        self.position
-    }
-
-    fn position_mut(&mut self) -> &mut Vec2 {
-        &mut self.position
-    }
-
-    fn size(&self) -> Vec2 {
-        self.size
-    }
-
+impl SEEntity for PlayerEntity {
     fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
         let mut next_self = self.clone();
         // velocity in the last frame based on movement

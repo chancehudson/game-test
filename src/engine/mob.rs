@@ -2,30 +2,27 @@ use std::mem::discriminant;
 
 use bevy_math::Vec2;
 use rand::Rng;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
+use crate::engine::entity::EEntity;
 use crate::engine::entity::EngineEntity;
+use crate::engine::entity::SEEntity;
 use crate::engine::GameEngine;
 use crate::engine::STEP_LEN_S_F32;
+use crate::entity_struct;
 
-use super::entity::Entity;
 use super::entity::EntityInput;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct MobEntity {
-    pub id: u128,
-    pub position: Vec2,
-    pub size: Vec2,
-    pub mob_type: u64,
-    pub velocity: Vec2,
-    weightless_until: Option<u64>,
-    moving_to_x: Option<f32>,
-    aggro_to: Option<u128>,
-}
+entity_struct!(
+    pub struct MobEntity {
+        pub mob_type: u64,
+        weightless_until: Option<u64>,
+        moving_to_x: Option<f32>,
+        aggro_to: Option<u128>,
+    }
+);
 
 impl MobEntity {
     fn prestep(&mut self, engine: &mut GameEngine, step_index: &u64) {
@@ -78,23 +75,7 @@ impl MobEntity {
     }
 }
 
-impl Entity for MobEntity {
-    fn id(&self) -> u128 {
-        self.id
-    }
-
-    fn position(&self) -> Vec2 {
-        self.position
-    }
-
-    fn position_mut(&mut self) -> &mut Vec2 {
-        &mut self.position
-    }
-
-    fn size(&self) -> Vec2 {
-        self.size
-    }
-
+impl SEEntity for MobEntity {
     fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
         let mut next_self = self.clone();
         next_self.prestep(engine, step_index);

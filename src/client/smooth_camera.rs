@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use game_test::engine::entity::Entity;
+use game_test::engine::entity::EEntity;
 
 use crate::{map, map_data_loader::MapDataAsset, ActiveGameEngine, ActivePlayerEntityId};
 
