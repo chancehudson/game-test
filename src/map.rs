@@ -1,4 +1,3 @@
-use bevy_math::Rect;
 use bevy_math::Vec2;
 use serde::Deserialize;
 use serde::Serialize;
@@ -32,16 +31,7 @@ pub struct Platform {
     pub size: Vec2,
 }
 
-impl Platform {
-    fn rect(&self) -> Rect {
-        Rect::new(
-            self.position.x,
-            self.position.y,
-            self.position.x + self.size.x,
-            self.position.y + self.size.y,
-        )
-    }
-}
+impl Platform {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct MapData {

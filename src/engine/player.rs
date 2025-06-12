@@ -1,7 +1,6 @@
 use std::mem::discriminant;
 
 use bevy_math::Vec2;
-use bevy_math::VectorSpace;
 use rand::Rng;
 
 use crate::actor::move_x;
