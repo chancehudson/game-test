@@ -375,6 +375,24 @@ fn sync_engine_components(
                     },
                 ));
             }
+            EngineEntity::Emoji(p) => {
+                let asset_name = "reactions/eqib.jpg".to_string();
+                if !sprite_manager.is_image_loaded(&asset_name, &asset_server) {
+                    sprite_manager.load_image(asset_name.clone(), &asset_server);
+                    continue;
+                }
+                commands.spawn((
+                    GameEntityComponent { entity_id: id },
+                    Transform::from_translation(p.position().extend(20.0)),
+                    MapEntity,
+                    Sprite {
+                        image: sprite_manager.image_handle(&asset_name),
+                        custom_size: Some(Vec2::new(p.size.x, p.size.y)),
+                        anchor: bevy::sprite::Anchor::BottomLeft,
+                        ..default()
+                    },
+                ));
+            }
         }
     }
 }

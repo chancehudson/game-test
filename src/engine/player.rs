@@ -1,12 +1,13 @@
-use std::collections::HashMap;
 use std::mem::discriminant;
 
 use bevy_math::Vec2;
+use bevy_math::VectorSpace;
 use rand::Rng;
 
 use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
+use crate::engine::emoji::EmojiEntity;
 use crate::engine::entity::EngineEntity;
 use crate::engine::entity::SEEntity;
 use crate::engine::game_event::GameEvent;
@@ -23,9 +24,9 @@ entity_struct!(
         pub player_id: String, // the game id, not entity id
         weightless_until: Option<u64>,
         attacking_until: Option<u64>,
-        pub created_ids: HashMap<u128, u64>,
         pub facing_left: bool,
         pub is_active: bool,
+        pub showing_emoji_until: Option<u64>,
     }
 );
 
@@ -58,6 +59,21 @@ impl SEEntity for PlayerEntity {
             .unwrap_or((*step_index, EntityInput::default()));
         if input.admin_enable_debug_markers && &input_step_index == step_index {
             engine.enable_debug_markers = !engine.enable_debug_markers;
+        }
+        if let Some(showing_emoji_until) = self.showing_emoji_until {
+            if step_index >= &showing_emoji_until {
+                next_self.showing_emoji_until = None;
+            }
+        } else if input.show_emoji {
+            let show_until = step_index + 120;
+            next_self.showing_emoji_until = Some(show_until);
+            let id = rng.random();
+            let mut emoji = EmojiEntity::new(id, Vec2::MAX, Vec2::new(80., 80.));
+            emoji.id = id;
+            emoji.pure = true;
+            emoji.attached_to = Some((self.id, self.size + Vec2::new(-self.size.x / 2.0, 5.0)));
+            emoji.disappears_at_step_index = show_until;
+            engine.spawn_entity(EngineEntity::Emoji(emoji), None, false);
         }
 
         if input.move_left {
@@ -123,7 +139,6 @@ impl SEEntity for PlayerEntity {
             // 15 is the step length of the attack animation
             next_self.attacking_until = Some(step_index + 10);
             let id = rng.random();
-            next_self.created_ids.insert(id, step_index + 1);
             let move_sign = if self.facing_left { -1.0 } else { 1.0 };
             let mut projectile = RectEntity::new(
                 id,
@@ -133,9 +148,7 @@ impl SEEntity for PlayerEntity {
                 ),
                 Vec2::new(30., 5.),
             );
-            if self.is_active {
-                projectile.pure = true;
-            }
+            projectile.pure = true;
             projectile.velocity.x = 800. * move_sign;
             projectile.disappears_at_step_index = Some(step_index + 30);
             engine.spawn_entity(EngineEntity::Rect(projectile), None, false);

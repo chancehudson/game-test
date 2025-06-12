@@ -5,6 +5,7 @@ use rand::SeedableRng;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::emoji::EmojiEntity;
 use super::mob::MobEntity;
 use super::mob_spawner::MobSpawnEntity;
 use super::platform::PlatformEntity;
@@ -24,6 +25,7 @@ pub struct EntityInput {
     pub attack: bool,
     pub enter_portal: bool,
     pub admin_enable_debug_markers: bool,
+    pub show_emoji: bool,
 }
 
 /// An entity that exists inside the engine.
@@ -64,6 +66,12 @@ pub trait EEntity {
         let pos = self.position();
         let size = self.size();
         Rect::new(pos.x, pos.y, pos.x + size.x, pos.y + size.y)
+    }
+
+    fn equal(&self, other: &Self) -> bool {
+        self.position() == other.position()
+            && self.velocity() == other.velocity()
+            && self.size() == other.velocity()
     }
 }
 
@@ -162,6 +170,7 @@ engine_entity_enum! {
         MobSpawner(MobSpawnEntity),
         Platform(PlatformEntity),
         Portal(PortalEntity),
+        Emoji(EmojiEntity),
         // Item(ItemEntity),  // Uncomment when ready
     }
 }

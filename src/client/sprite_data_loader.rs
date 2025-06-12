@@ -37,6 +37,27 @@ impl SpriteManager {
         false
     }
 
+    pub fn image_handle(&self, image_path: &str) -> Handle<Image> {
+        self.sprite_image_handle_map
+            .get(image_path)
+            .unwrap()
+            .clone()
+    }
+
+    pub fn is_image_loaded(&self, image_path: &str, asset_server: &Res<AssetServer>) -> bool {
+        if let Some(handle) = self.sprite_image_handle_map.get(image_path) {
+            if asset_server.is_loaded(handle.id()) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn load_image(&mut self, image_path: String, asset_server: &Res<AssetServer>) {
+        self.sprite_image_handle_map
+            .insert(image_path.clone(), asset_server.load(image_path));
+    }
+
     pub fn load(&mut self, id: u64, asset_server: &Res<AssetServer>) {
         if let Some(_) = self.sprite_data_handle_map.get(&id) {
             return;

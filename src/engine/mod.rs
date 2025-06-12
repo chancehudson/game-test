@@ -13,6 +13,11 @@
 ///   modification: entities modify themselves and schedule entities for creation/removal
 ///   removal: entities pending removal are removed
 ///
+/// conceptually the game engine is always executing engine.step_index,
+/// after new entity creation, but before modification and removal. E.g. we're always
+/// mid-step; if we're not in the step routine itself then we're between
+/// creation and modification
+///
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::mem::discriminant;
@@ -23,6 +28,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde::Serializer;
 
+pub mod emoji;
 pub mod entity;
 pub mod game_event;
 pub mod image_tmp;
