@@ -85,9 +85,12 @@ impl Server {
             .expect("connected streams should have a peer address");
         println!("Peer address: {}", addr);
 
-        let ws_stream = tokio_tungstenite::accept_async(stream)
-            .await
-            .expect("Error during the websocket handshake occurred");
+        let ws_stream = tokio_tungstenite::accept_async(stream).await;
+        if ws_stream.is_err() {
+            println!("WARNING: error accepting connection, aborting");
+            return;
+        }
+        let ws_stream = ws_stream.unwrap();
 
         println!("New WebSocket connection: {}", addr);
 
