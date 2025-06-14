@@ -5,7 +5,7 @@ use game_test::MapData;
 
 // use crate::mob::MobRegistry;
 use crate::smooth_camera::CAMERA_Y_PADDING;
-use crate::{ActiveGameEngine, ActivePlayerState};
+use crate::ActiveGameEngine;
 
 use super::map_data_loader::MapDataAsset;
 use super::GameState;

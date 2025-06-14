@@ -9,16 +9,14 @@ use crate::actor::on_platform;
 use crate::engine::emoji::EmojiEntity;
 use crate::engine::entity::EngineEntity;
 use crate::engine::entity::SEEntity;
-use crate::engine::game_event::GameEvent;
 use crate::engine::game_event::ServerEvent;
 use crate::engine::portal::PortalEntity;
 use crate::engine::rect::RectEntity;
 use crate::engine::GameEngine;
 use crate::engine::STEPS_PER_SECOND_I32;
-use crate::engine::STEP_LEN_S_F32;
 use crate::entity_struct;
 
-use super::entity::{EEntity, EntityInput};
+use super::entity::EEntity;
 
 entity_struct!(
     pub struct PlayerEntity {

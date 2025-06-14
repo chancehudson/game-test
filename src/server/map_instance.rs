@@ -1,8 +1,9 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use game_test::action::{Action, PlayerState};
-use game_test::engine::entity::{EEntity, EngineEntity, EntityInput};
+use game_test::action::PlayerState;
+use game_test::engine::entity::EEntity;
 use game_test::engine::game_event::GameEvent;
 use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
 
@@ -22,7 +23,6 @@ pub struct MapInstance {
     pub player_entity: HashMap<String, (u128, u64, bool)>,
 
     network_server: Arc<network::Server>,
-    pending_game_events: Vec<GameEvent>,
 }
 
 /// A MapInstance handles communication with the player.
@@ -37,7 +37,6 @@ impl MapInstance {
             engine: GameEngine::new(map.clone()),
             network_server,
             map,
-            pending_game_events: vec![],
         }
     }
 

@@ -75,7 +75,7 @@ fn input_system(
         admin_enable_debug_markers: keyboard.pressed(KeyCode::Digit9),
         show_emoji: keyboard.pressed(KeyCode::KeyQ),
     };
-    let (latest_input_step, latest_input) =
+    let (_latest_input_step, latest_input) =
         active_game_engine.0.latest_input(active_player_entity_id);
     if latest_input == input {
         return;

@@ -8,7 +8,6 @@ use std::sync::Arc;
 use game_test::action::Action;
 use game_test::action::PlayerState;
 use game_test::action::Response;
-use game_test::engine::game_event::GameEvent;
 use game_test::engine::game_event::ServerEvent;
 use game_test::map::MapData;
 use tokio::sync::RwLock;

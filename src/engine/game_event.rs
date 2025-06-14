@@ -1,11 +1,8 @@
-use std::mem::{discriminant, Discriminant};
+use serde::Deserialize;
+use serde::Serialize;
 
-use serde::{Deserialize, Serialize};
-
-use crate::engine::{
-    entity::{EngineEntity, EntityInput},
-    rect::RectEntity,
-};
+use crate::engine::entity::EngineEntity;
+use crate::engine::entity::EntityInput;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerEvent {

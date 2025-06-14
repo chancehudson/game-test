@@ -205,6 +205,7 @@ impl SEEntity for MobEntity {
     }
 }
 
+#[cfg(test)]
 mod tests {
 
     use super::*;
