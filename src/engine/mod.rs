@@ -18,8 +18,6 @@ use std::collections::HashMap;
 use std::mem;
 use std::mem::discriminant;
 use std::mem::Discriminant;
-use std::sync::atomic::AtomicU32;
-use std::sync::atomic::Ordering;
 
 use bevy_math::IVec2;
 use rand::Rng;
@@ -33,11 +31,12 @@ pub mod emoji;
 pub mod entity;
 pub mod game_event;
 pub mod mob;
-pub mod mob_spawner;
+pub mod mob_spawn;
 pub mod platform;
 pub mod player;
 pub mod portal;
 pub mod rect;
+pub mod text;
 // #[cfg(test)]
 // pub mod tests;
 
@@ -50,11 +49,12 @@ use player::PlayerEntity;
 
 use crate::engine::game_event::GameEvent;
 use crate::engine::game_event::GameEventType;
-use crate::engine::game_event::HasId;
 use crate::engine::game_event::HasUniversal;
 use crate::engine::platform::PlatformEntity;
+use crate::engine::text::TextEntity;
 use crate::map::MapData;
 use crate::timestamp;
+use crate::STEP_DELAY;
 
 pub const STEP_LEN_S: f64 = 1. / 60.;
 pub const STEP_LEN_S_F32: f32 = 1. / 60.;
@@ -62,11 +62,9 @@ pub const STEPS_PER_SECOND: u64 = (1.0 / STEP_LEN_S_F32) as u64;
 pub const STEPS_PER_SECOND_I32: i32 = (1.0 / STEP_LEN_S_F32) as i32;
 pub const TRAILING_STATE_COUNT: u64 = 360;
 
-static ENGINE_ID_COUNTER: AtomicU32 = AtomicU32::new(0);
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameEngine {
-    pub id: u32,
+    pub id: u128,
     pub step_index: u64,
     pub start_timestamp: f64,
     pub map: MapData,
@@ -91,9 +89,9 @@ pub struct GameEngine {
     pub seed: u64,
     #[serde(skip, default = "default_rng")]
     rng: (u64, ChaCha8Rng),
-    in_step: bool,
 }
 
+// default seeded rng for engine
 fn default_rng() -> (u64, ChaCha8Rng) {
     (0, ChaCha8Rng::seed_from_u64(0))
 }
@@ -113,7 +111,6 @@ impl Default for GameEngine {
             enable_debug_markers: false,
             seed: 0,
             rng: default_rng(),
-            in_step: false,
         }
     }
 }
@@ -135,7 +132,7 @@ where
 impl GameEngine {
     pub fn new(map: MapData) -> Self {
         let mut engine = Self {
-            id: ENGINE_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
+            id: rand::random(),
             start_timestamp: timestamp(),
             map: map.clone(),
             step_index: 0,
@@ -190,7 +187,7 @@ impl GameEngine {
         &mut self.rng.1
     }
 
-    /// generate a strong random id that isn't in use
+    /// generate a seeded, strong random id that isn't in use
     pub fn generate_id(&mut self) -> u128 {
         loop {
             let rng = self.rng();
@@ -198,6 +195,22 @@ impl GameEngine {
             if !self.entities.contains_key(&id) {
                 return id;
             }
+        }
+    }
+
+    pub fn say_to(&mut self, entity_id: &u128, msg: String) {
+        if let Some(entity) = self.entities.get(entity_id).cloned() {
+            let mut text = TextEntity::new(self.generate_id(), IVec2::MAX, IVec2::splat(100));
+            text.text = msg;
+            text.pure = false;
+            text.attached_to = Some((
+                *entity_id,
+                entity.center() + IVec2::new(0, entity.size().y + 50),
+            ));
+            text.disappears_at_step_index = self.step_index + 120;
+            self.spawn_entity(EngineEntity::Text(text), None, true);
+        } else {
+            println!("WARNING: attempting to say {msg} to entity {entity_id} which does not exist in engine");
         }
     }
 
@@ -349,7 +362,7 @@ impl GameEngine {
         btree
             .entry(step_index)
             .or_default()
-            .insert(event.id(), event);
+            .insert(self.generate_id(), event);
         self.integrate_events(btree);
     }
 
@@ -407,18 +420,16 @@ impl GameEngine {
 
     pub fn register_event(&mut self, step_index: Option<u64>, event: GameEvent) {
         let step_index = step_index.unwrap_or(self.step_index);
-        if step_index == self.step_index && !self.in_step && !event.universal() {
-            panic!("events may only be registered same step during the step routine");
-        }
         // if the step is in the past we insert and replay
         // engine will replay all over events that ocurred as well
+        let event_id = self.generate_id();
         if let Some(event) = self
             .events_by_type
             .entry(GameEventType::from(&event))
             .or_default()
             .entry(step_index)
             .or_default()
-            .insert(event.id(), event)
+            .insert(event_id, event)
         {
             println!("overwriting event: {:?}", event);
         }
@@ -495,7 +506,6 @@ impl GameEngine {
 
     /// A step is considered complete at the _end_ of this function
     pub fn step(&mut self) {
-        self.in_step = true;
         let entities_clone = self.entities.clone();
         self.entities_by_step
             .insert(self.step_index, entities_clone);
@@ -524,6 +534,9 @@ impl GameEngine {
                 } => {
                     if let Some(e) = self.entities.insert(entity.id(), entity.clone()) {
                         println!("WARNING: inserting entity that already existed! {:?}", e);
+                        if &e == entity {
+                            println!("entities are equal");
+                        }
                         println!("new: {:?}", entity);
                     }
                 }
@@ -562,6 +575,5 @@ impl GameEngine {
 
         // Officially move to the next step
         self.step_index += 1;
-        self.in_step = false;
     }
 }

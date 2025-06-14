@@ -136,6 +136,15 @@ fn player_camera(
     time: Res<Time>,
 ) {
     if active_player_entity_id.0.is_none() {
+        let engine = &active_game_engine.0;
+        if let Ok((mut camera_transform, _)) = camera.single_mut() {
+            camera_transform.translation = Vec3::new(
+                (engine.map.spawn_location.x / 2) as f32,
+                (engine.map.spawn_location.y / 2) as f32,
+                0.0,
+            );
+        }
+        snap_to_position(&mut camera, &map_loader, &map_assets, windows, false);
         return;
     }
     let active_player_entity_id = active_player_entity_id.0.as_ref().unwrap();

@@ -6,13 +6,6 @@ use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::emoji::EmojiEntity;
-use super::mob::MobEntity;
-use super::mob_spawner::MobSpawnEntity;
-use super::platform::PlatformEntity;
-use super::player::PlayerEntity;
-use super::portal::PortalEntity;
-use super::rect::RectEntity;
 use crate::engine::GameEngine;
 use crate::STEP_DELAY;
 
@@ -173,13 +166,14 @@ macro_rules! engine_entity_enum {
 
 engine_entity_enum! {
     EngineEntity {
-        Rect(RectEntity),
-        Player(PlayerEntity),
-        Mob(MobEntity),
-        MobSpawner(MobSpawnEntity),
-        Platform(PlatformEntity),
-        Portal(PortalEntity),
-        Emoji(EmojiEntity),
+        Rect(super::rect::RectEntity),
+        Player(super::player::PlayerEntity),
+        Mob(super::mob::MobEntity),
+        MobSpawner(super::mob_spawn::MobSpawnEntity),
+        Platform(super::platform::PlatformEntity),
+        Portal(super::portal::PortalEntity),
+        Emoji(super::emoji::EmojiEntity),
+        Text(super::text::TextEntity),
         // Item(ItemEntity),  // Uncomment when ready
     }
 }
@@ -234,6 +228,15 @@ macro_rules! entity_struct {
             pub fn new(id: u128, position: bevy_math::IVec2, size: bevy_math::IVec2) -> Self {
                 Self {
                     id,
+                    position,
+                    size,
+                    ..Default::default()
+                }
+            }
+
+            pub fn new_pure(position: bevy_math::IVec2, size: bevy_math::IVec2) -> Self {
+                Self {
+                    id: rand::random(), // use an unseeded random for entities that do not need to be communicated
                     position,
                     size,
                     ..Default::default()

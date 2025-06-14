@@ -65,6 +65,7 @@ impl PlayerRecord {
         tree.transaction(move |player_tree| {
             if let Some(player) = player_tree.get(&player_id)? {
                 let mut player: PlayerRecord = bincode::deserialize(player.as_ref()).unwrap();
+                println!("{:?}", player);
                 if player.current_map != from_map {
                     return Err(ConflictableTransactionError::Abort(format!(
                         "player not in map: {from_map}"

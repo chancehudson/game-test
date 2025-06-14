@@ -33,7 +33,3 @@ pub static START_INSTANT: Lazy<Instant> = Lazy::new(|| Instant::now());
 pub fn timestamp() -> f64 {
     Instant::now().duration_since(*START_INSTANT).as_secs_f64()
 }
-
-pub fn generate_strong_u128() -> u128 {
-    rng().random()
-}

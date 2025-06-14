@@ -2,7 +2,7 @@ use bevy_math::IVec2;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::engine::mob_spawner::MobSpawnEntity;
+use crate::engine::mob_spawn::MobSpawnEntity;
 use crate::engine::portal::PortalEntity;
 
 // Custom deserializer for Vec2

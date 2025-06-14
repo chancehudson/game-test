@@ -11,6 +11,9 @@ use game_test::action::Response;
 use game_test::engine::game_event::ServerEvent;
 use game_test::map::MapData;
 use tokio::sync::RwLock;
+use tokio::sync::RwLockWriteGuard;
+
+use crate::map_instance;
 
 use super::network;
 use super::MapInstance;
@@ -36,7 +39,7 @@ pub struct Game {
     pub network_server: Arc<network::Server>,
     // name keyed to instance
     pub map_instances: Arc<HashMap<String, Arc<RwLock<MapInstance>>>>,
-    pub engine_id_to_map_name: Arc<RwLock<HashMap<u32, String>>>,
+    pub instance_for_player_id: Arc<RwLock<HashMap<String, Arc<RwLock<MapInstance>>>>>,
 }
 
 impl Game {
@@ -76,7 +79,7 @@ impl Game {
             db: sled::open("./game_data")?,
             network_server,
             map_instances: Arc::new(map_instances),
-            engine_id_to_map_name: Arc::new(RwLock::new(engine_id_to_map_name)),
+            instance_for_player_id: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -101,22 +104,25 @@ impl Game {
                     .await?
                     .expect("player record does not exist!");
 
+                // remove the player from the old map if they exist
                 if let Some(map_instance) = self.map_instances.get(&from_map) {
                     map_instance.write().await.remove_player(&player_id).await;
                 }
-                // remove the player from the new map if they exist
-                if let Some(map_instance) = self.map_instances.get(&from_map) {
-                    map_instance.write().await.remove_player(&player_id).await;
-                }
+                self.send_player_state(&player_id).await?;
                 // then add them
                 if let Some(map_instance) = self.map_instances.get(&to_map) {
+                    self.instance_for_player_id
+                        .write()
+                        .await
+                        .insert(player_id.clone(), map_instance.clone());
                     map_instance
                         .write()
                         .await
                         .add_player(&PlayerState::from(&record))
                         .await?;
+                } else {
+                    anyhow::bail!("unknown map name {to_map}");
                 }
-                self.send_player_state(&player_id).await?;
             }
         }
         Ok(())
@@ -130,7 +136,12 @@ impl Game {
             // TODO: handle this
             anyhow::bail!("player map instance non-existent")
         }
-        let mut map_instance = map_instance.unwrap().write().await;
+        let map_instance = map_instance.unwrap();
+        self.instance_for_player_id
+            .write()
+            .await
+            .insert(player_state.id.clone(), map_instance.clone());
+        let mut map_instance = map_instance.write().await;
         map_instance.remove_player(&player_state.id).await;
         map_instance.add_player(&player_state).await?;
         self.network_server
@@ -169,9 +180,6 @@ impl Game {
             }
             Action::LoginPlayer(name) => {
                 if let Some(player) = PlayerRecord::player_by_name(self.db.clone(), &name).await? {
-                    self.network_server
-                        .register_player(socket_id.clone(), player.id.clone())
-                        .await;
                     self.login_player(&socket_id, &player).await?;
                 } else {
                     self.network_server
@@ -189,16 +197,44 @@ impl Game {
                     return Ok(());
                 }
                 let player_id = player_id.unwrap();
-                if let Some(map_name) = self.engine_id_to_map_name.read().await.get(&engine_id) {
-                    if let Some(map_instance) = self.map_instances.get(map_name) {
-                        let mut map_instance = map_instance.write().await;
-                        map_instance
-                            .integrate_client_event(&player_id, &engine_id, event, step_index)
-                            .await?;
-                    } else {
-                        println!("ERROR: Player  is on unknown map:  !",);
-                        return Ok(());
-                    }
+                if let Some(map_instance) = self
+                    .instance_for_player_id
+                    .read()
+                    .await
+                    .get(&player_id)
+                    .cloned()
+                {
+                    let mut map_instance = map_instance.write().await;
+                    map_instance
+                        .integrate_client_event(&player_id, &engine_id, event, step_index)
+                        .await?;
+                }
+            }
+            // This is a task that occurs outside of the engine because it may be stalled
+            // or otherwise incapable of exchanging GameEvent structs
+            //
+            // engines have to stay synchronized to within 60 steps (~1 second) of the server
+            //
+            // if a client desyncs we re-initialize with a serialized GameEngine, and then
+            // exchange GameEvents to agree on changes to the engine state
+            //
+            Action::RequestEngineReload(_engine_id) => {
+                // but linus said deep indentation bad
+                let player_id = self.network_server.player_by_socket_id(&socket_id).await;
+                if player_id.is_none() {
+                    println!("No player id for socket {} !", socket_id);
+                    return Ok(());
+                }
+                let player_id = player_id.unwrap();
+                if let Some(map_instance) = self
+                    .instance_for_player_id
+                    .read()
+                    .await
+                    .get(&player_id)
+                    .cloned()
+                {
+                    let mut map_instance = map_instance.write().await;
+                    map_instance.reload_player_engine(&player_id).await?;
                 }
             }
         }

@@ -16,7 +16,9 @@ pub enum Action {
     LoginPlayer(String),
     LogoutPlayer,
     // engine id, game event, step_index
-    EngineEvent(u32, GameEvent, u64),
+    EngineEvent(u128, GameEvent, u64),
+    // engine id
+    RequestEngineReload(u128),
     Ping,
 }
 
@@ -25,11 +27,11 @@ pub enum Action {
 pub enum Response {
     PlayerLoggedIn(PlayerState),
     PlayerRemoved(String),
-    // engine, server_step_index, entity the player controls
-    EngineState(GameEngine, u64, Option<u128>),
+    // engine, server_step_index
+    EngineState(GameEngine, u64),
     PlayerState(PlayerState),
     // engine id, game events <step_index, <event_id, event>>
-    EngineEvents(u32, BTreeMap<u64, HashMap<u128, GameEvent>>),
+    EngineEvents(u128, BTreeMap<u64, HashMap<u128, GameEvent>>),
     // from_map
     PlayerExitMap(String),
     LoginError(String),

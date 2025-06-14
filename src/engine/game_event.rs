@@ -66,18 +66,3 @@ impl HasUniversal for GameEvent {
         }
     }
 }
-
-// Add this trait to access the id field uniformly
-pub trait HasId {
-    fn id(&self) -> u128;
-}
-
-impl HasId for GameEvent {
-    fn id(&self) -> u128 {
-        match self {
-            GameEvent::RemoveEntity { id, .. } => *id,
-            GameEvent::SpawnEntity { id, .. } => *id,
-            GameEvent::Input { id, .. } => *id,
-        }
-    }
-}

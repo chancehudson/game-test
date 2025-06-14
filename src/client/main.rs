@@ -12,6 +12,7 @@ pub use game_test::action::Response;
 use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::game_event::GameEvent;
+use game_test::engine::player::PlayerEntity;
 use game_test::engine::GameEngine;
 use game_test::engine::STEP_LEN_S;
 use game_test::timestamp;
@@ -35,6 +36,7 @@ use network::NetworkMessage;
 use crate::map::MapEntity;
 use crate::map_data_loader::MapDataAsset;
 use crate::mob::MobComponent;
+use crate::network::NetworkAction;
 use crate::player::PlayerComponent;
 use crate::smooth_camera::CameraMovement;
 use crate::sprite_data_loader::SpriteDataAsset;
@@ -207,7 +209,6 @@ fn handle_exit_map(
     query: Query<Entity, With<MapEntity>>,
     mut commands: Commands,
     mut next_state: ResMut<NextState<GameState>>,
-    mut active_player_state: ResMut<ActivePlayerState>,
 ) {
     for event in action_events.read() {
         if let Response::PlayerExitMap(_from_map) = &event.0 {
@@ -217,7 +218,6 @@ fn handle_exit_map(
                 commands.entity(entity).despawn();
             }
             next_state.set(GameState::Waiting);
-            active_player_state.0 = None;
         }
     }
 }
@@ -225,7 +225,6 @@ fn handle_exit_map(
 fn handle_engine_event(
     mut action_events: EventReader<NetworkMessage>,
     mut active_engine_state: ResMut<ActiveGameEngine>,
-    active_player_entity_id: Res<ActivePlayerEntityId>,
 ) {
     for event in action_events.read() {
         match &event.0 {
@@ -234,43 +233,7 @@ fn handle_engine_event(
                 if engine.id != *engine_id {
                     continue;
                 }
-                engine.integrate_events(
-                    // find any events for the local player and un-offset them
-                    // manually
-                    events
-                        .iter()
-                        .map(|(si, events)| {
-                            (
-                                *si,
-                                events
-                                    .iter()
-                                    .filter_map(|(event_id, event)| {
-                                        // println!("{} {:?}", si, event);
-                                        match event {
-                                            GameEvent::Input {
-                                                id: _,
-                                                input: _,
-                                                entity_id,
-                                                universal: _,
-                                            } => {
-                                                if entity_id
-                                                    == &active_player_entity_id
-                                                        .0
-                                                        .unwrap_or_default()
-                                                {
-                                                    // println!("server event: {}", si - STEP_DELAY);
-                                                    return None;
-                                                }
-                                            }
-                                            _ => {}
-                                        }
-                                        Some((*event_id, event.clone()))
-                                    })
-                                    .collect::<HashMap<_, _>>(),
-                            )
-                        })
-                        .collect::<BTreeMap<_, _>>(),
-                );
+                engine.integrate_events(events.clone());
             }
             _ => {}
         }
@@ -279,20 +242,60 @@ fn handle_engine_event(
 
 fn handle_engine_state(
     mut action_events: EventReader<NetworkMessage>,
+    mut action_events_write: EventWriter<NetworkAction>,
     mut active_engine_state: ResMut<ActiveGameEngine>,
-    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
     mut next_state: ResMut<NextState<GameState>>,
+    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
+    active_player_state: Res<ActivePlayerState>,
+    mut camera_query: Query<(&mut Transform, &mut CameraMovement), With<Camera2d>>,
+    map_loader: Res<map::MapLoader>,
+    map_assets: Res<Assets<MapDataAsset>>,
+    windows: Query<&Window>,
 ) {
     for event in action_events.read() {
-        if let Response::EngineState(engine, _server_step_index, entity_id_maybe) = &event.0 {
-            println!("Engine state: {}", engine.id);
-            active_player_entity_id.0 = entity_id_maybe.clone();
-            // let step_delay = server_step_index - engine.step_index;
+        if let Response::EngineState(engine, _server_step_index) = &event.0 {
+            println!("INFO: Received engine with id: {}", engine.id);
             // TODO: figure out how to get rid of this clone
+            let is_map_change = active_engine_state.0.map.name != engine.map.name;
             active_engine_state.0 = engine.clone();
-            active_engine_state.0.start_timestamp =
-                timestamp() - ((active_engine_state.0.step_index as f64) * STEP_LEN_S);
+            let engine = &mut active_engine_state.0;
+            // approximate locally
+            engine.start_timestamp = timestamp() - ((engine.step_index as f64) * STEP_LEN_S);
 
+            if is_map_change {
+                if let Some(active_entity_id) = &mut active_player_entity_id.0 {
+                    if let Some(player_state) = &active_player_state.0 {
+                        let mut entity =
+                            PlayerEntity::new_with_ids(rand::random(), player_state.id.clone());
+                        entity.is_active = true;
+                        entity.position = engine.map.spawn_location;
+                        if let Ok((mut camera_transform, _)) = camera_query.single_mut() {
+                            camera_transform.translation = entity.position_f32().extend(0.0);
+                        }
+                        smooth_camera::snap_to_position(
+                            &mut camera_query,
+                            &map_loader,
+                            &map_assets,
+                            windows,
+                            true,
+                        );
+                        *active_entity_id = entity.id;
+                        let spawn_event = GameEvent::SpawnEntity {
+                            id: rand::random(),
+                            entity: EngineEntity::Player(entity),
+                            universal: true,
+                        };
+                        // register the event locally
+                        engine.register_event(None, spawn_event.clone());
+                        // send the new input to the server
+                        action_events_write.write(NetworkAction(Action::EngineEvent(
+                            engine.id,
+                            spawn_event,
+                            engine.step_index,
+                        )));
+                    }
+                }
+            }
             next_state.set(GameState::LoadingMap);
         }
     }
@@ -306,13 +309,10 @@ fn sync_engine_components(
     mut sprite_manager: ResMut<SpriteManager>,
     sprite_data: Res<Assets<SpriteDataAsset>>,
 ) {
-    let mut to_spawn = active_engine_state.0.entities.clone();
+    let engine = &active_engine_state.0;
+    let mut to_spawn = engine.entities.clone();
     for (entity, entity_component, mut transform, mut sprite) in entity_query.iter_mut() {
-        if let Some(game_entity) = active_engine_state
-            .0
-            .entities
-            .get(&entity_component.entity_id)
-        {
+        if let Some(game_entity) = engine.entities.get(&entity_component.entity_id) {
             transform.translation = game_entity.position_f32().extend(transform.translation.z);
             match game_entity {
                 EngineEntity::Player(p) => {
@@ -421,6 +421,19 @@ fn sync_engine_components(
                         anchor: bevy::sprite::Anchor::BottomLeft,
                         ..default()
                     },
+                ));
+            }
+            EngineEntity::Text(p) => {
+                commands.spawn((
+                    GameEntityComponent { entity_id: id },
+                    Transform::from_translation(p.position_f32().extend(20.0)),
+                    MapEntity,
+                    Text2d(p.text),
+                    TextFont {
+                        font_size: p.font_size,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(p.color.x, p.color.y, p.color.z)),
                 ));
             }
         }
