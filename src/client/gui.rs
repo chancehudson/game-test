@@ -1,16 +1,16 @@
-use std::time::{Duration, Instant};
-
 use bevy::prelude::*;
 use bevy_egui::egui::{Color32, RichText};
-use bevy_egui::{egui, EguiContextPass, EguiContexts, EguiPlugin};
+use bevy_egui::{EguiContextPass, EguiContexts, EguiPlugin, egui};
 use game_test::action::{Action, Response};
 use game_test::timestamp;
+use web_time::Duration;
+use web_time::Instant;
 
 use crate::network::{NetworkConnectionMaybe, NetworkMessage};
 use crate::{ActivePlayerEntityId, LoggedInAt};
 
-use super::network::NetworkConnection;
 use super::GameState;
+use super::network::NetworkConnection;
 
 pub struct GuiPlugin;
 
@@ -21,6 +21,7 @@ pub struct ConnectViewState {
     attempting_connection: bool,
     error: Option<String>,
     requested_initial_focus: bool,
+    began_connecting: Option<Instant>,
 }
 
 // A player authenticates with a server
@@ -38,6 +39,7 @@ impl Default for ConnectViewState {
             attempting_connection: false,
             error: None,
             requested_initial_focus: false,
+            began_connecting: None,
         }
     }
 }
@@ -134,26 +136,27 @@ fn connect_view(
             // render connect text field/button
             if connect_view_state.attempting_connection {
                 ui.label("Connecting...");
+                if let Some(connection) = &connection_maybe.0 {
+                    if let Err(e) = connection.is_open() {
+                        connect_view_state.error = Some(e.to_string());
+                        connect_view_state.attempting_connection = false;
+                        connection_maybe.0 = None;
+                    } else {
+                        // successful connection, render loop ends
+                        *connect_view_state = ConnectViewState::default();
+                        next_state.set(GameState::LoggedOut);
+                    }
+                } else {
+                    connect_view_state.attempting_connection = false;
+                    connection_maybe.0 = None;
+                }
             } else {
                 if ui.button("Connect!").clicked() || enter_pressed{
                     // handle join click
                     connect_view_state.attempting_connection = true;
+                    connect_view_state.began_connecting = Some(Instant::now());
                     let connection = NetworkConnection::attempt_connection(connect_view_state.server_url.clone());
-                    if let Ok(connected) = connection.connected_rx.recv_deadline(Instant::now().checked_add(Duration::from_secs(5)).unwrap()) {
-                        if let Err(e) = connected {
-                            connect_view_state.error = Some(e.to_string());
-                            connect_view_state.attempting_connection = false;
-                        } else {
-                            // successful connection, render loop ends
-                            *connect_view_state = ConnectViewState::default();
-                            connection_maybe.0 = Some(connection);
-                            next_state.set(GameState::LoggedOut);
-                        }
-                    } else {
-                        // TODO: handle stalled connection attempt thread
-                        connect_view_state.error = Some("Timed out connecting to server!".to_string());
-                        connect_view_state.attempting_connection = false;
-                    }
+                    connection_maybe.0 = Some(connection);
                 }
             }
             // render error message

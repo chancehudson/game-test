@@ -1,3 +1,6 @@
+use std::time::Duration;
+use std::time::Instant;
+
 use bevy::prelude::*;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
@@ -18,6 +21,18 @@ pub struct NetworkConnection {
 impl NetworkConnection {
     pub fn is_closed(&self) -> bool {
         self.worker_thread.is_finished()
+    }
+
+    pub fn is_open(&self) -> anyhow::Result<bool> {
+        if self.connected_rx.is_empty() {
+            return Ok(false);
+        }
+        let msg = self.connected_rx.recv();
+        if let Err(e) = msg {
+            Err(anyhow::format_err!(e))
+        } else {
+            Ok(true)
+        }
     }
 
     pub fn attempt_connection(url: String) -> Self {

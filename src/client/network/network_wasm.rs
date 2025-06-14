@@ -1,11 +1,9 @@
 use bevy::prelude::*;
-use bevy::tasks::futures_lite::stream::block_on;
 use bevy::tasks::futures_lite::StreamExt;
+use bevy::tasks::futures_lite::stream::block_on;
 use futures_util::SinkExt;
 use gloo_timers::future::TimeoutFuture;
-use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::future_to_promise;
-use wasm_bindgen_futures::js_sys::Promise;
 use wasm_bindgen_futures::spawn_local;
 use ws_stream_wasm::*;
 
@@ -18,6 +16,7 @@ pub struct NetworkConnection {
     send_tx: flume::Sender<Action>,
     receive_rx: flume::Receiver<Response>,
     close_rx: flume::Receiver<()>,
+    connected_rx: flume::Receiver<anyhow::Result<()>>,
 }
 
 impl NetworkConnection {
@@ -25,13 +24,36 @@ impl NetworkConnection {
         !self.close_rx.is_empty()
     }
 
+    pub fn is_open(&self) -> anyhow::Result<bool> {
+        if self.connected_rx.is_empty() {
+            return Ok(false);
+        }
+        let msg = self.connected_rx.recv();
+        if let Err(e) = msg {
+            Err(anyhow::format_err!(e))
+        } else {
+            Ok(true)
+        }
+    }
+
     pub fn attempt_connection(url: String) -> Self {
         let url_clone = url.clone();
         let (send_tx, send_rx) = flume::unbounded::<Action>();
         let (receive_tx, receive_rx) = flume::unbounded::<Response>();
         let (close_tx, close_rx) = flume::bounded::<()>(1);
+        let (connected_tx, connected_rx) = flume::unbounded::<anyhow::Result<()>>();
         spawn_local(async move {
-            if let Ok((ws, mut wsio)) = WsMeta::connect(url_clone, None).await {
+            let connection = WsMeta::connect(url_clone, None).await;
+            if let Err(e) = connection {
+                connected_tx.send(Err(anyhow::format_err!(e))).ok();
+                return; // thread ends
+            }
+            if let Ok((ws, mut wsio)) = connection {
+                if let Err(_) = connected_tx.send(Ok(())) {
+                    println!("WARNING: No receivers for network connection attempt!");
+                    println!("halting connection thread");
+                    return; // thread ends
+                }
                 loop {
                     println!("read");
                     while let Ok(action) = send_rx.try_recv() {
@@ -71,6 +93,7 @@ impl NetworkConnection {
             url,
             send_tx,
             receive_rx,
+            connected_rx,
             close_rx,
         }
     }
