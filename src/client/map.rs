@@ -1,4 +1,5 @@
 use bevy::asset::LoadedUntypedAsset;
+use bevy::image::ImageSampler;
 use bevy::prelude::*;
 
 use game_test::MapData;

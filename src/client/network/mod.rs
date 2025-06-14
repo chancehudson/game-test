@@ -9,9 +9,9 @@ mod network_native;
 mod network_wasm;
 
 #[cfg(not(target_arch = "wasm32"))]
-use network_native::NetworkConnection;
+pub use network_native::NetworkConnection;
 #[cfg(target_arch = "wasm32")]
-use network_wasm::NetworkConnection;
+pub use network_wasm::NetworkConnection;
 
 use crate::GameState;
 
@@ -23,13 +23,16 @@ pub struct NetworkMessage(pub Response);
 #[derive(Event)]
 pub struct NetworkAction(pub Action);
 
+#[derive(Resource, Default)]
+pub struct NetworkConnectionMaybe(pub Option<NetworkConnection>);
+
 pub struct NetworkPlugin;
 
 impl Plugin for NetworkPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<NetworkMessage>()
+        app.init_resource::<NetworkConnectionMaybe>()
+            .add_event::<NetworkMessage>()
             .add_event::<NetworkAction>()
-            .add_systems(FixedUpdate, initialize_network)
             .add_systems(
                 FixedUpdate,
                 (send_system, receive_system).run_if(not(in_state(GameState::Disconnected))),
@@ -37,41 +40,26 @@ impl Plugin for NetworkPlugin {
     }
 }
 
-fn initialize_network(
-    mut commands: Commands,
-    query: Query<(Entity, &NetworkConnection)>,
-    mut next_state: ResMut<NextState<GameState>>,
-) {
-    if let Ok((entity, connection)) = query.single() {
-        if connection.is_closed() {
-            commands.entity(entity).despawn();
-            next_state.set(GameState::Disconnected);
-        }
-    } else {
-        let connection = NetworkConnection::attempt_connection("ws://127.0.0.1:1351".to_string());
-        commands.spawn(connection);
-        next_state.set(GameState::LoggedOut);
-    }
-}
-
 // System to handle sending messages
-fn send_system(query: Query<&NetworkConnection>, mut action_events: EventReader<NetworkAction>) {
-    if let Ok(connection) = query.single() {
+fn send_system(
+    connection_maybe: Res<NetworkConnectionMaybe>,
+    mut action_events: EventReader<NetworkAction>,
+) {
+    if let Some(connection) = &connection_maybe.0 {
         for action in action_events.read() {
             connection.write_connection(action.0.clone());
         }
+    } else {
+        println!("WARNING: attempting to send network event without connection");
     }
 }
 
 // System to handle receiving messages
 fn receive_system(
-    query: Query<&NetworkConnection>,
+    connection_maybe: Res<NetworkConnectionMaybe>,
     mut message_events: EventWriter<NetworkMessage>,
 ) {
-    if query.is_empty() {
-        println!("No network connection component in receive");
-    }
-    if let Ok(connection) = query.single() {
+    if let Some(connection) = &connection_maybe.0 {
         let messages = connection
             .read_connection()
             .iter()
@@ -79,5 +67,7 @@ fn receive_system(
             .map(|v| NetworkMessage(v))
             .collect::<Vec<_>>();
         message_events.write_batch(messages);
+    } else {
+        println!("WARNING: attempting to receive network event without connection");
     }
 }

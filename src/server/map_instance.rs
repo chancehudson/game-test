@@ -13,12 +13,13 @@ use game_test::STEP_DELAY;
 
 use crate::network;
 
-struct RemotePlayerEngine {
+pub struct RemotePlayerEngine {
     pub entity_id: Option<u128>,
     pub engine_id: u128,
     pub is_inited: bool,
     pub player_id: String,
     pub last_step_index: u64,
+    pub last_input_step_index: u64,
 }
 
 /// A distinct instance of a map. Each map is it's own game instance
@@ -27,7 +28,7 @@ pub struct MapInstance {
     pub map: MapData,
     pub engine: GameEngine,
 
-    player_engines: HashMap<String, RemotePlayerEngine>,
+    pub player_engines: HashMap<String, RemotePlayerEngine>,
 
     network_server: Arc<network::Server>,
 }
@@ -113,6 +114,7 @@ impl MapInstance {
                 player_id: player_state.id.clone(),
                 entity_id: None,
                 last_step_index: 0,
+                last_input_step_index: self.engine.step_index,
             },
         ) {
             // cleanup previous engine connection
@@ -217,6 +219,7 @@ impl MapInstance {
                             anyhow::bail!("player tried to input for wrong entity");
                         }
                         println!("integrating input event at {step_index}");
+                        player.last_input_step_index = step_index;
                         self.engine.integrate_event(step_index, event);
                     } else {
                         println!("attempting to send input with no spawned entity");

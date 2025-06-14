@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default = ["server", "client"]
-client = ["bevy", "bevy_simple_text_input", "bevy/web", "bevy/jpeg"]
+client = ["bevy", "bevy_egui", "bevy_simple_text_input", "bevy/web", "bevy/jpeg"]
 server = ["sled"]
 trace = ["bevy/trace", "bevy/trace_tracy", "tracy-client"]
 
@@ -52,6 +52,7 @@ web-time = "1.1.0"
 
 tracy-client = { version = "=0.18.0", optional = true }
 rand_chacha = "0.9.0"
+bevy_egui = { version = "0.34.1", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.43.0", features = ["full"] }

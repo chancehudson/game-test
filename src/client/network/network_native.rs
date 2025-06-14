@@ -7,11 +7,11 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use game_test::action::Action;
 use game_test::action::Response;
 
-#[derive(Component)]
 pub struct NetworkConnection {
     url: String,
     send_tx: flume::Sender<Action>,
     receive_rx: flume::Receiver<Response>,
+    pub connected_rx: flume::Receiver<anyhow::Result<()>>,
     worker_thread: std::thread::JoinHandle<()>,
 }
 
@@ -24,15 +24,26 @@ impl NetworkConnection {
         let url_clone = url.clone();
         let (send_tx, send_rx) = flume::unbounded::<Action>();
         let (receive_tx, receive_rx) = flume::unbounded::<Response>();
+        let (connected_tx, connected_rx) = flume::unbounded::<anyhow::Result<()>>();
         Self {
             url,
+            connected_rx,
             send_tx,
             receive_rx,
             worker_thread: std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
                     let connection = connect_async(url_clone).await;
+                    if let Err(e) = connection {
+                        connected_tx.send(Err(anyhow::format_err!(e))).ok();
+                        return; // thread ends
+                    }
                     if let Ok((ws_stream, _)) = connection {
+                        if let Err(_) = connected_tx.send(Ok(())) {
+                            println!("WARNING: No receivers for network connection attempt!");
+                            println!("halting connection thread");
+                            return; // thread ends
+                        }
                         let (mut write, mut read) = ws_stream.split();
                         tokio::spawn(async move {
                             while let Some(Ok(msg)) = read.next().await {
@@ -60,12 +71,8 @@ impl NetworkConnection {
                                 }
                             }
                         }
-                    } else {
-                        println!(
-                            "Error connecting to server: {:?}",
-                            connection.err().unwrap()
-                        );
                     }
+                    // thread ends
                 });
             }),
         }

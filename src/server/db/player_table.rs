@@ -26,7 +26,7 @@ impl PlayerRecord {
         let player = Self {
             id: player_id.clone(),
             username,
-            current_map: "eastwatch".to_string(),
+            current_map: "digital_skyscrapers_1".to_string(),
             experience: 0,
             max_health: 50,
             health: 50,

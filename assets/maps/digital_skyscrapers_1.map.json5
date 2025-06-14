@@ -1,12 +1,11 @@
 {
-    name: "digital_skyscrapers",
+    name: "digital_skyscrapers_1",
     size: [1500, 1000],
     spawn_location: [100, 800],
     background: "skyscrapers.jpg",
     npc: [],
     portals: [
         { position: [50, 0], to: "eastwatch" },
-        { position: [50, 775], to: "eastwatch" },
     ],
     platforms: [
         // Main ground platform at top

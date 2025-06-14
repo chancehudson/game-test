@@ -1,11 +1,11 @@
 {
     name: "eastwatch",
     size: [3000, 1500],
-    spawn_location: [200, 0],
+    spawn_location: [200, 100],
     background: "eastwatch_background_blur.png",
     portals: [
-        { position: [400, 1300], to: "digital_skyscrapers" },
-        { position: [100, 0], to: "digital_skyscrapers" },
+        { position: [400, 1300], to: "digital_skyscrapers_1" },
+        { position: [100, 0], to: "digital_skyscrapers_1" },
         { position: [1200, 0], to: "playtest0" },
     ],
     npc: [

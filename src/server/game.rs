@@ -9,11 +9,9 @@ use game_test::action::Action;
 use game_test::action::PlayerState;
 use game_test::action::Response;
 use game_test::engine::game_event::ServerEvent;
+use game_test::engine::STEPS_PER_SECOND;
 use game_test::map::MapData;
 use tokio::sync::RwLock;
-use tokio::sync::RwLockWriteGuard;
-
-use crate::map_instance;
 
 use super::network;
 use super::MapInstance;
@@ -128,8 +126,20 @@ impl Game {
         Ok(())
     }
 
+    /// Associate a socket id with a player id
+    /// Key a reference to a map instance to the player id
+    /// for all players that are "logged in"
     pub async fn login_player(&self, socket_id: &str, record: &PlayerRecord) -> anyhow::Result<()> {
         let player_state = PlayerState::from(record);
+        if let Some(current_instance) = self.instance_for_player_id.read().await.get(&record.id) {
+            let instance = current_instance.read().await;
+            if let Some(player) = instance.player_engines.get(&record.id) {
+                if player.last_input_step_index > instance.engine.step_index - 10 * STEPS_PER_SECOND
+                {
+                    anyhow::bail!("A player with this name is already logged in!");
+                }
+            }
+        }
         let map_instance = self.map_instances.get(&player_state.current_map);
         if map_instance.is_none() {
             println!("Player is on unknown map: {} !", record.current_map);
@@ -176,17 +186,23 @@ impl Game {
             }
             Action::CreatePlayer(name) => {
                 let record = PlayerRecord::create(self.db.clone(), name).await?;
-                self.login_player(&socket_id, &record).await?;
+                if let Err(e) = self.login_player(&socket_id, &record).await {
+                    self.network_server
+                        .send(&socket_id, Response::LoginError(e.to_string()))
+                        .await?;
+                }
             }
             Action::LoginPlayer(name) => {
-                if let Some(player) = PlayerRecord::player_by_name(self.db.clone(), &name).await? {
-                    self.login_player(&socket_id, &player).await?;
+                let player = if let Some(player) =
+                    PlayerRecord::player_by_name(self.db.clone(), &name).await?
+                {
+                    player
                 } else {
+                    PlayerRecord::create(self.db.clone(), name).await?
+                };
+                if let Err(e) = self.login_player(&socket_id, &player).await {
                     self.network_server
-                        .send(
-                            &socket_id,
-                            Response::LoginError("username does not exist".to_string()),
-                        )
+                        .send(&socket_id, Response::LoginError(e.to_string()))
                         .await?;
                 }
             }

@@ -18,7 +18,6 @@ pub use game_test::MapData;
 mod animated_sprite;
 mod gui;
 mod loading_screen;
-mod login;
 mod map;
 mod map_data_loader;
 mod mob;
@@ -61,6 +60,9 @@ pub struct GameEntityComponent {
 pub struct ActivePlayerEntityId(pub Option<u128>);
 
 #[derive(Resource, Default)]
+pub struct LoggedInAt(pub f64);
+
+#[derive(Resource, Default)]
 pub struct ActivePlayerState(pub Option<PlayerState>);
 
 // Event for incoming messages
@@ -89,6 +91,7 @@ fn main() {
         },
     ))
     .init_state::<GameState>()
+    .init_resource::<LoggedInAt>()
     .init_resource::<SpriteManager>()
     .init_resource::<ActiveGameEngine>()
     .init_resource::<ActivePlayerEntityId>()
@@ -100,7 +103,6 @@ fn main() {
     .add_plugins(map::MapPlugin)
     .add_plugins(map_data_loader::MapDataLoaderPlugin)
     .add_plugins(sprite_data_loader::SpriteDataLoaderPlugin)
-    .add_plugins(login::LoginPlugin)
     .add_plugins(gui::GuiPlugin)
     .add_plugins(network::NetworkPlugin)
     .add_plugins(mob::MobPlugin)
@@ -131,11 +133,13 @@ fn main() {
 
 fn handle_login(
     mut action_events: EventReader<NetworkMessage>,
-    mut next_state: ResMut<NextState<GameState>>,
+    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
+    mut logged_in_at: ResMut<LoggedInAt>,
 ) {
     for event in action_events.read() {
         if let Response::PlayerLoggedIn(_state) = &event.0 {
-            // next_state.set(GameState::Waiting);
+            active_player_entity_id.0 = None;
+            logged_in_at.0 = timestamp();
         }
     }
 }
