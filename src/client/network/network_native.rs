@@ -31,7 +31,8 @@ impl NetworkConnection {
             worker_thread: std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
-                    if let Ok((ws_stream, _)) = connect_async(url_clone).await {
+                    let connection = connect_async(url_clone).await;
+                    if let Ok((ws_stream, _)) = connection {
                         let (mut write, mut read) = ws_stream.split();
                         tokio::spawn(async move {
                             while let Some(Ok(msg)) = read.next().await {
@@ -59,6 +60,11 @@ impl NetworkConnection {
                                 }
                             }
                         }
+                    } else {
+                        println!(
+                            "Error connecting to server: {:?}",
+                            connection.err().unwrap()
+                        );
                     }
                 });
             }),

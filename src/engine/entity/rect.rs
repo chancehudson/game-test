@@ -3,8 +3,8 @@ use bevy_math::Vec3;
 use crate::actor::move_x;
 use crate::engine::STEPS_PER_SECOND_I32;
 
-use super::entity::EEntity;
-use super::entity::SEEntity;
+use super::EEntity;
+use super::SEEntity;
 
 crate::entity_struct!(
     pub struct RectEntity {

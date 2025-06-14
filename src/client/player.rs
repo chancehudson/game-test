@@ -2,11 +2,11 @@ use bevy::prelude::*;
 
 use game_test::action::Action;
 use game_test::action::PlayerState;
+use game_test::engine::entity::player::PlayerEntity;
+use game_test::engine::entity::text::TextEntity;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::entity::EntityInput;
 use game_test::engine::game_event::GameEvent;
-use game_test::engine::player::PlayerEntity;
-use game_test::engine::text::TextEntity;
 
 use crate::animated_sprite::AnimatedSprite;
 use crate::sprite_data_loader::SpriteManager;

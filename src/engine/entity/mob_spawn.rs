@@ -3,10 +3,10 @@ use std::collections::HashSet;
 use bevy_math::IVec2;
 use rand::Rng;
 
-use super::entity::EEntity;
-use super::entity::EngineEntity;
-use super::entity::SEEntity;
-use crate::engine::mob::MobEntity;
+use super::mob::MobEntity;
+use super::EEntity;
+use super::EngineEntity;
+use super::SEEntity;
 use crate::engine::GameEngine;
 use crate::entity_struct;
 use crate::TICK_RATE_S;

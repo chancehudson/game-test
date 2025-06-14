@@ -1,6 +1,3 @@
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-
 use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
 use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::prelude::*;
@@ -9,10 +6,10 @@ use bevy::text::FontSmoothing;
 pub use game_test::action::Action;
 use game_test::action::PlayerState;
 pub use game_test::action::Response;
+use game_test::engine::entity::player::PlayerEntity;
 use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::game_event::GameEvent;
-use game_test::engine::player::PlayerEntity;
 use game_test::engine::GameEngine;
 use game_test::engine::STEP_LEN_S;
 use game_test::timestamp;

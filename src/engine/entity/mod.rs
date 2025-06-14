@@ -9,6 +9,15 @@ use serde::Serialize;
 use crate::engine::GameEngine;
 use crate::STEP_DELAY;
 
+pub mod emoji;
+pub mod mob;
+pub mod mob_spawn;
+pub mod platform;
+pub mod player;
+pub mod portal;
+pub mod rect;
+pub mod text;
+
 /// Inputs that may be applied to any entity.
 #[derive(Default, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub struct EntityInput {
@@ -166,14 +175,14 @@ macro_rules! engine_entity_enum {
 
 engine_entity_enum! {
     EngineEntity {
-        Rect(super::rect::RectEntity),
-        Player(super::player::PlayerEntity),
-        Mob(super::mob::MobEntity),
-        MobSpawner(super::mob_spawn::MobSpawnEntity),
-        Platform(super::platform::PlatformEntity),
-        Portal(super::portal::PortalEntity),
-        Emoji(super::emoji::EmojiEntity),
-        Text(super::text::TextEntity),
+        Rect(rect::RectEntity),
+        Player(player::PlayerEntity),
+        Mob(mob::MobEntity),
+        MobSpawner(mob_spawn::MobSpawnEntity),
+        Platform(platform::PlatformEntity),
+        Portal(portal::PortalEntity),
+        Emoji(emoji::EmojiEntity),
+        Text(text::TextEntity),
         // Item(ItemEntity),  // Uncomment when ready
     }
 }

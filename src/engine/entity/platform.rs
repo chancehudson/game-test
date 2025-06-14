@@ -1,7 +1,7 @@
 use crate::engine::entity::SEEntity;
 use crate::entity_struct;
 
-use super::entity::EEntity;
+use super::EEntity;
 
 entity_struct!(
     pub struct PlatformEntity {}

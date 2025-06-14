@@ -1,8 +1,8 @@
-use crate::engine::entity::SEEntity;
-use crate::engine::player::PlayerEntity;
 use crate::entity_struct;
 
-use super::entity::EEntity;
+use super::player::PlayerEntity;
+use super::EEntity;
+use super::SEEntity;
 
 entity_struct!(
     pub struct PortalEntity {

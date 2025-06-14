@@ -17,7 +17,7 @@ use crate::engine::STEPS_PER_SECOND;
 use crate::engine::STEPS_PER_SECOND_I32;
 use crate::entity_struct;
 
-use super::entity::EntityInput;
+use super::EntityInput;
 
 entity_struct!(
     pub struct MobEntity {

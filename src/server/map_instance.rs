@@ -3,10 +3,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use game_test::action::PlayerState;
-use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::game_event::GameEvent;
-use game_test::engine::player::PlayerEntity;
 use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
 
 use game_test::action::Response;

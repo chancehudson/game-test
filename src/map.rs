@@ -2,8 +2,8 @@ use bevy_math::IVec2;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::engine::mob_spawn::MobSpawnEntity;
-use crate::engine::portal::PortalEntity;
+use crate::engine::entity::mob_spawn::MobSpawnEntity;
+use crate::engine::entity::portal::PortalEntity;
 
 // Custom deserializer for Vec2
 fn deserialize_vec2<'de, D>(deserializer: D) -> Result<IVec2, D::Error>

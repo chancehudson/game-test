@@ -3,20 +3,19 @@ use std::mem::discriminant;
 use bevy_math::IVec2;
 use rand::Rng;
 
+use super::emoji::EmojiEntity;
+use super::portal::PortalEntity;
+use super::rect::RectEntity;
+use super::EEntity;
 use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
-use crate::engine::emoji::EmojiEntity;
 use crate::engine::entity::EngineEntity;
 use crate::engine::entity::SEEntity;
 use crate::engine::game_event::ServerEvent;
-use crate::engine::portal::PortalEntity;
-use crate::engine::rect::RectEntity;
 use crate::engine::GameEngine;
 use crate::engine::STEPS_PER_SECOND_I32;
 use crate::entity_struct;
-
-use super::entity::EEntity;
 
 entity_struct!(
     pub struct PlayerEntity {

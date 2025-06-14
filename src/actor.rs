@@ -5,10 +5,10 @@ use std::mem::discriminant;
 use bevy_math::IRect;
 use bevy_math::IVec2;
 
+use crate::engine::entity::platform::PlatformEntity;
+use crate::engine::entity::rect::RectEntity;
 use crate::engine::entity::EEntity;
 use crate::engine::entity::EngineEntity;
-use crate::engine::platform::PlatformEntity;
-use crate::engine::rect::RectEntity;
 use crate::engine::GameEngine;
 
 use super::MapData;

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
+use game_test::engine::entity::mob::MobEntity;
 use game_test::engine::entity::EngineEntity;
-use game_test::engine::mob::MobEntity;
 
 use crate::animated_sprite::AnimatedSprite;
 use crate::sprite_data_loader::SpriteDataAsset;

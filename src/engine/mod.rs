@@ -27,34 +27,25 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde::Serializer;
 
-pub mod emoji;
 pub mod entity;
 pub mod game_event;
-pub mod mob;
-pub mod mob_spawn;
-pub mod platform;
-pub mod player;
-pub mod portal;
-pub mod rect;
-pub mod text;
 // #[cfg(test)]
 // pub mod tests;
 
+use entity::player::PlayerEntity;
 use entity::EEntity;
 use entity::EngineEntity;
 use entity::EntityInput;
 use entity::SEEntity;
 use game_event::ServerEvent;
-use player::PlayerEntity;
 
+use crate::engine::entity::platform::PlatformEntity;
+use crate::engine::entity::text::TextEntity;
 use crate::engine::game_event::GameEvent;
 use crate::engine::game_event::GameEventType;
 use crate::engine::game_event::HasUniversal;
-use crate::engine::platform::PlatformEntity;
-use crate::engine::text::TextEntity;
 use crate::map::MapData;
 use crate::timestamp;
-use crate::STEP_DELAY;
 
 pub const STEP_LEN_S: f64 = 1. / 60.;
 pub const STEP_LEN_S_F32: f32 = 1. / 60.;
