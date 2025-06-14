@@ -28,7 +28,7 @@ impl NetworkConnection {
         if self.connected_rx.is_empty() {
             return Ok(false);
         }
-        let msg = self.connected_rx.recv();
+        let msg = self.connected_rx.recv().unwrap();
         if let Err(e) = msg {
             Err(anyhow::format_err!(e))
         } else {
@@ -45,17 +45,19 @@ impl NetworkConnection {
         spawn_local(async move {
             let connection = WsMeta::connect(url_clone, None).await;
             if let Err(e) = connection {
+                web_sys::console::log_1(&"Connection errored".into());
+                web_sys::console::log_2(&"err:".into(), &e.to_string().into());
                 connected_tx.send(Err(anyhow::format_err!(e))).ok();
                 return; // thread ends
             }
             if let Ok((ws, mut wsio)) = connection {
+                web_sys::console::log_1(&"Connection succeeded".into());
                 if let Err(_) = connected_tx.send(Ok(())) {
                     println!("WARNING: No receivers for network connection attempt!");
                     println!("halting connection thread");
                     return; // thread ends
                 }
                 loop {
-                    println!("read");
                     while let Ok(action) = send_rx.try_recv() {
                         if let Err(e) = wsio
                             .send(WsMessage::Binary(bincode::serialize(&action).unwrap()))
@@ -64,7 +66,6 @@ impl NetworkConnection {
                             println!("Error sending ws message {:?}", e);
                         }
                     }
-                    println!("write");
                     for msg in block_on(wsio.drain()) {
                         match msg {
                             WsMessage::Binary(bytes) => {
@@ -80,7 +81,7 @@ impl NetworkConnection {
                             _ => {}
                         }
                     }
-                    TimeoutFuture::new(10).await;
+                    TimeoutFuture::new(17).await;
                     if ws.ready_state() != WsState::Open {
                         println!("breaking");
                         break;

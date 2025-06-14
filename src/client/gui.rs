@@ -137,14 +137,29 @@ fn connect_view(
             if connect_view_state.attempting_connection {
                 ui.label("Connecting...");
                 if let Some(connection) = &connection_maybe.0 {
-                    if let Err(e) = connection.is_open() {
-                        connect_view_state.error = Some(e.to_string());
-                        connect_view_state.attempting_connection = false;
-                        connection_maybe.0 = None;
-                    } else {
-                        // successful connection, render loop ends
-                        *connect_view_state = ConnectViewState::default();
-                        next_state.set(GameState::LoggedOut);
+                    match connection.is_open() {
+                        Err(e) => {
+                            connect_view_state.error = Some(e.to_string());
+                            connect_view_state.attempting_connection = false;
+                            connection_maybe.0 = None;
+                        }
+                        Ok(is_open) => {
+                            if is_open {
+                                // successful connection, render loop ends
+                                *connect_view_state = ConnectViewState::default();
+                                next_state.set(GameState::LoggedOut);
+                            } else {
+                                // waiting
+                                if connect_view_state.began_connecting.is_none() ||
+                                    Instant::now().duration_since(connect_view_state.began_connecting.unwrap()).as_secs() > 5
+                                    {
+                                    connection_maybe.0 = None;
+                                    connect_view_state.error = Some("Connection timed out".to_string());
+                                    connect_view_state.attempting_connection = false;
+
+                                }
+                            }
+                        }
                     }
                 } else {
                     connect_view_state.attempting_connection = false;
