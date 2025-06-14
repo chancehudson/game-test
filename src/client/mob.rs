@@ -96,7 +96,7 @@ fn animate_mobs(
             let data = sprite_manager
                 .sprite_data_maybe(&mob_data.mob_type, &sprite_data)
                 .unwrap();
-            if mob_data.velocity.x.abs() < 0.1 {
+            if mob_data.velocity.x.abs() < 1 {
                 if sprite.image != mob.standing_texture {
                     sprite.image = mob.standing_texture.clone();
                     sprite.texture_atlas = Some(TextureAtlas {

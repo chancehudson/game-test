@@ -3,6 +3,8 @@ use bevy::prelude::*;
 use game_test::action::Action;
 use game_test::action::PlayerState;
 use game_test::engine::entity::EntityInput;
+use game_test::engine::game_event::GameEvent;
+use game_test::generate_strong_u128;
 
 use crate::animated_sprite::AnimatedSprite;
 use crate::sprite_data_loader::SpriteManager;
@@ -63,12 +65,6 @@ fn input_system(
         return;
     }
     let active_player_entity_id = active_player_entity_id.0.as_ref().unwrap();
-    let entity = active_game_engine.0.entities.get(active_player_entity_id);
-    if entity.is_none() {
-        println!("WARNING: no entity for input");
-        return;
-    }
-    let entity = entity.unwrap().clone();
     let input = EntityInput {
         jump: keyboard.pressed(KeyCode::Space),
         move_left: keyboard.pressed(KeyCode::ArrowLeft),
@@ -79,20 +75,22 @@ fn input_system(
         admin_enable_debug_markers: keyboard.pressed(KeyCode::Digit9),
         show_emoji: keyboard.pressed(KeyCode::KeyQ),
     };
-    if let Some((_step_index, last_input)) =
-        active_game_engine.0.latest_input(active_player_entity_id)
-    {
-        if last_input == input {
-            return;
-        }
+    let (latest_input_step, latest_input) =
+        active_game_engine.0.latest_input(active_player_entity_id);
+    if latest_input == input {
+        return;
     }
-    active_game_engine
-        .0
-        .register_input(None, *active_player_entity_id, input.clone());
+    let event = GameEvent::Input {
+        id: generate_strong_u128(),
+        input: input.clone(),
+        entity_id: *active_player_entity_id,
+        universal: true,
+    };
+    active_game_engine.0.register_event(None, event.clone());
     // send the new input to the server
-    action_events.write(NetworkAction(Action::PlayerInput(
+    action_events.write(NetworkAction(Action::EngineEvent(
+        active_game_engine.0.id,
+        event,
         active_game_engine.0.step_index,
-        entity,
-        input,
     )));
 }

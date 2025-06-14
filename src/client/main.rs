@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::mem;
 
 use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
 use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
@@ -10,8 +12,10 @@ use game_test::action::PlayerState;
 pub use game_test::action::Response;
 use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
+use game_test::engine::game_event::GameEvent;
 use game_test::engine::GameEngine;
 use game_test::engine::STEP_LEN_S;
+use game_test::generate_strong_u128;
 use game_test::timestamp;
 pub use game_test::MapData;
 
@@ -28,11 +32,13 @@ mod network;
 mod player;
 mod smooth_camera;
 
+use game_test::STEP_DELAY;
 use network::NetworkMessage;
 
 use crate::map::MapEntity;
 use crate::map_data_loader::MapDataAsset;
 use crate::mob::MobComponent;
+use crate::network::NetworkAction;
 use crate::player::PlayerComponent;
 use crate::smooth_camera::CameraMovement;
 use crate::sprite_data_loader::SpriteDataAsset;
@@ -49,7 +55,7 @@ pub enum GameState {
 }
 
 #[derive(Resource, Default)]
-pub struct ActiveGameEngine(pub GameEngine);
+pub struct ActiveGameEngine(pub GameEngine, pub u64);
 
 #[derive(Component, Default)]
 pub struct GameEntityComponent {
@@ -109,8 +115,8 @@ fn main() {
         (
             handle_login,
             handle_exit_map,
-            handle_player_entity_id,
             handle_engine_state,
+            handle_player_state,
         ),
     )
     .add_systems(
@@ -120,6 +126,7 @@ fn main() {
     .add_systems(
         Update,
         (
+            handle_engine_event,
             load_sprite_manager,
             step_game_engine,
             sync_engine_components,
@@ -137,7 +144,18 @@ fn handle_login(
 ) {
     for event in action_events.read() {
         if let Response::PlayerLoggedIn(_state) = &event.0 {
-            next_state.set(GameState::Waiting);
+            // next_state.set(GameState::Waiting);
+        }
+    }
+}
+
+fn handle_player_state(
+    mut action_events: EventReader<NetworkMessage>,
+    mut active_player_state: ResMut<ActivePlayerState>,
+) {
+    for event in action_events.read() {
+        if let Response::PlayerState(state) = &event.0 {
+            active_player_state.0 = Some(state.clone());
         }
     }
 }
@@ -152,13 +170,16 @@ fn load_sprite_manager(
 }
 
 fn step_game_engine(mut active_game_engine: ResMut<ActiveGameEngine>) {
-    active_game_engine.0.step();
-    // TODO: we end up stepping faster than the server and need to skip
-    // some steps. We can't do this without stuttering so instead adjust
-    // the step_index manually?
-    // if active_game_engine.0.step_index > active_game_engine.0.expected_step_index() {
-    //     active_game_engine.0.step_index -= 1;
-    // }
+    let engine = &mut active_game_engine.0;
+    let expected = engine.expected_step_index();
+    if expected <= engine.step_index {
+        engine.step();
+    } else {
+        let step_count = expected - engine.step_index;
+        for _ in 0..step_count {
+            engine.step();
+        }
+    }
 }
 
 fn reposition_camera_on_map_entry(
@@ -172,7 +193,7 @@ fn reposition_camera_on_map_entry(
     if let Some(active_player_entity_id) = active_player_entity_id.0 {
         if let Some(game_entity) = active_engine_state.0.entities.get(&active_player_entity_id) {
             if let Ok((mut camera_transform, _)) = camera_query.single_mut() {
-                camera_transform.translation = game_entity.position().extend(0.0);
+                camera_transform.translation = game_entity.position_f32().extend(0.0);
             }
             smooth_camera::snap_to_position(
                 &mut camera_query,
@@ -181,25 +202,6 @@ fn reposition_camera_on_map_entry(
                 windows,
                 true,
             );
-        }
-    }
-}
-
-fn handle_player_entity_id(
-    mut action_events: EventReader<NetworkMessage>,
-    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
-    mut active_engine_state: ResMut<ActiveGameEngine>,
-    mut active_player_state: ResMut<ActivePlayerState>,
-    mut next_state: ResMut<NextState<GameState>>,
-) {
-    for event in action_events.read() {
-        if let Response::PlayerEntityId(id, engine, player_state) = &event.0 {
-            println!("entity: {id}");
-            active_player_entity_id.0 = Some(*id);
-            active_engine_state.0 = engine.clone();
-
-            active_player_state.0 = Some(player_state.clone());
-            next_state.set(GameState::LoadingMap);
         }
     }
 }
@@ -224,52 +226,78 @@ fn handle_exit_map(
     }
 }
 
-fn handle_engine_state(
+fn handle_engine_event(
     mut action_events: EventReader<NetworkMessage>,
     mut active_engine_state: ResMut<ActiveGameEngine>,
     active_player_entity_id: Res<ActivePlayerEntityId>,
 ) {
     for event in action_events.read() {
-        if let Response::EngineState(engine, _server_step_index) = &event.0 {
-            if active_player_entity_id.0.is_none() {
-                println!("WARNING: received map state without an active entity id");
-                return;
-            }
-            let player_entity_id = active_player_entity_id.0.unwrap();
-            if !engine.entities.contains_key(&player_entity_id) {
-                println!("WARNING: player is not in engine");
-                return;
-            }
-            let mut engine = engine.clone();
-            for (id, entity) in active_engine_state
-                .0
-                .entities
-                .iter()
-                .filter(|(_id, entity)| entity.pure() || entity.id() == player_entity_id)
-            {
-                engine.entities.insert(*id, entity.clone());
-            }
-            // println!("{} {}", active_engine_state.0.step_index, engine.step_index);
-            // compute a local start timestamp
-            engine.start_timestamp = timestamp() - STEP_LEN_S * (engine.step_index as f64);
-            // treat engine like it's the latest point in time
-            // copy our local player entity into the engine
-            let local_inputs = active_engine_state
-                .0
-                .inputs
-                .get(&player_entity_id)
-                .cloned()
-                .unwrap_or_else(|| BTreeMap::new());
-            engine.inputs.insert(player_entity_id, local_inputs.clone());
-            if let Some(entity) = engine.entities.get_mut(&player_entity_id) {
-                match entity {
-                    EngineEntity::Player(p) => {
-                        p.is_active = true;
-                    }
-                    _ => unreachable!(),
+        match &event.0 {
+            Response::EngineEvents(engine_id, events) => {
+                let engine = &mut active_engine_state.0;
+                if engine.id != *engine_id {
+                    continue;
                 }
+                engine.integrate_events(
+                    // find any events for the local player and un-offset them
+                    // manually
+                    events
+                        .iter()
+                        .map(|(si, events)| {
+                            (
+                                *si,
+                                events
+                                    .iter()
+                                    .filter_map(|(event_id, event)| {
+                                        // println!("{} {:?}", si, event);
+                                        match event {
+                                            GameEvent::Input {
+                                                id: _,
+                                                input: _,
+                                                entity_id,
+                                                universal: _,
+                                            } => {
+                                                if entity_id
+                                                    == &active_player_entity_id
+                                                        .0
+                                                        .unwrap_or_default()
+                                                {
+                                                    // println!("server event: {}", si - STEP_DELAY);
+                                                    return None;
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+                                        Some((*event_id, event.clone()))
+                                    })
+                                    .collect::<HashMap<_, _>>(),
+                            )
+                        })
+                        .collect::<BTreeMap<_, _>>(),
+                );
             }
-            active_engine_state.0 = engine;
+            _ => {}
+        }
+    }
+}
+
+fn handle_engine_state(
+    mut action_events: EventReader<NetworkMessage>,
+    mut active_engine_state: ResMut<ActiveGameEngine>,
+    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    for event in action_events.read() {
+        if let Response::EngineState(engine, _server_step_index, entity_id_maybe) = &event.0 {
+            println!("Engine state: {}", engine.id);
+            active_player_entity_id.0 = entity_id_maybe.clone();
+            // let step_delay = server_step_index - engine.step_index;
+            // TODO: figure out how to get rid of this clone
+            active_engine_state.0 = engine.clone();
+            active_engine_state.0.start_timestamp =
+                timestamp() - ((active_engine_state.0.step_index as f64) * STEP_LEN_S);
+
+            next_state.set(GameState::LoadingMap);
         }
     }
 }
@@ -289,16 +317,20 @@ fn sync_engine_components(
             .entities
             .get(&entity_component.entity_id)
         {
-            transform.translation = game_entity.position().extend(transform.translation.z);
-            if let Some((_, latest_input)) = active_engine_state
-                .0
-                .latest_input(&entity_component.entity_id)
-            {
-                if latest_input.move_left {
-                    sprite.flip_x = false;
-                } else if latest_input.move_right {
-                    sprite.flip_x = true;
+            transform.translation = game_entity.position_f32().extend(transform.translation.z);
+            match game_entity {
+                EngineEntity::Player(p) => {
+                    sprite.flip_x = !p.facing_left;
                 }
+                EngineEntity::Mob(p) => {
+                    if p.velocity.x < 0 {
+                        sprite.flip_x = false;
+                    }
+                    if p.velocity.x > 0 {
+                        sprite.flip_x = true;
+                    }
+                }
+                _ => {}
             }
             to_spawn.remove(&game_entity.id());
         } else {
@@ -315,7 +347,7 @@ fn sync_engine_components(
                 }
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
-                    Transform::from_translation(p.position().extend(100.0)),
+                    Transform::from_translation(p.position_f32().extend(100.0)),
                     PlayerComponent::default_sprite(sprite_manager.as_ref()),
                     MapEntity,
                 ));
@@ -328,7 +360,12 @@ fn sync_engine_components(
                 }
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
-                    Transform::from_translation(p.position().extend(1.0)),
+                    Transform::from_translation(p.position_f32().extend(1.0)),
+                    Text2d(p.id.to_string().split_off(15)),
+                    TextFont {
+                        font_size: 8.0,
+                        ..default()
+                    },
                     MobComponent::new(p, &sprite_data, sprite_manager.as_ref()),
                     MapEntity,
                 ));
@@ -336,11 +373,11 @@ fn sync_engine_components(
             EngineEntity::Platform(p) => {
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
-                    Transform::from_translation(p.position().extend(0.0)),
+                    Transform::from_translation(p.position_f32().extend(0.0)),
                     MapEntity,
                     Sprite {
                         color: Color::srgb(0.0, 0.0, 1.0),
-                        custom_size: Some(Vec2::new(p.size.x, p.size.y)),
+                        custom_size: Some(p.size_f32()),
                         anchor: bevy::sprite::Anchor::BottomLeft,
                         ..default()
                     },
@@ -349,11 +386,11 @@ fn sync_engine_components(
             EngineEntity::Portal(p) => {
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
-                    Transform::from_translation(p.position().extend(0.0)),
+                    Transform::from_translation(p.position_f32().extend(0.0)),
                     MapEntity,
                     Sprite {
                         color: Color::srgb(0.0, 1.0, 0.0),
-                        custom_size: Some(Vec2::new(p.size.x, p.size.y)),
+                        custom_size: Some(p.size_f32()),
                         anchor: bevy::sprite::Anchor::BottomLeft,
                         ..default()
                     },
@@ -362,11 +399,11 @@ fn sync_engine_components(
             EngineEntity::Rect(p) => {
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
-                    Transform::from_translation(p.position().extend(0.0)),
+                    Transform::from_translation(p.position_f32().extend(0.0)),
                     MapEntity,
                     Sprite {
                         color: Color::srgb(p.color.x, p.color.y, p.color.z),
-                        custom_size: Some(Vec2::new(p.size.x, p.size.y)),
+                        custom_size: Some(p.size_f32()),
                         anchor: bevy::sprite::Anchor::BottomLeft,
                         ..default()
                     },
@@ -380,11 +417,11 @@ fn sync_engine_components(
                 }
                 commands.spawn((
                     GameEntityComponent { entity_id: id },
-                    Transform::from_translation(p.position().extend(20.0)),
+                    Transform::from_translation(p.position_f32().extend(20.0)),
                     MapEntity,
                     Sprite {
                         image: sprite_manager.image_handle(&asset_name),
-                        custom_size: Some(Vec2::new(p.size.x, p.size.y)),
+                        custom_size: Some(p.size_f32()),
                         anchor: bevy::sprite::Anchor::BottomLeft,
                         ..default()
                     },

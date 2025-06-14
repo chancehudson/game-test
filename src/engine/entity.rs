@@ -1,7 +1,8 @@
-use bevy_math::Rect;
+use bevy_math::IRect;
+use bevy_math::IVec2;
 use bevy_math::Vec2;
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -31,41 +32,49 @@ pub struct EntityInput {
 /// An entity that exists inside the engine.
 pub trait EEntity {
     fn id(&self) -> u128;
-    fn position(&self) -> Vec2;
-    fn position_mut(&mut self) -> &mut Vec2;
-    fn size(&self) -> Vec2;
-    fn velocity(&self) -> Vec2;
+    fn position(&self) -> IVec2;
+    fn position_f32(&self) -> Vec2 {
+        let p = self.position();
+        Vec2::new(p.x as f32, p.y as f32)
+    }
+    fn position_mut(&mut self) -> &mut IVec2;
+    fn size(&self) -> IVec2;
+    fn size_f32(&self) -> Vec2 {
+        let s = self.size();
+        Vec2::new(s.x as f32, s.y as f32)
+    }
+    fn velocity(&self) -> IVec2;
 
     // can the entity be simulated using public information
     fn pure(&self) -> bool;
 
     /// deterministic rng for entities, safe for replay
-    fn rng(&self, step_index: &u64) -> StdRng {
+    fn rng(&self, step_index: &u64) -> ChaCha8Rng {
         let id = self.id();
         let first_half = (id >> 64) as u64; // Upper 64 bits
         let second_half = id as u64; // Lower 64 bits (cast truncates)
 
         let seed = first_half ^ second_half ^ step_index;
-        StdRng::seed_from_u64(seed)
+        ChaCha8Rng::seed_from_u64(seed)
     }
 
     /// Get an rng for the current state of the server
-    fn rng_client(&self, step_index: &u64) -> StdRng {
+    fn rng_client(&self, step_index: &u64) -> ChaCha8Rng {
         self.rng(&(step_index + STEP_DELAY))
     }
 
-    fn center(&self) -> Vec2 {
+    fn center(&self) -> IVec2 {
         let mut out = self.position();
         let size = self.size();
-        out.x += size.x / 2.0;
-        out.y += size.y / 2.0;
+        out.x += size.x / 2;
+        out.y += size.y / 2;
         out
     }
 
-    fn rect(&self) -> Rect {
+    fn rect(&self) -> IRect {
         let pos = self.position();
         let size = self.size();
-        Rect::new(pos.x, pos.y, pos.x + size.x, pos.y + size.y)
+        IRect::new(pos.x, pos.y, pos.x + size.x, pos.y + size.y)
     }
 
     fn equal(&self, other: &Self) -> bool {
@@ -76,7 +85,7 @@ pub trait EEntity {
 }
 
 pub trait SEEntity: EEntity + Clone {
-    fn step(&self, _engine: &mut GameEngine, _step_index: &u64) -> Self
+    fn step(&self, _engine: &mut GameEngine) -> Self
     where
         Self: Sized + Clone,
     {
@@ -93,7 +102,7 @@ macro_rules! engine_entity_enum {
         }
     ) => {
         /// Enum to wrap all possible entity types
-        #[derive(Debug, Clone, Serialize, Deserialize)]
+        #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
         pub enum $enum_name {
             $(
                 $variant($type),
@@ -101,10 +110,10 @@ macro_rules! engine_entity_enum {
         }
 
         impl SEEntity for $enum_name {
-            fn step(&self, engine: &mut GameEngine, step_index: &u64) -> Self {
+            fn step(&self, engine: &mut GameEngine) -> Self {
                 match self {
                     $(
-                        $enum_name::$variant(entity) => $enum_name::$variant(entity.step(engine, step_index)),
+                        $enum_name::$variant(entity) => $enum_name::$variant(entity.step(engine)),
                     )*
                 }
             }
@@ -119,7 +128,7 @@ macro_rules! engine_entity_enum {
                 }
             }
 
-            fn size(&self) -> Vec2 {
+            fn size(&self) -> IVec2 {
                 match self {
                     $(
                         $enum_name::$variant(entity) => entity.size(),
@@ -127,7 +136,7 @@ macro_rules! engine_entity_enum {
                 }
             }
 
-            fn position(&self) -> Vec2 {
+            fn position(&self) -> IVec2 {
                 match self {
                     $(
                         $enum_name::$variant(entity) => entity.position(),
@@ -135,7 +144,7 @@ macro_rules! engine_entity_enum {
                 }
             }
 
-            fn position_mut(&mut self) -> &mut Vec2 {
+            fn position_mut(&mut self) -> &mut IVec2 {
                 match self {
                     $(
                         $enum_name::$variant(entity) => entity.position_mut(),
@@ -143,7 +152,7 @@ macro_rules! engine_entity_enum {
                 }
             }
 
-            fn velocity(&self) -> Vec2 {
+            fn velocity(&self) -> IVec2 {
                 match self {
                     $(
                         $enum_name::$variant(entity) => entity.velocity(),
@@ -179,6 +188,8 @@ engine_entity_enum! {
 ///
 /// Usage:
 /// ```
+/// use game_test::entity_struct;
+/// use game_test::engine::entity::EEntity;
 /// // Basic entity with default trait implementation
 /// entity_struct! {
 ///     pub struct MyEntity {
@@ -201,16 +212,16 @@ macro_rules! entity_struct {
         }
     ) => {
         $(#[$struct_attr])*
-        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default, PartialEq)]
         $vis struct $name {
             #[serde(default)]
             pub id: u128,
             #[serde(default)]
-            pub position: bevy_math::Vec2,
+            pub position: bevy_math::IVec2,
             #[serde(default)]
-            pub size: bevy_math::Vec2,
+            pub size: bevy_math::IVec2,
             #[serde(default)]
-            pub velocity: bevy_math::Vec2,
+            pub velocity: bevy_math::IVec2,
             #[serde(default)]
             pub pure: bool,
             $(
@@ -220,7 +231,7 @@ macro_rules! entity_struct {
         }
 
         impl $name {
-            pub fn new(id: u128, position: bevy_math::Vec2, size: bevy_math::Vec2) -> Self {
+            pub fn new(id: u128, position: bevy_math::IVec2, size: bevy_math::IVec2) -> Self {
                 Self {
                     id,
                     position,
@@ -235,19 +246,19 @@ macro_rules! entity_struct {
                 self.id
             }
 
-            fn position(&self) -> bevy_math::Vec2 {
+            fn position(&self) -> bevy_math::IVec2 {
                 self.position
             }
 
-            fn position_mut(&mut self) -> &mut bevy_math::Vec2 {
+            fn position_mut(&mut self) -> &mut bevy_math::IVec2 {
                 &mut self.position
             }
 
-            fn size(&self) -> bevy_math::Vec2 {
+            fn size(&self) -> bevy_math::IVec2 {
                 self.size
             }
 
-            fn velocity(&self) -> bevy_math::Vec2 {
+            fn velocity(&self) -> bevy_math::IVec2 {
                 self.velocity
             }
 

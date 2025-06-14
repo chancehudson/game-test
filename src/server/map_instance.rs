@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use game_test::action::PlayerState;
+use game_test::action::{Action, PlayerState};
 use game_test::engine::entity::{EEntity, EngineEntity, EntityInput};
-use game_test::engine::GameEngine;
+use game_test::engine::game_event::GameEvent;
+use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
 
 use game_test::action::Response;
 use game_test::map::MapData;
@@ -16,8 +17,12 @@ use crate::network;
 pub struct MapInstance {
     pub map: MapData,
     pub engine: GameEngine,
-    pub player_id_to_entity_id: HashMap<String, u128>,
+
+    // player id keyed to (entity_id, last_sync_step_index, inited)
+    pub player_entity: HashMap<String, (u128, u64, bool)>,
+
     network_server: Arc<network::Server>,
+    pending_game_events: Vec<GameEvent>,
 }
 
 /// A MapInstance handles communication with the player.
@@ -28,127 +33,139 @@ pub struct MapInstance {
 impl MapInstance {
     pub fn new(map: MapData, network_server: Arc<network::Server>) -> Self {
         Self {
-            player_id_to_entity_id: HashMap::new(),
+            player_entity: HashMap::new(),
             engine: GameEngine::new(map.clone()),
             network_server,
             map,
+            pending_game_events: vec![],
         }
     }
 
-    /// When we send the state to the client we always send
-    /// a state that is in the past. In the future STEP_DELAY will be
-    /// variable depending on latency between individual clients
-    /// and the server
-    pub fn send_full_state(&self, player_id: String) -> anyhow::Result<()> {
-        let target_step = self.engine.step_index - STEP_DELAY;
-        let response = Response::EngineState(
-            self.engine.engine_at_step(&target_step)?,
-            self.engine.step_index,
-        );
-        let network_server = self.network_server.clone();
-        // self.last_sent_step_player_id
-        //     .insert(player_id.clone(), target_step);
-        tokio::spawn(async move {
-            network_server.send_to_player(&player_id, response).await;
-        });
+    pub fn send_event_sync(&mut self, player_id: String) -> anyhow::Result<()> {
+        if let Some((entity_id, last_sync_step_index, _)) = self.player_entity.get_mut(&player_id) {
+            let to_step = self.engine.step_index - STEP_DELAY;
+            let events = self
+                .engine
+                .universal_events_since_step(last_sync_step_index, Some(to_step));
+            *last_sync_step_index = to_step;
+            if events.is_empty() {
+                return Ok(());
+            }
+
+            // discard input events for this user (they already know about them)
+            let events = events
+                .iter()
+                .filter_map(|(step_index, events)| {
+                    let events = events
+                        .iter()
+                        .filter(|(_, event)| match event {
+                            GameEvent::Input { entity_id: id, .. } => entity_id != id,
+                            _ => true,
+                        })
+                        .map(|(id, event)| (*id, event.clone()))
+                        .collect::<HashMap<_, _>>();
+                    if events.is_empty() {
+                        None
+                    } else {
+                        Some((*step_index, events))
+                    }
+                })
+                .collect::<BTreeMap<_, _>>();
+            if events.is_empty() {
+                return Ok(());
+            }
+
+            let response = Response::EngineEvents(self.engine.id, events);
+            let network_server = self.network_server.clone();
+            tokio::spawn(async move {
+                network_server.send_to_player(&player_id, response).await;
+            });
+        }
         Ok(())
     }
 
     /// insert our new player into the map and send the current state
     pub async fn add_player(&mut self, player_state: &PlayerState) -> anyhow::Result<()> {
-        if self.player_id_to_entity_id.contains_key(&player_state.id) {
-            anyhow::bail!(
-                "attempting to add player {} to map_instance {} twice",
-                player_state.username,
-                self.map.name
-            );
+        if let Some((entity_id, _, _)) = self.player_entity.get(&player_state.id) {
+            self.engine.remove_entity(*entity_id, true);
         }
-        let entity = self.engine.spawn_player_entity(
-            player_state.id.clone(),
-            None,
-            Some(self.engine.step_index - STEP_DELAY - 1),
-        );
-        self.player_id_to_entity_id
-            .insert(player_state.id.clone(), entity.id());
+        let entity = self
+            .engine
+            .spawn_player_entity(player_state.id.clone(), None, None);
 
-        {
-            let network_server = self.network_server.clone();
-            let player_id = player_state.id.clone();
-            let response =
-                Response::PlayerEntityId(entity.id(), self.engine.clone(), player_state.clone());
-            tokio::spawn(async move {
-                network_server.send_to_player(&player_id, response).await;
-            });
-        }
-        self.engine.tick();
-        self.send_full_state(player_state.id.clone())?;
+        self.player_entity
+            .insert(player_state.id.clone(), (entity.id(), 0, false));
         Ok(())
     }
 
     pub async fn remove_player(&mut self, player_id: &str) {
-        if let Some(entity_id) = self.player_id_to_entity_id.get(player_id) {
-            self.engine.remove_entity(entity_id);
+        if let Some((entity_id, _, _)) = self.player_entity.get(player_id) {
+            self.engine.remove_entity(*entity_id, true);
         }
-        self.player_id_to_entity_id.remove(player_id);
+        self.player_entity.remove(player_id);
     }
 
-    pub async fn update_player_input(
+    pub async fn integrate_client_event(
         &mut self,
         player_id: &str,
+        engine_id: &u32,
+        event: GameEvent,
         step_index: u64,
-        entity: EngineEntity,
-        input: EntityInput,
     ) -> anyhow::Result<()> {
-        // the client is behind the server. We take our inputs as
-        // happening _now_, which is offset by STEP_DELAY
-        // let step_index = self.engine.expected_step_index();
-        // use the expected index in case the tick rate is low
-        let current_step = self.engine.expected_step_index();
-        if step_index > current_step {
-            println!(
-                "WARNING: client is {} steps ahead of server, discarding input",
-                step_index - current_step
-            );
-            return Ok(());
+        if self.engine.id != *engine_id {
+            anyhow::bail!("engine id mismatch in client event, discarding");
         }
-        if current_step - step_index > 2 * STEP_DELAY {
-            println!("WARNING: client input is too far in the past, max {STEP_DELAY} behind, received {} behind", current_step - step_index);
-            return Ok(());
+        let step_index = step_index + STEP_DELAY;
+        if step_index < self.engine.step_index
+            && self.engine.step_index - step_index >= TRAILING_STATE_COUNT
+        {
+            anyhow::bail!("event too far in the past, discarding");
         }
-
-        if !matches!(entity, EngineEntity::Player(_)) {
-            anyhow::bail!("received incorrect entity type");
-        }
-
-        // we have the constant STEP_DELAY, but each player also has a packet RTT that must be
-        // less than STEP_DELAY
-        //
-        // approximation of packet RTT ??
-        // let offset_step = current_step - STEP_DELAY - (current_step - step_index);
-        self.engine.tick();
-        if let Some(entity_id) = self.player_id_to_entity_id.get(player_id) {
-            if &entity.id() != entity_id {
-                anyhow::bail!("received incorrect entity id");
-            }
-            self.engine
-                .register_input(Some(step_index + STEP_DELAY), *entity_id, input);
-            self.engine
-                .reposition_entity(entity, &(step_index + STEP_DELAY))?;
-            // if step_index < current_step {
-            //     // replay with the new position
-            //     self.engine.reposition_entity(entity, &step_index)?;
-            // }
+        if let Some((_entity_id, _last_sync_step_index, _)) = self.player_entity.get(player_id) {
+            // TOOO: validity checks of events
+            // e.g. moving own character and not someone elses
+            println!("integrating event at {step_index}");
+            self.engine.integrate_event(step_index, event);
         } else {
-            anyhow::bail!("received player position update for player with no entity");
+            anyhow::bail!("unknown player id, discarding game events");
         }
-        self.send_full_state(player_id.to_string())?;
         Ok(())
     }
 
     pub async fn tick(&mut self) -> anyhow::Result<()> {
         self.engine.tick();
-        for player_id in self.player_id_to_entity_id.keys() {
-            self.send_full_state(player_id.clone())?;
+
+        let player_ids = self.player_entity.keys().cloned().collect::<Vec<_>>();
+        for id in player_ids {
+            if let Some((entity_id, sync_step_index, inited)) = self.player_entity.get_mut(&id) {
+                if *inited {
+                    self.send_event_sync(id)?;
+                } else {
+                    let client_step_index = self.engine.step_index - STEP_DELAY;
+                    if self
+                        .engine
+                        .entities_by_step
+                        .get(&client_step_index)
+                        .unwrap()
+                        .contains_key(entity_id)
+                    {
+                        *inited = true;
+                        *sync_step_index = client_step_index;
+
+                        let mut engine = self.engine.engine_at_step(&(client_step_index - 30))?;
+                        engine.step_to(&client_step_index);
+                        let response =
+                            Response::EngineState(engine, self.engine.step_index, Some(*entity_id));
+
+                        let player_id = id.clone();
+                        let network_server = self.network_server.clone();
+                        // wait for the player to spawn and then send the engine state
+                        tokio::spawn(async move {
+                            network_server.send_to_player(&player_id, response).await;
+                        });
+                    }
+                }
+            }
         }
         Ok(())
     }

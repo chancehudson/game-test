@@ -88,7 +88,7 @@ pub fn snap_to_position(
             return;
         }
         let active_map = active_map.unwrap();
-        if active_map.size == Vec2::ZERO {
+        if active_map.size == IVec2::ZERO {
             return;
         }
         if reset_velocity {
@@ -98,25 +98,26 @@ pub fn snap_to_position(
         let screen_width = window.resolution.width();
         let screen_height = window.resolution.height();
 
+        let map_size = Vec2::new(active_map.size.x as f32, active_map.size.y as f32);
         // if the game window is larger than the size of the map the client
         // crashes
         //
         // then bound it to the viewbox
-        if screen_width >= active_map.size.x {
-            camera_transform.translation.x = active_map.size.x / 2.0;
+        if screen_width >= map_size.x {
+            camera_transform.translation.x = map_size.x / 2.0;
         } else {
             camera_transform.translation.x = camera_transform
                 .translation
                 .x
-                .clamp(screen_width / 2., active_map.size.x - screen_width / 2.);
+                .clamp(screen_width / 2., map_size.x - screen_width / 2.);
         }
-        if screen_height >= active_map.size.y {
-            camera_transform.translation.y = active_map.size.y / 2.0;
+        if screen_height >= map_size.y {
+            camera_transform.translation.y = map_size.y / 2.0;
         } else {
             // we leave space at the bottom of the screen for the GUI
             camera_transform.translation.y = camera_transform.translation.y.clamp(
                 screen_height / 2. - CAMERA_Y_PADDING,
-                active_map.size.y - screen_height / 2.,
+                map_size.y - screen_height / 2.,
             );
         }
     }
@@ -151,7 +152,7 @@ fn player_camera(
         let movement_range = Vec2::new(f32::min(150., screen_width), f32::min(100., screen_height));
 
         // centered position
-        let player_pos = entity.position() + entity.size() / Vec2::splat(2.0);
+        let player_pos = entity.position_f32() + entity.size_f32() / Vec2::splat(2.0);
         let dist = player_pos - camera_transform.translation.xy();
         // adjust the x velocity
         if dist.x.abs() > movement_range.x && !camera_movement.is_moving_x {

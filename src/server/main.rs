@@ -114,26 +114,30 @@ async fn main() -> anyhow::Result<()> {
                 if let Err(e) = map_instance.tick().await {
                     println!("WARNING: error stepping map_instance!");
                     println!("{}", e);
-                    vec![]
-                } else {
-                    map_instance.engine.drain_events()
                 }
             });
         }
         // wait for all map ticks to complete then process game events
-        while let Some(result) = join_set.join_next().await {
-            match result {
-                Ok(events) => {
-                    for event in events.into_iter() {
-                        println!("handling event {:?}", event);
-                        if let Err(e) = game.handle_game_event(event).await {
-                            println!("Error handling game event: {:?}", e);
-                        }
+        join_set.join_next().await;
+        // grab and handle all server events
+        let mut join_set = JoinSet::new();
+        for map_instance in game.map_instances.values().cloned().collect::<Vec<_>>() {
+            let game_clone = game.clone();
+            join_set.spawn(async move {
+                let events;
+                {
+                    let mut map_instance = map_instance.write().await;
+                    events = map_instance.engine.server_events();
+                }
+                for event in events {
+                    if let Err(e) = game_clone.handle_server_event(event).await {
+                        println!("Error handling server event: {:?}", e);
                     }
                 }
-                Err(e) => eprintln!("Map tick failed: {e}"),
-            }
+            });
         }
+        // wait for all map ticks to complete then process game events
+        join_set.join_next().await;
         let tick_time = timestamp() - tick_start;
         if tick_time >= TICK_RATE_S {
             println!("WARNING: server tick took more than TICK_RATE_MS !");

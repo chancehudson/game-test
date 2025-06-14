@@ -5,7 +5,6 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use bevy::text::FontSmoothing;
 
-use game_test::engine::entity::Entity;
 use game_test::engine::entity::EntityInput;
 use game_test::engine::GameEngine;
 use game_test::MapData;

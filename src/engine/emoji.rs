@@ -1,4 +1,4 @@
-use bevy_math::Vec2;
+use bevy_math::IVec2;
 
 use super::entity::EEntity;
 use super::entity::SEEntity;
@@ -6,16 +6,17 @@ use super::entity::SEEntity;
 crate::entity_struct!(
     pub struct EmojiEntity {
         // entity id, relative position
-        pub attached_to: Option<(u128, Vec2)>,
+        pub attached_to: Option<(u128, IVec2)>,
         pub disappears_at_step_index: u64,
     }
 );
 
 impl SEEntity for EmojiEntity {
-    fn step(&self, engine: &mut super::GameEngine, step_index: &u64) -> Self
+    fn step(&self, engine: &mut super::GameEngine) -> Self
     where
         Self: Sized + Clone,
     {
+        let step_index = engine.step_index;
         let mut next_self = self.clone();
         if let Some((attached_id, relative_pos)) = self.attached_to {
             if let Some(entity) = engine.entities.get(&attached_id) {
@@ -24,8 +25,8 @@ impl SEEntity for EmojiEntity {
                 println!("WARNING: EmojiEntity attached to non-existent entity");
             }
         }
-        if step_index >= &self.disappears_at_step_index {
-            engine.remove_entity(&self.id);
+        if step_index >= self.disappears_at_step_index {
+            engine.remove_entity(self.id, false);
         }
         next_self
     }

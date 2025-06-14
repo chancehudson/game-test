@@ -5,7 +5,7 @@ use game_test::MapData;
 
 // use crate::mob::MobRegistry;
 use crate::smooth_camera::CAMERA_Y_PADDING;
-use crate::ActivePlayerState;
+use crate::{ActiveGameEngine, ActivePlayerState};
 
 use super::map_data_loader::MapDataAsset;
 use super::GameState;
@@ -126,20 +126,13 @@ fn exit_map(mut commands: Commands, old_map_query: Query<Entity, With<MapEntity>
 fn begin_load_map(
     asset_server: Res<AssetServer>,
     mut loader: ResMut<MapLoader>,
-    active_player_state: Res<ActivePlayerState>,
+    active_engine_state: Res<ActiveGameEngine>,
 ) {
-    // Validate we have a map to load
-    if active_player_state.0.is_none() {
-        error!("Cannot start map load: no map name specified");
-        return;
-    }
-    let active_player_state = active_player_state.0.as_ref().unwrap();
-
     println!("starting map load 2");
     // Start loading the map data
-    let map_path = format!("maps/{}.map.json5", active_player_state.current_map);
+    let map_path = format!("maps/{}.map.json5", active_engine_state.0.map.name);
     loader.begin_loading(
-        active_player_state.current_map.clone(),
+        active_engine_state.0.map.name.clone(),
         map_path,
         asset_server,
     );
@@ -152,8 +145,8 @@ pub fn spawn_background(commands: &mut Commands, asset_server: &AssetServer, map
             anchor: bevy::sprite::Anchor::BottomLeft,
             image: asset_server.load(&map_data.background),
             custom_size: Some(Vec2::new(
-                map_data.size.x,
-                map_data.size.y + CAMERA_Y_PADDING,
+                map_data.size.x as f32,
+                (map_data.size.y as f32) + CAMERA_Y_PADDING,
             )),
             ..default()
         },
@@ -165,10 +158,14 @@ pub fn spawn_npcs(commands: &mut Commands, asset_server: &AssetServer, map_data:
     for npc in &map_data.npc {
         commands.spawn((
             MapEntity,
-            Transform::from_translation(Vec3::new(npc.position.x, npc.position.y, 0.0)),
+            Transform::from_translation(Vec3::new(
+                npc.position.x as f32,
+                npc.position.y as f32,
+                0.0,
+            )),
             Sprite {
                 image: asset_server.load(&npc.asset),
-                custom_size: Some(Vec2::new(npc.size.x, npc.size.y)),
+                custom_size: Some(Vec2::new(npc.size.x as f32, npc.size.y as f32)),
                 anchor: bevy::sprite::Anchor::BottomLeft,
                 ..default()
             },

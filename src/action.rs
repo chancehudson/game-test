@@ -1,8 +1,13 @@
+use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::mem::Discriminant;
+
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::engine::entity::EngineEntity;
 use crate::engine::entity::EntityInput;
+use crate::engine::game_event::GameEvent;
 use crate::engine::GameEngine;
 
 /// Types of messages that can be sent to the server
@@ -13,8 +18,8 @@ pub enum Action {
     // provide a username
     LoginPlayer(String),
     LogoutPlayer,
-    // step index, position, input
-    PlayerInput(u64, EngineEntity, EntityInput),
+    // engine id, game event, step_index
+    EngineEvent(u32, GameEvent, u64),
     Ping,
 }
 
@@ -23,12 +28,11 @@ pub enum Action {
 pub enum Response {
     PlayerLoggedIn(PlayerState),
     PlayerRemoved(String),
-    // step index, position, input
-    PlayerInput(u64, EngineEntity, EntityInput),
-    // send the entity id, the engine, and the position the player will spawn
-    PlayerEntityId(u128, GameEngine, PlayerState),
-    // engine, server_step_index
-    EngineState(GameEngine, u64),
+    // engine, server_step_index, entity the player controls
+    EngineState(GameEngine, u64, Option<u128>),
+    PlayerState(PlayerState),
+    // engine id, game events <step_index, <event_id, event>>
+    EngineEvents(u32, BTreeMap<u64, HashMap<u128, GameEvent>>),
     // from_map
     PlayerExitMap(String),
     LoginError(String),
