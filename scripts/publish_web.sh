@@ -47,7 +47,7 @@ get_content_type() {
 
 ASSETS_DIR="./assets"
 
-find "$SOURCE_DIR" -type f \( ! -path "*/.*" ! -name ".*" \) | while read -r file; do
+find "$ASSETS_DIR" -type f ! -path "*/.*" ! -name ".*" | while read -r file; do
     # Get relative path (remove the source directory prefix)
     relative_path="${file#./}"
 

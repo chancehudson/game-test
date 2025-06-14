@@ -48,7 +48,8 @@ fn initialize_network(
             next_state.set(GameState::Disconnected);
         }
     } else {
-        let connection = NetworkConnection::attempt_connection("ws://127.0.0.1:1351".to_string());
+        let connection =
+            NetworkConnection::attempt_connection("ws://167.99.247.110:1351".to_string());
         commands.spawn(connection);
         next_state.set(GameState::LoggedOut);
     }

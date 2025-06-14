@@ -118,10 +118,6 @@ fn main() {
         ),
     )
     .add_systems(
-        OnExit(GameState::LoadingMap),
-        reposition_camera_on_map_entry,
-    )
-    .add_systems(
         Update,
         (
             handle_engine_event,
@@ -176,30 +172,6 @@ fn step_game_engine(mut active_game_engine: ResMut<ActiveGameEngine>) {
         let step_count = expected - engine.step_index;
         for _ in 0..step_count {
             engine.step();
-        }
-    }
-}
-
-fn reposition_camera_on_map_entry(
-    active_player_entity_id: Res<ActivePlayerEntityId>,
-    active_engine_state: Res<ActiveGameEngine>,
-    mut camera_query: Query<(&mut Transform, &mut CameraMovement), With<Camera2d>>,
-    map_loader: Res<map::MapLoader>,
-    map_assets: Res<Assets<MapDataAsset>>,
-    windows: Query<&Window>,
-) {
-    if let Some(active_player_entity_id) = active_player_entity_id.0 {
-        if let Some(game_entity) = active_engine_state.0.entities.get(&active_player_entity_id) {
-            if let Ok((mut camera_transform, _)) = camera_query.single_mut() {
-                camera_transform.translation = game_entity.position_f32().extend(0.0);
-            }
-            smooth_camera::snap_to_position(
-                &mut camera_query,
-                &map_loader,
-                &map_assets,
-                windows,
-                true,
-            );
         }
     }
 }
