@@ -7,12 +7,11 @@ use web_time::Duration;
 use web_time::Instant;
 
 use crate::network::{NetworkConnectionMaybe, NetworkMessage};
-use crate::{ActivePlayerEntityId, LoggedInAt};
+use crate::plugins::engine::ActivePlayerEntityId;
+use crate::plugins::engine::LoggedInAt;
 
-use super::GameState;
-use super::network::NetworkConnection;
-
-pub struct GuiPlugin;
+use crate::GameState;
+use crate::network::NetworkConnection;
 
 // A player connects to a server
 #[derive(Resource)]
@@ -44,23 +43,22 @@ impl Default for ConnectViewState {
     }
 }
 
+pub struct GuiPlugin;
+
 impl Plugin for GuiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(EguiPlugin {
-            enable_multipass_for_primary_context: false,
-        })
-        .init_resource::<ConnectViewState>()
-        .init_resource::<LoginViewState>()
-        .add_systems(FixedUpdate, (handle_login_error,))
-        .add_systems(
-            EguiContextPass,
-            (
-                connect_view,
-                login_view,
-                spawn_howto_view,
-                playtest_info_view,
-            ),
-        );
+        app.init_resource::<ConnectViewState>()
+            .init_resource::<LoginViewState>()
+            .add_systems(FixedUpdate, (handle_login_error,))
+            .add_systems(
+                EguiContextPass,
+                (
+                    connect_view,
+                    login_view,
+                    spawn_howto_view,
+                    playtest_info_view,
+                ),
+            );
     }
 }
 

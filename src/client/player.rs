@@ -2,20 +2,20 @@ use bevy::prelude::*;
 
 use game_test::action::Action;
 use game_test::action::PlayerState;
-use game_test::engine::entity::player::PlayerEntity;
-use game_test::engine::entity::text::TextEntity;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::entity::EntityInput;
+use game_test::engine::entity::player::PlayerEntity;
+use game_test::engine::entity::text::TextEntity;
 use game_test::engine::game_event::GameEvent;
 
-use crate::animated_sprite::AnimatedSprite;
+use crate::plugins::animated_sprite::AnimatedSprite;
+use crate::plugins::engine::ActiveGameEngine;
+use crate::plugins::engine::ActivePlayerEntityId;
+use crate::plugins::engine::ActivePlayerState;
 use crate::sprite_data_loader::SpriteManager;
-use crate::ActiveGameEngine;
-use crate::ActivePlayerEntityId;
-use crate::ActivePlayerState;
 
-use super::network::NetworkAction;
 use super::GameState;
+use super::network::NetworkAction;
 
 pub struct PlayerPlugin;
 

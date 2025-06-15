@@ -5,11 +5,11 @@ use bevy::prelude::*;
 use game_test::MapData;
 
 // use crate::mob::MobRegistry;
-use crate::smooth_camera::CAMERA_Y_PADDING;
-use crate::ActiveGameEngine;
+use crate::plugins::engine::ActiveGameEngine;
+use crate::plugins::smooth_camera::CAMERA_Y_PADDING;
 
-use super::map_data_loader::MapDataAsset;
 use super::GameState;
+use super::map_data_loader::MapDataAsset;
 
 pub struct MapPlugin;
 

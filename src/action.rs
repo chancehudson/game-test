@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::engine::game_event::GameEvent;
 use crate::engine::GameEngine;
+use crate::engine::game_event::GameEvent;
 
 /// Types of messages that can be sent to the server
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,7 +28,8 @@ pub enum Response {
     PlayerLoggedIn(PlayerState),
     PlayerRemoved(String),
     // engine, server_step_index
-    EngineState(GameEngine, u64),
+    EngineState(GameEngine),
+    EngineStats(u64),
     PlayerState(PlayerState),
     // engine id, game events <step_index, <event_id, event>>
     EngineEvents(u128, BTreeMap<u64, HashMap<u128, GameEvent>>),

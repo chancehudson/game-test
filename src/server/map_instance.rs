@@ -7,9 +7,10 @@ use game_test::engine::entity::EngineEntity;
 use game_test::engine::game_event::GameEvent;
 use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
 
+use game_test::STEP_DELAY;
 use game_test::action::Response;
 use game_test::map::MapData;
-use game_test::STEP_DELAY;
+use game_test::timestamp;
 
 use crate::network;
 
@@ -29,6 +30,7 @@ pub struct MapInstance {
     pub engine: GameEngine,
 
     pub player_engines: HashMap<String, RemotePlayerEngine>,
+    last_stats_broadcast: f64,
 
     network_server: Arc<network::Server>,
 }
@@ -45,62 +47,98 @@ impl MapInstance {
             engine: GameEngine::new(map.clone()),
             network_server,
             map,
+            last_stats_broadcast: 0.,
         }
     }
 
+    pub fn init_player(
+        network_server: Arc<network::Server>,
+        engine: &GameEngine,
+        player_id: &str,
+        player: &mut RemotePlayerEngine,
+    ) {
+        // the state confirmation delay. Participants must come to consensus in STEP_DELAY
+        // steps
+        let client_step_index = engine.step_index - STEP_DELAY;
+
+        // reverse the engine by 30 frames, insert the player, and step 30 frames forward
+        // to allow 30 frames of replay
+        const ENGINE_HISTORY_STEPS: u64 = 30;
+        let mut engine = if let Ok(engine) =
+            engine.engine_at_step(&(client_step_index - ENGINE_HISTORY_STEPS))
+        {
+            engine
+        } else {
+            // engine needs to warm up, try init on next tick
+            return;
+        };
+        engine.id = rand::random();
+        engine.step_to(&client_step_index);
+
+        player.last_step_index = client_step_index;
+        player.is_inited = true;
+        player.engine_id = engine.id;
+
+        let response = Response::EngineState(engine);
+        let player_id = player_id.to_string();
+        tokio::spawn(async move {
+            network_server.send_to_player(&player_id, response).await;
+        });
+    }
+
     /// TODO: move synchronization management into a structure ?
-    pub fn send_event_sync(&mut self, player_id: String) -> anyhow::Result<()> {
-        if let Some(player) = self.player_engines.get_mut(&player_id) {
-            // if the initial game state has not been sent we don't want to send updates
-            if !player.is_inited {
-                return Ok(());
-            }
-            let to_step = self.engine.step_index - STEP_DELAY;
-            let events = self
-                .engine
-                .universal_events_since_step(&player.last_step_index, Some(to_step));
-            player.last_step_index = to_step;
-            if events.is_empty() {
-                return Ok(());
-            }
-
-            // discard input events for this user (they already know about them)
-            // TODO: generalized event filtering ???
-            let events = events
-                .iter()
-                .filter_map(|(step_index, events)| {
-                    let events = events
-                        .iter()
-                        .filter(|(_, event)| match event {
-                            GameEvent::Input { entity_id: id, .. } => {
-                                // don't send input events back to the original engine
-                                if let Some(player_entity_id) = player.entity_id {
-                                    return &player_entity_id != id;
-                                }
-                                true
-                            }
-                            _ => true,
-                        })
-                        .map(|(id, event)| (*id, event.clone()))
-                        .collect::<HashMap<_, _>>();
-                    if events.is_empty() {
-                        None
-                    } else {
-                        Some((*step_index, events))
-                    }
-                })
-                .collect::<BTreeMap<_, _>>();
-            if events.is_empty() {
-                return Ok(());
-            }
-
-            let response = Response::EngineEvents(player.engine_id, events);
-            let network_server = self.network_server.clone();
-            tokio::spawn(async move {
-                network_server.send_to_player(&player_id, response).await;
-            });
+    pub fn send_event_sync(
+        network_server: Arc<network::Server>,
+        engine: &GameEngine,
+        player_id: &str,
+        player: &mut RemotePlayerEngine,
+    ) {
+        // if the initial game state has not been sent we don't want to send updates
+        if !player.is_inited {
+            return;
         }
-        Ok(())
+        let to_step = engine.step_index - STEP_DELAY;
+        let events = engine.universal_events_since_step(&player.last_step_index, Some(to_step));
+        player.last_step_index = to_step;
+        if events.is_empty() {
+            return;
+        }
+
+        // discard input events for this user (they already know about them)
+        // TODO: generalized event filtering ???
+        let events = events
+            .iter()
+            .filter_map(|(step_index, events)| {
+                let events = events
+                    .iter()
+                    .filter(|(_, event)| match event {
+                        GameEvent::Input { entity_id: id, .. } => {
+                            // don't send input events back to the original engine
+                            if let Some(player_entity_id) = player.entity_id {
+                                return &player_entity_id != id;
+                            }
+                            true
+                        }
+                        _ => true,
+                    })
+                    .map(|(id, event)| (*id, event.clone()))
+                    .collect::<HashMap<_, _>>();
+                if events.is_empty() {
+                    None
+                } else {
+                    Some((*step_index, events))
+                }
+            })
+            .collect::<BTreeMap<_, _>>();
+        if events.is_empty() {
+            return;
+        }
+
+        let response = Response::EngineEvents(player.engine_id, events);
+        let player_id = player_id.to_string();
+        tokio::spawn(async move {
+            network_server.send_to_player(&player_id, response).await;
+        });
     }
 
     /// insert our new player into the map and send the current state
@@ -251,37 +289,28 @@ impl MapInstance {
     pub async fn tick(&mut self) -> anyhow::Result<()> {
         self.engine.tick();
 
-        let player_ids = self.player_engines.keys().cloned().collect::<Vec<_>>();
-        for id in player_ids {
-            if let Some(player) = self.player_engines.get_mut(&id) {
-                if player.is_inited {
-                    self.send_event_sync(id)?;
-                } else {
-                    // the state confirmation delay. Participants must come to consensus in STEP_DELAY
-                    // steps
-                    let client_step_index = self.engine.step_index - STEP_DELAY;
-
-                    // reverse the engine by 30 frames, insert the player, and step 30 frames forward
-                    // to allow 30 frames of replay
-                    const ENGINE_HISTORY_STEPS: u64 = 30;
-                    let mut engine = self
-                        .engine
-                        .engine_at_step(&(client_step_index - ENGINE_HISTORY_STEPS))?;
-                    engine.id = rand::random();
-                    engine.step_to(&client_step_index);
-
-                    player.last_step_index = client_step_index;
-                    player.is_inited = true;
-                    player.engine_id = engine.id;
-
-                    let response = Response::EngineState(engine, self.engine.step_index);
-
-                    let player_id = id.clone();
-                    let network_server = self.network_server.clone();
-                    tokio::spawn(async move {
-                        network_server.send_to_player(&player_id, response).await;
-                    });
-                }
+        // let player_ids = self.player_engines.keys().cloned().collect::<Vec<_>>();
+        // TODO: collect errors and finish syncing
+        let send_stats = timestamp() - self.last_stats_broadcast > 2.0;
+        if send_stats {
+            self.last_stats_broadcast = timestamp();
+        }
+        for (id, player) in self.player_engines.iter_mut() {
+            // send engine stats
+            if send_stats {
+                let network_server = self.network_server.clone();
+                let step_index = self.engine.step_index;
+                let id = id.to_string();
+                tokio::spawn(async move {
+                    network_server
+                        .send_to_player(&id, Response::EngineStats(step_index))
+                        .await;
+                });
+            }
+            if player.is_inited {
+                Self::send_event_sync(self.network_server.clone(), &self.engine, id, player);
+            } else {
+                Self::init_player(self.network_server.clone(), &self.engine, &id, player);
             }
         }
         Ok(())

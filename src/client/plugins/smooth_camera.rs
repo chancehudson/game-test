@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use game_test::engine::entity::EEntity;
 
-use crate::{map, map_data_loader::MapDataAsset, ActiveGameEngine, ActivePlayerEntityId};
+use crate::plugins::engine::ActiveGameEngine;
+use crate::plugins::engine::ActivePlayerEntityId;
+use crate::{map, map_data_loader::MapDataAsset};
 
 const CAMERA_ACCELERATION: f32 = 1500.0;
 const CAMERA_MAX_SPEED: f32 = 300.0;
@@ -21,9 +23,10 @@ pub struct CameraMovement {
 
 impl Plugin for SmoothCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_camera)
-            .add_systems(Update, player_camera)
-            .add_systems(Update, move_debug_marker);
+        app.add_systems(Startup, setup_camera).add_systems(
+            Update,
+            (player_camera, move_debug_marker).run_if(in_state(crate::GameState::OnMap)),
+        );
     }
 }
 

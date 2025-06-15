@@ -1,19 +1,22 @@
 use bevy::prelude::*;
 
-use game_test::engine::entity::mob::MobEntity;
 use game_test::engine::entity::EngineEntity;
+use game_test::engine::entity::mob::MobEntity;
 
-use crate::animated_sprite::AnimatedSprite;
+use crate::plugins::animated_sprite::AnimatedSprite;
+use crate::plugins::engine::ActiveGameEngine;
+use crate::plugins::engine::GameEntityComponent;
 use crate::sprite_data_loader::SpriteDataAsset;
 use crate::sprite_data_loader::SpriteManager;
-use crate::ActiveGameEngine;
-use crate::GameEntityComponent;
 
 pub struct MobPlugin;
 
 impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, animate_mobs);
+        app.add_systems(
+            Update,
+            animate_mobs.run_if(in_state(crate::GameState::OnMap)),
+        );
     }
 }
 
