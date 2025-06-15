@@ -1,4 +1,7 @@
+use std::collections::BTreeMap;
+
 use bevy::prelude::*;
+use game_test::STEP_DELAY;
 
 use crate::Action;
 use crate::GameEngine;
@@ -149,14 +152,25 @@ fn handle_engine_event(
 
 fn handle_engine_stats(
     mut action_events: EventReader<NetworkMessage>,
+    mut action_events_writer: EventWriter<NetworkAction>,
     mut engine_sync: ResMut<EngineSyncInfo>,
     active_engine_state: Res<ActiveGameEngine>,
 ) {
     let engine = &active_engine_state.0;
     for event in action_events.read() {
-        if let Response::EngineStats(step_index) = &event.0 {
+        if let Response::EngineStats(step_index, (hash_step_index, server_engine_hash)) = &event.0 {
             engine_sync.server_step = *step_index;
             engine_sync.sync_distance = (engine.step_index as i64) - (*step_index as i64);
+            if !engine_sync.requested_resync {
+                if let Ok(local_engine_hash) = engine.step_hash(&hash_step_index) {
+                    if &local_engine_hash != server_engine_hash {
+                        action_events_writer
+                            .write(NetworkAction(Action::RequestEngineReload(engine.id)));
+                        engine_sync.requested_resync = true;
+                        // trigger resync
+                    }
+                }
+            }
         }
     }
 }
@@ -172,9 +186,11 @@ fn handle_engine_state(
     map_loader: Res<crate::map::MapLoader>,
     map_assets: Res<Assets<MapDataAsset>>,
     windows: Query<&Window>,
+    mut engine_sync: ResMut<EngineSyncInfo>,
 ) {
     for event in action_events.read() {
         if let Response::EngineState(engine) = &event.0 {
+            *engine_sync = EngineSyncInfo::default();
             println!("INFO: Received engine with id: {}", engine.id);
             // TODO: figure out how to get rid of this clone
             let is_map_change = active_engine_state.0.map.name != engine.map.name;
@@ -188,7 +204,6 @@ fn handle_engine_state(
                     if let Some(player_state) = &active_player_state.0 {
                         let mut entity =
                             PlayerEntity::new_with_ids(rand::random(), player_state.id.clone());
-                        entity.is_active = true;
                         entity.position = engine.map.spawn_location;
                         if let Ok((mut camera_transform, _)) = camera_query.single_mut() {
                             camera_transform.translation = entity.position_f32().extend(0.0);
@@ -223,6 +238,13 @@ fn handle_engine_state(
     }
 }
 
+/// Call S the current step number
+/// By default we'll show all components at their positions S - STEP_DELAY
+/// The Player entity with is_active == true will be shown at S, any entities spawned by
+/// the player will be shown at S as well
+///
+/// This logical split happens at the Bevy/plugin level, not the engine level. So the engine
+/// remains deterministic and checksum verifiable
 fn sync_engine_components(
     mut commands: Commands,
     active_engine_state: Res<ActiveGameEngine>,
@@ -230,11 +252,47 @@ fn sync_engine_components(
     asset_server: Res<AssetServer>,
     mut sprite_manager: ResMut<SpriteManager>,
     sprite_data: Res<Assets<SpriteDataAsset>>,
+    active_player_entity_id: Res<ActivePlayerEntityId>,
 ) {
     let engine = &active_engine_state.0;
-    let mut to_spawn = engine.entities.clone();
+    // this is the entities in relative positions we want to render
+    let mut current_entities = engine
+        .entities
+        .iter()
+        .filter(|(_id, entity)| {
+            if let Some(player_creator_id) = entity.player_creator_id() {
+                if let Some(active_entity_id) = active_player_entity_id.0 {
+                    player_creator_id == active_entity_id
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        })
+        .collect::<BTreeMap<_, _>>();
+    if engine.step_index >= STEP_DELAY {
+        let past_step_index = engine.step_index - STEP_DELAY;
+        if let Some(past_entities) = engine.entities_by_step.get(&past_step_index) {
+            for (entity_id, entity) in past_entities.iter().filter(|(_id, entity)| {
+                if let Some(player_creator_id) = entity.player_creator_id() {
+                    if let Some(active_entity_id) = active_player_entity_id.0 {
+                        player_creator_id != active_entity_id
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }) {
+                if let Some(_) = current_entities.insert(entity_id, entity) {
+                    println!("WARNING: entity filtered to both present and past");
+                }
+            }
+        }
+    }
     for (entity, entity_component, mut transform, mut sprite) in entity_query.iter_mut() {
-        if let Some(game_entity) = engine.entities.get(&entity_component.entity_id) {
+        if let Some(game_entity) = current_entities.get(&entity_component.entity_id) {
             transform.translation = game_entity.position_f32().extend(transform.translation.z);
             match game_entity {
                 EngineEntity::Player(p) => {
@@ -250,21 +308,22 @@ fn sync_engine_components(
                 }
                 _ => {}
             }
-            to_spawn.remove(&game_entity.id());
+            current_entities.remove(&game_entity.id());
         } else {
             commands.entity(entity).despawn();
         }
     }
     // we're left with game entities we need to spawn
-    for (id, game_entity) in to_spawn {
+    for (id, game_entity) in current_entities {
         match game_entity {
             EngineEntity::Player(p) => {
+                println!("spawning player {:?}", p);
                 if !sprite_manager.is_loaded(&0, &sprite_data) {
                     sprite_manager.load(0, &asset_server);
                     continue;
                 }
                 commands.spawn((
-                    GameEntityComponent { entity_id: id },
+                    GameEntityComponent { entity_id: *id },
                     Transform::from_translation(p.position_f32().extend(100.0)),
                     PlayerComponent::default_sprite(sprite_manager.as_ref()),
                     MapEntity,
@@ -277,20 +336,20 @@ fn sync_engine_components(
                     continue;
                 }
                 commands.spawn((
-                    GameEntityComponent { entity_id: id },
+                    GameEntityComponent { entity_id: *id },
                     Transform::from_translation(p.position_f32().extend(1.0)),
                     Text2d(p.id.to_string().split_off(15)),
                     TextFont {
                         font_size: 8.0,
                         ..default()
                     },
-                    MobComponent::new(p, &sprite_data, sprite_manager.as_ref()),
+                    MobComponent::new(p.clone(), &sprite_data, sprite_manager.as_ref()),
                     MapEntity,
                 ));
             }
             EngineEntity::Platform(p) => {
                 commands.spawn((
-                    GameEntityComponent { entity_id: id },
+                    GameEntityComponent { entity_id: *id },
                     Transform::from_translation(p.position_f32().extend(0.0)),
                     MapEntity,
                     Sprite {
@@ -303,7 +362,7 @@ fn sync_engine_components(
             }
             EngineEntity::Portal(p) => {
                 commands.spawn((
-                    GameEntityComponent { entity_id: id },
+                    GameEntityComponent { entity_id: *id },
                     Transform::from_translation(p.position_f32().extend(0.0)),
                     MapEntity,
                     Sprite {
@@ -316,7 +375,7 @@ fn sync_engine_components(
             }
             EngineEntity::Rect(p) => {
                 commands.spawn((
-                    GameEntityComponent { entity_id: id },
+                    GameEntityComponent { entity_id: *id },
                     Transform::from_translation(p.position_f32().extend(0.0)),
                     MapEntity,
                     Sprite {
@@ -334,7 +393,7 @@ fn sync_engine_components(
                     continue;
                 }
                 commands.spawn((
-                    GameEntityComponent { entity_id: id },
+                    GameEntityComponent { entity_id: *id },
                     Transform::from_translation(p.position_f32().extend(20.0)),
                     MapEntity,
                     Sprite {
@@ -347,10 +406,10 @@ fn sync_engine_components(
             }
             EngineEntity::Text(p) => {
                 commands.spawn((
-                    GameEntityComponent { entity_id: id },
+                    GameEntityComponent { entity_id: *id },
                     Transform::from_translation(p.position_f32().extend(20.0)),
                     MapEntity,
-                    Text2d(p.text),
+                    Text2d(p.text.clone()),
                     TextFont {
                         font_size: p.font_size,
                         ..default()

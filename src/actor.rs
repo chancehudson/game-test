@@ -5,11 +5,11 @@ use std::mem::discriminant;
 use bevy_math::IRect;
 use bevy_math::IVec2;
 
-use crate::engine::entity::platform::PlatformEntity;
-use crate::engine::entity::rect::RectEntity;
+use crate::engine::GameEngine;
 use crate::engine::entity::EEntity;
 use crate::engine::entity::EngineEntity;
-use crate::engine::GameEngine;
+use crate::engine::entity::platform::PlatformEntity;
+use crate::engine::entity::rect::RectEntity;
 
 use super::MapData;
 
@@ -63,7 +63,6 @@ pub fn can_move_left_right_without_falling(body: IRect, engine: &mut GameEngine)
     );
     if engine.enable_debug_markers {
         let mut debug_rect = RectEntity::default();
-        debug_rect.pure = true;
         debug_rect.id = engine.generate_id();
         debug_rect.disappears_at_step_index = Some(engine.step_index + 120);
         debug_rect.color = bevy_math::Vec3::new(1.0, 0.0, 0.0);
@@ -71,7 +70,6 @@ pub fn can_move_left_right_without_falling(body: IRect, engine: &mut GameEngine)
         debug_rect.size = left_check.size();
         engine.spawn_entity(EngineEntity::Rect(debug_rect), None, true);
         let mut debug_rect = RectEntity::default();
-        debug_rect.pure = true;
         debug_rect.id = engine.generate_id();
         debug_rect.disappears_at_step_index = Some(engine.step_index + 120);
         debug_rect.color = bevy_math::Vec3::new(1.0, 0.0, 0.0);

@@ -1,8 +1,8 @@
 use std::time::Duration;
 
+use game_test::TICK_RATE_S;
 use game_test::action::Action;
 use game_test::timestamp;
-use game_test::TICK_RATE_S;
 
 mod db;
 mod game;
@@ -11,8 +11,8 @@ mod network;
 
 pub use db::PlayerRecord;
 use map_instance::MapInstance;
-use tokio::signal::unix::signal;
 use tokio::signal::unix::SignalKind;
+use tokio::signal::unix::signal;
 use tokio::sync::broadcast;
 use tokio::task::JoinSet;
 
@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
                     println!("failed to handle action: {:?} {:?}", action, e);
                 }
             }
-            tokio::time::sleep(Duration::from_millis(1)).await;
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
     });
 
@@ -118,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
             });
         }
         // wait for all map ticks to complete then process game events
-        join_set.join_next().await;
+        join_set.join_all().await;
         // grab and handle all server events
         let mut join_set = JoinSet::new();
         for map_instance in game.map_instances.values().cloned().collect::<Vec<_>>() {
@@ -137,7 +137,7 @@ async fn main() -> anyhow::Result<()> {
             });
         }
         // wait for all map ticks to complete then process game events
-        join_set.join_next().await;
+        join_set.join_all().await;
         let tick_time = timestamp() - tick_start;
         if tick_time >= TICK_RATE_S {
             println!("WARNING: server tick took more than TICK_RATE_MS !");

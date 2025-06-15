@@ -1,15 +1,15 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use bevy_math::IVec2;
 use rand::Rng;
 
-use super::mob::MobEntity;
 use super::EEntity;
 use super::EngineEntity;
 use super::SEEntity;
+use super::mob::MobEntity;
+use crate::TICK_RATE_S;
 use crate::engine::GameEngine;
 use crate::entity_struct;
-use crate::TICK_RATE_S;
 
 entity_struct!(
     pub struct MobSpawnEntity {
@@ -21,7 +21,7 @@ entity_struct!(
         #[serde(default)]
         pub last_spawn_step: u64,
         #[serde(default)]
-        owned_mob_ids: HashSet<u128>,
+        owned_mob_ids: BTreeSet<u128>,
     }
 );
 

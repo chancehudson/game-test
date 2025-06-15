@@ -16,8 +16,8 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::mem;
-use std::mem::discriminant;
 use std::mem::Discriminant;
+use std::mem::discriminant;
 
 use bevy_math::IVec2;
 use rand::Rng;
@@ -32,11 +32,11 @@ pub mod game_event;
 // #[cfg(test)]
 // pub mod tests;
 
-use entity::player::PlayerEntity;
 use entity::EEntity;
 use entity::EngineEntity;
 use entity::EntityInput;
 use entity::SEEntity;
+use entity::player::PlayerEntity;
 use game_event::ServerEvent;
 
 use crate::engine::entity::platform::PlatformEntity;
@@ -61,11 +61,11 @@ pub struct GameEngine {
     pub map: MapData,
 
     // entity id keyed to struct
-    #[serde(serialize_with = "serialize_unpure_entities")]
+    // #[serde(serialize_with = "serialize_unpure_entities")]
     pub entities: BTreeMap<u128, EngineEntity>,
     // step index keyed to entity id to struct
     // #[serde(skip)]
-    pub entities_by_step: HashMap<u64, BTreeMap<u128, EngineEntity>>,
+    pub entities_by_step: BTreeMap<u64, BTreeMap<u128, EngineEntity>>,
 
     // #[serde(skip)]
     // pub events_by_step: BTreeMap<A
@@ -95,7 +95,7 @@ impl Default for GameEngine {
             start_timestamp: 0.0,
             map: MapData::default(),
             entities: BTreeMap::new(),
-            entities_by_step: HashMap::new(),
+            entities_by_step: BTreeMap::new(),
             events_by_type: HashMap::new(),
             server_events: Vec::new(),
             grouped_entities: (0, HashMap::new()),
@@ -104,20 +104,6 @@ impl Default for GameEngine {
             rng: default_rng(),
         }
     }
-}
-
-fn serialize_unpure_entities<S>(
-    entities: &BTreeMap<u128, EngineEntity>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    entities
-        .iter()
-        .filter(|(_id, entity)| !entity.pure())
-        .collect::<Vec<_>>()
-        .serialize(serializer)
 }
 
 impl GameEngine {
@@ -166,6 +152,28 @@ impl GameEngine {
         engine
     }
 
+    pub fn step_hash(&self, step_index: &u64) -> anyhow::Result<blake3::Hash> {
+        // we'll do just hash of all entities
+        if let Some(entities) = self.entities_by_step.get(step_index) {
+            let serialized = bincode::serialize(
+                &entities
+                    .iter()
+                    // .filter(|(_, entity)| !entity.pure())
+                    .collect::<BTreeMap<_, _>>(),
+            )?;
+            // print!(
+            //     "{:?}",
+            //     &entities
+            //         .iter()
+            //         .filter(|(_, entity)| !entity.pure())
+            //         .collect::<BTreeMap<_, _>>(),
+            // );
+            Ok(blake3::hash(&serialized))
+        } else {
+            anyhow::bail!("error calculating engine.step_hash, {step_index} not known to engine");
+        }
+    }
+
     pub fn server_events(&mut self) -> Vec<ServerEvent> {
         mem::take(&mut self.server_events)
     }
@@ -193,7 +201,6 @@ impl GameEngine {
         if let Some(entity) = self.entities.get(entity_id).cloned() {
             let mut text = TextEntity::new(self.generate_id(), IVec2::MAX, IVec2::splat(100));
             text.text = msg;
-            text.pure = false;
             text.attached_to = Some((
                 *entity_id,
                 entity.center() + IVec2::new(0, entity.size().y + 50),
@@ -201,14 +208,15 @@ impl GameEngine {
             text.disappears_at_step_index = self.step_index + 120;
             self.spawn_entity(EngineEntity::Text(text), None, true);
         } else {
-            println!("WARNING: attempting to say {msg} to entity {entity_id} which does not exist in engine");
+            println!(
+                "WARNING: attempting to say {msg} to entity {entity_id} which does not exist in engine"
+            );
         }
     }
 
     /// Retrieve a past instance of the engine that will be equal
     /// to self after N steps
     /// universal events occur independently on the engine state. e.g. a player logging on
-    ///
     pub fn engine_at_step(&self, target_step_index: &u64) -> anyhow::Result<Self> {
         if let Some(entities) = self.entities_by_step.get(target_step_index) {
             let mut out = Self::default();
@@ -232,6 +240,11 @@ impl GameEngine {
             out.map = self.map.clone();
             out.entities = entities.clone();
             out.enable_debug_markers = self.enable_debug_markers;
+            out.entities_by_step = self
+                .entities_by_step
+                .range((self.step_index - TRAILING_STATE_COUNT)..*target_step_index)
+                .map(|(si, data)| (*si, data.clone()))
+                .collect::<BTreeMap<_, _>>();
 
             out.step_index = *target_step_index;
             Ok(out)
@@ -242,9 +255,6 @@ impl GameEngine {
 
     /// Return the game events necessary to replay a past engine
     /// to current engine state
-    ///
-    /// it's indendented super deep because it's inside a lot
-    /// of nested data structures for efficient access
     pub fn universal_events_since_step(
         &self,
         from_step_index: &u64,
@@ -311,7 +321,9 @@ impl GameEngine {
             panic!("encountered unrecoverable error");
         }
         if entity.id() == 0u128 {
-            println!("WARNING: attempting to insert an entity with a common id! you may not be setting this value correctly");
+            println!(
+                "WARNING: attempting to insert an entity with a common id! you may not be setting this value correctly"
+            );
         }
         let target_step_index = step_index.unwrap_or(self.step_index);
         let id: u128 = self.rng().random();

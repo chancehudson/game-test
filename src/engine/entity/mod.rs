@@ -6,8 +6,8 @@ use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::engine::GameEngine;
 use crate::STEP_DELAY;
+use crate::engine::GameEngine;
 
 pub mod emoji;
 pub mod mob;
@@ -47,8 +47,7 @@ pub trait EEntity {
     }
     fn velocity(&self) -> IVec2;
 
-    // can the entity be simulated using public information
-    fn pure(&self) -> bool;
+    fn player_creator_id(&self) -> Option<u128>;
 
     /// deterministic rng for entities, safe for replay
     fn rng(&self, step_index: &u64) -> ChaCha8Rng {
@@ -58,11 +57,6 @@ pub trait EEntity {
 
         let seed = first_half ^ second_half ^ step_index;
         ChaCha8Rng::seed_from_u64(seed)
-    }
-
-    /// Get an rng for the current state of the server
-    fn rng_client(&self, step_index: &u64) -> ChaCha8Rng {
-        self.rng(&(step_index + STEP_DELAY))
     }
 
     fn center(&self) -> IVec2 {
@@ -162,10 +156,10 @@ macro_rules! engine_entity_enum {
                 }
             }
 
-            fn pure(&self) -> bool {
+            fn player_creator_id(&self) -> Option<u128> {
                 match self {
                     $(
-                        $enum_name::$variant(entity) => entity.pure(),
+                        $enum_name::$variant(entity) => entity.player_creator_id(),
                     )*
                 }
             }
@@ -226,7 +220,7 @@ macro_rules! entity_struct {
             #[serde(default)]
             pub velocity: bevy_math::IVec2,
             #[serde(default)]
-            pub pure: bool,
+            pub player_creator_id: Option<u128>,
             $(
                 $(#[$field_attr])*
                 $field_vis $field_name: $field_type,
@@ -237,15 +231,6 @@ macro_rules! entity_struct {
             pub fn new(id: u128, position: bevy_math::IVec2, size: bevy_math::IVec2) -> Self {
                 Self {
                     id,
-                    position,
-                    size,
-                    ..Default::default()
-                }
-            }
-
-            pub fn new_pure(position: bevy_math::IVec2, size: bevy_math::IVec2) -> Self {
-                Self {
-                    id: rand::random(), // use an unseeded random for entities that do not need to be communicated
                     position,
                     size,
                     ..Default::default()
@@ -274,8 +259,8 @@ macro_rules! entity_struct {
                 self.velocity
             }
 
-            fn pure(&self) -> bool {
-                self.pure
+            fn player_creator_id(&self) -> Option<u128> {
+                self.player_creator_id
             }
         }
     };

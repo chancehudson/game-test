@@ -67,11 +67,7 @@ fn input_system(
 ) {
     let engine = &mut active_game_engine.0;
     if active_player_state.0.is_none() {
-        // this shows an error message onscreen using the local game engine
-        let mut text_entity = TextEntity::new_pure(IVec2::ZERO, IVec2::splat(50));
-        text_entity.text = "no player state!".to_string();
-        text_entity.disappears_at_step_index = engine.step_index + 30;
-        engine.spawn_entity(EngineEntity::Text(text_entity), None, false);
+        println!("WARNING: attempting input with no player state");
         return;
     }
     let player_state = active_player_state.0.as_ref().unwrap();
@@ -84,10 +80,8 @@ fn input_system(
 
     // handle spawn requests
     if keyboard.just_pressed(KeyCode::KeyJ) && active_player_entity_id.0.is_none() {
-        let mut entity = PlayerEntity::new_with_ids(0, player_state.id.clone());
-        entity.id = rand::random();
+        let mut entity = PlayerEntity::new_with_ids(rand::random(), player_state.id.clone());
         active_player_entity_id.0 = Some(entity.id);
-        entity.is_active = true;
         entity.position = engine.map.spawn_location;
         let spawn_event = GameEvent::SpawnEntity {
             id: rand::random(),

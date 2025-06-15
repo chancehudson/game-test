@@ -14,6 +14,7 @@ pub struct EngineSyncInfo {
     pub last_frame: f64,
     pub server_step: u64,
     pub sync_distance: i64,
+    pub requested_resync: bool,
 }
 
 pub struct DataHUDPlugin;
@@ -35,7 +36,7 @@ fn display_hud(
 ) {
     let engine = &active_game_engine.0;
     if engine.step_index % STEPS_PER_SECOND == 0 {
-        hud_info.fps = (timestamp() - hud_info.last_frame) / STEP_LEN_S;
+        hud_info.fps = ((timestamp() - hud_info.last_frame) / STEP_LEN_S).round();
         hud_info.last_frame = timestamp();
     }
 
@@ -56,6 +57,9 @@ fn display_hud(
                 ui.label(format!("engine step: {}", engine.step_index));
                 ui.label(format!("server step: {}", hud_info.server_step));
                 ui.label(format!("sync distance: {}", hud_info.sync_distance));
+                if hud_info.requested_resync {
+                    ui.label(RichText::new("requested resync!").color(Color32::RED));
+                }
                 if let Some(player_entity_id) = active_player_entity_id.0 {
                     if let Some(entity) = engine.entities.get(&player_entity_id) {
                         ui.label(format!(

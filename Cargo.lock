@@ -1872,6 +1872,7 @@ dependencies = [
  "cc",
  "cfg-if",
  "constant_time_eq",
+ "serde",
 ]
 
 [[package]]
@@ -3056,6 +3057,7 @@ dependencies = [
  "bevy_simple_text_input",
  "bevy_web_asset",
  "bincode",
+ "blake3",
  "flume",
  "futures-util",
  "getrandom 0.3.3",

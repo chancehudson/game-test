@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use game_test::action::PlayerState;
+use game_test::engine::STEPS_PER_SECOND;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::game_event::GameEvent;
 use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
@@ -57,29 +58,25 @@ impl MapInstance {
         player_id: &str,
         player: &mut RemotePlayerEngine,
     ) {
-        // the state confirmation delay. Participants must come to consensus in STEP_DELAY
-        // steps
-        let client_step_index = engine.step_index - STEP_DELAY;
-
         // reverse the engine by 30 frames, insert the player, and step 30 frames forward
         // to allow 30 frames of replay
         const ENGINE_HISTORY_STEPS: u64 = 30;
-        let mut engine = if let Ok(engine) =
-            engine.engine_at_step(&(client_step_index - ENGINE_HISTORY_STEPS))
+        let mut client_engine = if let Ok(engine) =
+            engine.engine_at_step(&(engine.step_index - ENGINE_HISTORY_STEPS))
         {
             engine
         } else {
             // engine needs to warm up, try init on next tick
             return;
         };
-        engine.id = rand::random();
-        engine.step_to(&client_step_index);
+        client_engine.id = rand::random();
+        client_engine.step_to(&engine.step_index);
 
-        player.last_step_index = client_step_index;
+        player.last_step_index = client_engine.step_index - STEP_DELAY;
         player.is_inited = true;
-        player.engine_id = engine.id;
+        player.engine_id = client_engine.id;
 
-        let response = Response::EngineState(engine);
+        let response = Response::EngineState(client_engine);
         let player_id = player_id.to_string();
         tokio::spawn(async move {
             network_server.send_to_player(&player_id, response).await;
@@ -199,7 +196,6 @@ impl MapInstance {
         step_index: u64,
     ) -> anyhow::Result<()> {
         // discard events too far back
-        let step_index = step_index + STEP_DELAY;
         if step_index < self.engine.step_index
             && self.engine.step_index - step_index >= TRAILING_STATE_COUNT
         {
@@ -236,11 +232,16 @@ impl MapInstance {
                                     "attempted to spawn player entity with incorrect player id"
                                 );
                             }
+                            if self.engine.entities.contains_key(&p.id) {
+                                anyhow::bail!("attempted to spawn player with duplicate entity id");
+                            }
                             player.entity_id = Some(p.id);
                             let mut entity = p.clone();
-                            entity.is_active = false;
-                            self.engine
-                                .spawn_entity(EngineEntity::Player(p.clone()), None, true);
+                            self.engine.spawn_entity(
+                                EngineEntity::Player(entity.clone()),
+                                None,
+                                true,
+                            );
                         }
                         _ => {}
                     }
@@ -291,19 +292,23 @@ impl MapInstance {
 
         // let player_ids = self.player_engines.keys().cloned().collect::<Vec<_>>();
         // TODO: collect errors and finish syncing
-        let send_stats = timestamp() - self.last_stats_broadcast > 2.0;
-        if send_stats {
+        let engine_hash = if timestamp() - self.last_stats_broadcast > 2.0 {
             self.last_stats_broadcast = timestamp();
-        }
+            let target_step = self.engine.step_index - 2 * STEPS_PER_SECOND;
+            Some((target_step, self.engine.step_hash(&target_step)?))
+        } else {
+            None
+        };
         for (id, player) in self.player_engines.iter_mut() {
             // send engine stats
-            if send_stats {
+            if let Some(engine_hash) = engine_hash {
                 let network_server = self.network_server.clone();
                 let step_index = self.engine.step_index;
                 let id = id.to_string();
+                let engine_hash = engine_hash.clone();
                 tokio::spawn(async move {
                     network_server
-                        .send_to_player(&id, Response::EngineStats(step_index))
+                        .send_to_player(&id, Response::EngineStats(step_index, engine_hash))
                         .await;
                 });
             }

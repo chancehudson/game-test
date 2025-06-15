@@ -3,18 +3,18 @@ use std::mem::discriminant;
 use bevy_math::IVec2;
 use rand::Rng;
 
+use super::EEntity;
 use super::emoji::EmojiEntity;
 use super::portal::PortalEntity;
 use super::rect::RectEntity;
-use super::EEntity;
 use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
+use crate::engine::GameEngine;
+use crate::engine::STEPS_PER_SECOND_I32;
 use crate::engine::entity::EngineEntity;
 use crate::engine::entity::SEEntity;
 use crate::engine::game_event::ServerEvent;
-use crate::engine::GameEngine;
-use crate::engine::STEPS_PER_SECOND_I32;
 use crate::entity_struct;
 
 entity_struct!(
@@ -23,7 +23,6 @@ entity_struct!(
         weightless_until: Option<u64>,
         attacking_until: Option<u64>,
         pub facing_left: bool,
-        pub is_active: bool,
         pub showing_emoji_until: Option<u64>,
     }
 );
@@ -35,6 +34,7 @@ impl PlayerEntity {
             player_id,
             position: IVec2::new(100, 100),
             size: IVec2::new(52, 52),
+            player_creator_id: Some(id),
             ..Default::default()
         }
     }
@@ -43,11 +43,7 @@ impl PlayerEntity {
 impl SEEntity for PlayerEntity {
     fn step(&self, engine: &mut GameEngine) -> Self {
         let step_index = engine.step_index;
-        let mut rng = if self.is_active {
-            self.rng_client(&step_index)
-        } else {
-            self.rng(&step_index)
-        };
+        let mut rng = self.rng(&step_index);
         let mut next_self = self.clone();
         // velocity in the last frame based on movement
         let last_velocity = self.velocity.clone();
@@ -68,7 +64,7 @@ impl SEEntity for PlayerEntity {
             let id = rng.random();
             let mut emoji = EmojiEntity::new(id, IVec2::MAX, IVec2::new(80, 80));
             emoji.id = id;
-            emoji.pure = true;
+            emoji.player_creator_id = Some(self.id);
             emoji.attached_to = Some((self.id, self.size + IVec2::new(-self.size.x / 2, 5)));
             emoji.disappears_at_step_index = show_until;
             engine.spawn_entity(EngineEntity::Emoji(emoji), None, false);
@@ -146,7 +142,7 @@ impl SEEntity for PlayerEntity {
                 ),
                 IVec2::new(30, 5),
             );
-            projectile.pure = true;
+            projectile.player_creator_id = Some(self.id);
             projectile.velocity.x = 800 * move_sign;
             projectile.disappears_at_step_index = Some(step_index + 30);
             engine.spawn_entity(EngineEntity::Rect(projectile), None, false);
