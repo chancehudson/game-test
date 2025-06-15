@@ -86,7 +86,12 @@ fn spawn_howto_view(
     }
 }
 
-fn playtest_info_view(mut contexts: EguiContexts, game_state: Res<State<GameState>>) {
+fn playtest_info_view(
+    mut contexts: EguiContexts,
+    game_state: Res<State<GameState>>,
+    mut connect_view_state: ResMut<ConnectViewState>,
+    mut connection_maybe: ResMut<NetworkConnectionMaybe>,
+) {
     if game_state.get() != &GameState::Disconnected {
         return;
     }
@@ -95,12 +100,18 @@ fn playtest_info_view(mut contexts: EguiContexts, game_state: Res<State<GameStat
         .collapsible(false)
         .show(contexts.ctx_mut(), |ui| {
             ui.label("hello if you're here for the playtest press this button");
-            ui.add_enabled_ui(false, |ui| {
-                if ui.button("connect").clicked() {
-                    // connect_view_state.server_url = "wss://playtest.keccak-doomsday.com/".to_string();
+            ui.add_enabled_ui(true, |ui| {
+                if ui.button("connect").clicked() && !connect_view_state.attempting_connection {
+                    connect_view_state.server_url =
+                        "wss://dev-server.keccak-doomsday.com".to_string();
+                    connect_view_state.attempting_connection = true;
+                    connect_view_state.began_connecting = Some(Instant::now());
+                    let connection = NetworkConnection::attempt_connection(
+                        connect_view_state.server_url.clone(),
+                    );
+                    connection_maybe.0 = Some(connection);
                 }
             });
-            ui.label("(the playtest server isn't running yet)");
         });
 }
 
