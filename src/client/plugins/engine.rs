@@ -327,11 +327,11 @@ pub fn sync_engine_components(
                 commands.spawn((
                     GameEntityComponent { entity_id: *id },
                     Transform::from_translation(p.position_f32().extend(1.0)),
-                    Text2d(p.id.to_string().split_off(15)),
-                    TextFont {
-                        font_size: 8.0,
-                        ..default()
-                    },
+                    // Text2d(p.id.to_string().split_off(15)),
+                    // TextFont {
+                    //     font_size: 8.0,
+                    //     ..default()
+                    // },
                     MobComponent::new(p.clone(), &sprite_data, sprite_manager.as_ref()),
                     MapEntity,
                 ));
