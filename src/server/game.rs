@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 /// The Game module handles everything outside of each individual map.
 /// This includes authentication, administration, and meta tasks like moving
 /// between maps.
@@ -5,13 +6,16 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use dashmap::DashMap;
+use tokio::sync::RwLock;
+
 use game_test::action::Action;
 use game_test::action::PlayerState;
 use game_test::action::Response;
 use game_test::engine::STEPS_PER_SECOND;
+use game_test::engine::game_event::EngineEvent;
 use game_test::engine::game_event::GameEvent;
 use game_test::map::MapData;
-use tokio::sync::RwLock;
 
 use super::MapInstance;
 use super::network;
@@ -31,13 +35,21 @@ impl From<&PlayerRecord> for PlayerState {
     }
 }
 
+pub struct RemoteEngineEvent {
+    pub player_id: String,
+    pub engine_id: u128,
+    pub event: EngineEvent,
+    pub step_index: u64,
+}
+
 #[derive(Clone)]
 pub struct Game {
     pub db: sled::Db,
     pub network_server: Arc<network::Server>,
     // name keyed to instance
     pub map_instances: Arc<HashMap<String, Arc<RwLock<MapInstance>>>>,
-    pub instance_for_player_id: Arc<RwLock<HashMap<String, Arc<RwLock<MapInstance>>>>>,
+    pub instance_for_player_id:
+        Arc<DashMap<String, (flume::Sender<RemoteEngineEvent>, Arc<RwLock<MapInstance>>)>>,
 }
 
 impl Game {
@@ -77,7 +89,7 @@ impl Game {
             db: sled::open("./game_data")?,
             network_server,
             map_instances: Arc::new(map_instances),
-            instance_for_player_id: Arc::new(RwLock::new(HashMap::new())),
+            instance_for_player_id: Arc::new(DashMap::new()),
         })
     }
 
@@ -122,10 +134,10 @@ impl Game {
 
                         // must wait for all
                         from_instance.remove_player(&player_id).await;
-                        self.instance_for_player_id
-                            .write()
-                            .await
-                            .insert(player_id.clone(), to_instance_ref);
+                        self.instance_for_player_id.insert(
+                            player_id.clone(),
+                            (to_instance.pending_actions.0.clone(), to_instance_ref),
+                        );
                         to_instance.add_player(&PlayerState::from(&record)).await?;
                         // send an update
                         self.network_server
@@ -146,7 +158,8 @@ impl Game {
     /// for all players that are "logged in"
     pub async fn login_player(&self, socket_id: &str, record: &PlayerRecord) -> anyhow::Result<()> {
         let player_state = PlayerState::from(record);
-        if let Some(current_instance) = self.instance_for_player_id.read().await.get(&record.id) {
+        if let Some(entry) = self.instance_for_player_id.get(&record.id) {
+            let (_, current_instance) = entry.value();
             let instance = current_instance.read().await;
             if let Some(player) = instance.player_engines.get(&record.id) {
                 if player.last_input_step_index > instance.engine.step_index - 10 * STEPS_PER_SECOND
@@ -165,10 +178,10 @@ impl Game {
 
         let map_instance_ref = map_instance.clone();
         let mut map_instance = map_instance.write().await;
-        self.instance_for_player_id
-            .write()
-            .await
-            .insert(player_state.id.clone(), map_instance_ref);
+        self.instance_for_player_id.insert(
+            player_state.id.clone(),
+            (map_instance.pending_actions.0.clone(), map_instance_ref),
+        );
 
         map_instance.remove_player(&player_state.id).await;
         map_instance.add_player(&player_state).await?;
@@ -222,17 +235,15 @@ impl Game {
                     return Ok(());
                 }
                 let player_id = player_id.unwrap();
-                if let Some(map_instance) = self
-                    .instance_for_player_id
-                    .read()
-                    .await
-                    .get(&player_id)
-                    .cloned()
-                {
-                    let mut map_instance = map_instance.write().await;
-                    map_instance
-                        .integrate_client_event(&player_id, &engine_id, event, step_index)
-                        .await?;
+                if let Some(entry) = self.instance_for_player_id.get(&player_id) {
+                    let (event_sender, map_instance) = entry.value();
+                    // let mut map_instance = map_instance.write().await;
+                    event_sender.send(RemoteEngineEvent {
+                        player_id,
+                        engine_id,
+                        event,
+                        step_index,
+                    });
                 }
             }
             // This is a task that occurs outside of the engine because it may be stalled
@@ -251,13 +262,8 @@ impl Game {
                     return Ok(());
                 }
                 let player_id = player_id.unwrap();
-                if let Some(map_instance) = self
-                    .instance_for_player_id
-                    .read()
-                    .await
-                    .get(&player_id)
-                    .cloned()
-                {
+                if let Some(entry) = self.instance_for_player_id.get(&player_id) {
+                    let (_, map_instance) = entry.value();
                     let mut map_instance = map_instance.write().await;
                     map_instance.reload_player_engine(&player_id).await?;
                     println!(

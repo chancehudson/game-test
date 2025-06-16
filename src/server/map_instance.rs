@@ -4,16 +4,17 @@ use std::sync::Arc;
 
 use game_test::action::PlayerState;
 use game_test::engine::STEPS_PER_SECOND;
+use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::game_event::EngineEvent;
 use game_test::engine::game_event::HasId;
 use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
 
-use game_test::STEP_DELAY;
 use game_test::action::Response;
 use game_test::map::MapData;
 use game_test::timestamp;
 
+use crate::game::RemoteEngineEvent;
 use crate::network;
 
 pub struct RemotePlayerEngine {
@@ -32,8 +33,8 @@ pub struct MapInstance {
     pub engine: GameEngine,
 
     pub pending_actions: (
-        flume::Sender<(u64, EngineEvent)>,
-        flume::Receiver<(u64, EngineEvent)>,
+        flume::Sender<RemoteEngineEvent>,
+        flume::Receiver<RemoteEngineEvent>,
     ),
     pub player_engines: HashMap<String, RemotePlayerEngine>,
     last_stats_broadcast: f64,
@@ -171,14 +172,15 @@ impl MapInstance {
         Ok(())
     }
 
-    /// ingest an event from a point in time in a another engine within 60 steps of this engine
-    pub async fn integrate_client_event(
+    pub async fn process_remote_event(
         &mut self,
-        player_id: &str,
-        engine_id: &u128,
-        event: EngineEvent,
-        step_index: u64,
-    ) -> anyhow::Result<()> {
+        RemoteEngineEvent {
+            player_id,
+            engine_id,
+            event,
+            step_index,
+        }: RemoteEngineEvent,
+    ) -> anyhow::Result<Option<(u64, EngineEvent)>> {
         // discard events too far back
         if step_index < self.engine.step_index
             && self.engine.step_index - step_index >= TRAILING_STATE_COUNT
@@ -187,13 +189,12 @@ impl MapInstance {
         }
 
         // player action validity checks/logic
-        let mut new_events = vec![];
-        if let Some(player) = self.player_engines.get_mut(player_id) {
-            if &player.engine_id != engine_id {
+        if let Some(player) = self.player_engines.get_mut(&player_id) {
+            if player.engine_id != engine_id {
                 anyhow::bail!("engine id mismatch in client event, discarding");
             }
             // check that we're syncing with the correct engine
-            if &player.engine_id != engine_id {
+            if player.engine_id != engine_id {
                 anyhow::bail!("event from incorrect engine_id for player");
             }
             // Structure for validity checks
@@ -217,9 +218,14 @@ impl MapInstance {
                                 anyhow::bail!("attempted to spawn player with duplicate entity id");
                             }
                             player.entity_id = Some(p.id);
-                            self.engine
-                                .spawn_entity(EngineEntity::Player(p.clone()), None, true);
-                            new_events.push(event.clone());
+                            return Ok(Some((
+                                step_index,
+                                EngineEvent::SpawnEntity {
+                                    id: entity.id(),
+                                    entity: entity.clone(),
+                                    universal: true,
+                                },
+                            )));
                         }
                         _ => {}
                     }
@@ -236,10 +242,9 @@ impl MapInstance {
                         }
                         println!("integrating input event at {step_index}");
                         player.last_input_step_index = step_index;
-                        new_events.push(event.clone());
-                        self.engine.integrate_event(step_index, event);
+                        return Ok(Some((step_index, event)));
                     } else {
-                        println!("attempting to send input with no spawned entity");
+                        println!("WARNING: attempting to send input with no spawned entity");
                     }
                 }
                 EngineEvent::RemoveEntity {
@@ -252,8 +257,7 @@ impl MapInstance {
                             anyhow::bail!("player tried to remove non-self entity");
                         }
                         player.entity_id = None;
-                        new_events.push(event.clone());
-                        self.engine.integrate_event(step_index, event);
+                        return Ok(Some((step_index, event)));
                     } else {
                         println!("attempting to send removal with no spawned entity");
                     }
@@ -262,19 +266,46 @@ impl MapInstance {
         } else {
             anyhow::bail!("unknown player id, discarding game events");
         }
-        for event in new_events {
-            for (_, player) in self.player_engines.iter_mut() {
-                player
-                    .pending_events
-                    .entry(self.engine.step_index)
+        Ok(None)
+    }
+
+    /// ingest an event from a point in time in a another engine within 60 steps of this engine
+    pub async fn process_remote_events(
+        &mut self,
+        remote_events: Vec<RemoteEngineEvent>,
+    ) -> anyhow::Result<BTreeMap<u64, HashMap<u128, EngineEvent>>> {
+        let mut events: BTreeMap<u64, HashMap<_, _>> = BTreeMap::new();
+
+        for remote_event in remote_events {
+            if let Some((step_index, engine_event)) =
+                self.process_remote_event(remote_event).await?
+            {
+                if let Some(_) = events
+                    .entry(step_index)
                     .or_default()
-                    .insert(event.id(), event.clone());
+                    .insert(engine_event.id(), engine_event.clone())
+                {
+                    println!("WARNING: duplicate action/event detected!");
+                }
+                for (_, player) in self.player_engines.iter_mut() {
+                    player
+                        .pending_events
+                        .entry(step_index)
+                        .or_default()
+                        .insert(engine_event.id(), engine_event.clone());
+                }
             }
         }
-        Ok(())
+        Ok(events)
     }
 
     pub async fn tick(&mut self) -> anyhow::Result<()> {
+        let pending_actions = self.pending_actions.1.drain().collect::<Vec<_>>();
+        if pending_actions.len() > 0 {
+            let new_events = self.process_remote_events(pending_actions).await?;
+            self.engine.integrate_events(new_events);
+        }
+
         self.engine.tick();
 
         // let player_ids = self.player_engines.keys().cloned().collect::<Vec<_>>();
