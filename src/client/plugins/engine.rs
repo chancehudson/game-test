@@ -166,7 +166,13 @@ fn handle_engine_stats(
 ) {
     let engine = &active_engine_state.0;
     for event in action_events.read() {
-        if let Response::EngineStats(step_index, (hash_step_index, server_engine_hash)) = &event.0 {
+        if let Response::EngineStats(engine_id, step_index, (hash_step_index, server_engine_hash)) =
+            &event.0
+        {
+            if engine_id != &active_engine_state.0.id {
+                println!("WARNING: received engine stats for inactive engine, discarding");
+                return;
+            }
             engine_sync.server_step = *step_index;
             engine_sync.server_step_timestamp = timestamp();
             engine_sync.sync_distance = (engine.step_index as i64) - (*step_index as i64);

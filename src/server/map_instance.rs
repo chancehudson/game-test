@@ -301,7 +301,11 @@ impl MapInstance {
                 self.network_server
                     .send_to_player(
                         &id,
-                        Response::EngineStats(self.engine.step_index, engine_hash),
+                        Response::EngineStats(
+                            player.engine_id,
+                            self.engine.step_index,
+                            engine_hash,
+                        ),
                     )
                     .await;
             }
