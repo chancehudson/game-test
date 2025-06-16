@@ -8,13 +8,13 @@ use crate::actor::can_move_left_right_without_falling;
 use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
-use crate::engine::entity::EEntity;
-use crate::engine::entity::EngineEntity;
-use crate::engine::entity::SEEntity;
-use crate::engine::game_event::GameEvent;
 use crate::engine::GameEngine;
 use crate::engine::STEPS_PER_SECOND;
 use crate::engine::STEPS_PER_SECOND_I32;
+use crate::engine::entity::EEntity;
+use crate::engine::entity::EngineEntity;
+use crate::engine::entity::SEEntity;
+use crate::engine::game_event::EngineEvent;
 use crate::entity_struct;
 
 use super::EntityInput;
@@ -46,7 +46,7 @@ impl MobEntity {
                 }
                 engine.register_event(
                     None,
-                    GameEvent::Input {
+                    EngineEvent::Input {
                         id: rng.random(),
                         input: new_input,
                         entity_id: self.id,
@@ -63,7 +63,7 @@ impl MobEntity {
                 self.moving_sign = 0;
                 engine.register_event(
                     None,
-                    GameEvent::Input {
+                    EngineEvent::Input {
                         id: rng.random(),
                         input: EntityInput::default(),
                         entity_id: self.id,
@@ -86,7 +86,7 @@ impl MobEntity {
                     new_input.move_left = self.moving_sign == 1 && can_move_left;
                     engine.register_event(
                         None,
-                        GameEvent::Input {
+                        EngineEvent::Input {
                             id: rng.random(),
                             input: new_input,
                             entity_id: self.id,
@@ -101,7 +101,7 @@ impl MobEntity {
                     if engine.step_index > step_index && engine.step_index - step_index > 60 {
                         engine.register_event(
                             None,
-                            GameEvent::Input {
+                            EngineEvent::Input {
                                 id: rng.random(),
                                 input: latest_input,
                                 entity_id: self.id,
@@ -123,7 +123,7 @@ impl MobEntity {
             new_input.move_left = self.moving_sign == -1;
             engine.register_event(
                 None,
-                GameEvent::Input {
+                EngineEvent::Input {
                     id: rng.random(),
                     input: new_input,
                     entity_id: self.id,

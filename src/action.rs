@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::engine::GameEngine;
-use crate::engine::game_event::GameEvent;
+use crate::engine::game_event::EngineEvent;
 
 /// Types of messages that can be sent to the server
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,7 +16,7 @@ pub enum Action {
     LoginPlayer(String),
     LogoutPlayer,
     // engine id, game event, step_index
-    EngineEvent(u128, GameEvent, u64),
+    RemoteEngineEvent(u128, EngineEvent, u64),
     // engine id, divergent step index
     RequestEngineReload(u128, u64),
     Ping,
@@ -32,7 +32,7 @@ pub enum Response {
     EngineStats(u64, (u64, blake3::Hash)),
     PlayerState(PlayerState),
     // engine id, game events <step_index, <event_id, event>>
-    EngineEvents(u128, BTreeMap<u64, HashMap<u128, GameEvent>>),
+    RemoteEngineEvents(u128, BTreeMap<u64, HashMap<u128, EngineEvent>>),
     // from_map
     PlayerExitMap(String),
     LoginError(String),

@@ -44,9 +44,13 @@ impl Plugin for NetworkPlugin {
 fn send_system(
     connection_maybe: Res<NetworkConnectionMaybe>,
     mut action_events: EventReader<NetworkAction>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
     if let Some(connection) = &connection_maybe.0 {
         for action in action_events.read() {
+            if connection.is_closed() {
+                next_state.set(GameState::Disconnected);
+            }
             connection.write_connection(action.0.clone());
         }
     } else {

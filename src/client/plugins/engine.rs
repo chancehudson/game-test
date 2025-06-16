@@ -23,7 +23,7 @@ use game_test::engine::STEP_LEN_S;
 use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::entity::player::PlayerEntity;
-use game_test::engine::game_event::GameEvent;
+use game_test::engine::game_event::EngineEvent;
 use game_test::timestamp;
 
 /// Engine tracking resources/components
@@ -138,7 +138,7 @@ fn handle_engine_event(
 ) {
     for event in action_events.read() {
         match &event.0 {
-            Response::EngineEvents(engine_id, events) => {
+            Response::RemoteEngineEvents(engine_id, events) => {
                 let engine = &mut active_engine_state.0;
                 if engine.id != *engine_id {
                     continue;
@@ -224,7 +224,7 @@ fn handle_engine_state(
                             true,
                         );
                         *active_entity_id = entity.id;
-                        let spawn_event = GameEvent::SpawnEntity {
+                        let spawn_event = EngineEvent::SpawnEntity {
                             id: rand::random(),
                             entity: EngineEntity::Player(entity),
                             universal: true,
@@ -232,7 +232,7 @@ fn handle_engine_state(
                         // register the event locally
                         engine.register_event(None, spawn_event.clone());
                         // send the new input to the server
-                        action_events_write.write(NetworkAction(Action::EngineEvent(
+                        action_events_write.write(NetworkAction(Action::RemoteEngineEvent(
                             engine.id,
                             spawn_event,
                             engine.step_index,

@@ -9,6 +9,7 @@ use game_test::action::Action;
 use game_test::action::PlayerState;
 use game_test::action::Response;
 use game_test::engine::STEPS_PER_SECOND;
+use game_test::engine::game_event::EngineEvent;
 use game_test::engine::game_event::ServerEvent;
 use game_test::map::MapData;
 use tokio::sync::RwLock;
@@ -173,8 +174,6 @@ impl Game {
         map_instance.remove_player(&player_state.id).await;
         map_instance.add_player(&player_state).await?;
 
-        drop(map_instance);
-
         self.network_server
             .register_player(socket_id.to_string(), record.id.clone())
             .await;
@@ -184,6 +183,7 @@ impl Game {
         self.network_server
             .send_to_player(&record.id, Response::PlayerState(PlayerState::from(record)))
             .await;
+        drop(map_instance);
 
         Ok(())
     }
@@ -216,7 +216,7 @@ impl Game {
                         .await?;
                 }
             }
-            Action::EngineEvent(engine_id, event, step_index) => {
+            Action::RemoteEngineEvent(engine_id, event, step_index) => {
                 let player_id = self.network_server.player_by_socket_id(&socket_id).await;
                 if player_id.is_none() {
                     println!("No player id for socket {} !", socket_id);
@@ -237,12 +237,12 @@ impl Game {
                 }
             }
             // This is a task that occurs outside of the engine because it may be stalled
-            // or otherwise incapable of exchanging GameEvent structs
+            // or otherwise incapable of exchanging EngineEvent structs
             //
             // engines have to stay synchronized to within 60 steps (~1 second) of the server
             //
             // if a client desyncs we re-initialize with a serialized GameEngine, and then
-            // exchange GameEvents to agree on changes to the engine state
+            // exchange EngineEvents to agree on changes to the engine state
             //
             Action::RequestEngineReload(_engine_id, step_index) => {
                 // but linus said deep indentation bad

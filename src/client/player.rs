@@ -5,8 +5,7 @@ use game_test::action::PlayerState;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::entity::EntityInput;
 use game_test::engine::entity::player::PlayerEntity;
-use game_test::engine::entity::text::TextEntity;
-use game_test::engine::game_event::GameEvent;
+use game_test::engine::game_event::EngineEvent;
 
 use crate::plugins::animated_sprite::AnimatedSprite;
 use crate::plugins::engine::ActiveGameEngine;
@@ -86,7 +85,7 @@ fn input_system(
         let mut entity = PlayerEntity::new_with_ids(rand::random(), player_state.id.clone());
         active_player_entity_id.0 = Some(entity.id);
         entity.position = engine.map.spawn_location;
-        let spawn_event = GameEvent::SpawnEntity {
+        let spawn_event = EngineEvent::SpawnEntity {
             id: rand::random(),
             entity: EngineEntity::Player(entity),
             universal: true,
@@ -94,7 +93,7 @@ fn input_system(
         // register the event locally
         engine.register_event(None, spawn_event.clone());
         // send the new input to the server
-        action_events.write(NetworkAction(Action::EngineEvent(
+        action_events.write(NetworkAction(Action::RemoteEngineEvent(
             engine.id,
             spawn_event,
             engine.step_index,
@@ -102,7 +101,7 @@ fn input_system(
     }
 
     if keyboard.just_pressed(KeyCode::KeyK) && active_player_entity_id.0.is_some() {
-        let despawn_event = GameEvent::RemoveEntity {
+        let despawn_event = EngineEvent::RemoveEntity {
             id: rand::random(),
             entity_id: active_player_entity_id.0.unwrap(),
             universal: true,
@@ -110,7 +109,7 @@ fn input_system(
         // register the event locally
         engine.register_event(None, despawn_event.clone());
         // send the new input to the server
-        action_events.write(NetworkAction(Action::EngineEvent(
+        action_events.write(NetworkAction(Action::RemoteEngineEvent(
             engine.id,
             despawn_event,
             engine.step_index,
@@ -136,7 +135,7 @@ fn input_system(
         if latest_input == input {
             return;
         }
-        let input_event = GameEvent::Input {
+        let input_event = EngineEvent::Input {
             id: rand::random(), // generate a random value, will receive actual value in future ?
             input: input.clone(),
             entity_id,
@@ -146,7 +145,7 @@ fn input_system(
         // for now, no
         engine.register_event(None, input_event.clone());
         // send the new input to the server
-        action_events.write(NetworkAction(Action::EngineEvent(
+        action_events.write(NetworkAction(Action::RemoteEngineEvent(
             engine.id,
             input_event,
             engine.step_index,

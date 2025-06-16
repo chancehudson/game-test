@@ -5,7 +5,7 @@ use std::sync::Arc;
 use game_test::action::PlayerState;
 use game_test::engine::STEPS_PER_SECOND;
 use game_test::engine::entity::EngineEntity;
-use game_test::engine::game_event::GameEvent;
+use game_test::engine::game_event::EngineEvent;
 use game_test::engine::game_event::HasId;
 use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
 
@@ -22,7 +22,7 @@ pub struct RemotePlayerEngine {
     pub is_inited: bool,
     pub player_id: String,
     pub last_input_step_index: u64,
-    pub pending_events: BTreeMap<u64, HashMap<u128, GameEvent>>,
+    pub pending_events: BTreeMap<u64, HashMap<u128, EngineEvent>>,
 }
 
 /// A distinct instance of a map. Each map is it's own game instance
@@ -31,6 +31,10 @@ pub struct MapInstance {
     pub map: MapData,
     pub engine: GameEngine,
 
+    pub pending_actions: (
+        flume::Sender<(u64, EngineEvent)>,
+        flume::Receiver<(u64, EngineEvent)>,
+    ),
     pub player_engines: HashMap<String, RemotePlayerEngine>,
     last_stats_broadcast: f64,
 
@@ -45,6 +49,7 @@ pub struct MapInstance {
 impl MapInstance {
     pub fn new(map: MapData, network_server: Arc<network::Server>) -> Self {
         Self {
+            pending_actions: flume::unbounded(),
             player_engines: HashMap::new(),
             engine: GameEngine::new(map.clone()),
             network_server,
@@ -110,7 +115,7 @@ impl MapInstance {
         // discard input events for this user (they already know about them)
         // TODO: generalized event filtering ???
         let pending_events = std::mem::take(&mut player.pending_events);
-        let response = Response::EngineEvents(player.engine_id, pending_events);
+        let response = Response::RemoteEngineEvents(player.engine_id, pending_events);
         let player_id = player_id.to_string();
         tokio::spawn(async move {
             network_server.send_to_player(&player_id, response).await;
@@ -171,7 +176,7 @@ impl MapInstance {
         &mut self,
         player_id: &str,
         engine_id: &u128,
-        event: GameEvent,
+        event: EngineEvent,
         step_index: u64,
     ) -> anyhow::Result<()> {
         // discard events too far back
@@ -193,7 +198,7 @@ impl MapInstance {
             }
             // Structure for validity checks
             match &event {
-                GameEvent::SpawnEntity {
+                EngineEvent::SpawnEntity {
                     universal: _, // player should not set this
                     entity,
                     id: _, // we'll generate the id from our engine seeded rng
@@ -219,7 +224,7 @@ impl MapInstance {
                         _ => {}
                     }
                 }
-                GameEvent::Input {
+                EngineEvent::Input {
                     universal: _,
                     input: _,
                     id: _,
@@ -237,7 +242,7 @@ impl MapInstance {
                         println!("attempting to send input with no spawned entity");
                     }
                 }
-                GameEvent::RemoveEntity {
+                EngineEvent::RemoveEntity {
                     id: _,
                     entity_id,
                     universal: _,

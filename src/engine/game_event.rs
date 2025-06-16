@@ -17,24 +17,24 @@ pub enum ServerEvent {
 }
 
 #[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Clone, Debug)]
-pub enum GameEventType {
+pub enum EngineEventType {
     RemoveEntity,
     SpawnEntity,
     Input,
 }
 
-impl From<&GameEvent> for GameEventType {
-    fn from(event: &GameEvent) -> Self {
+impl From<&EngineEvent> for EngineEventType {
+    fn from(event: &EngineEvent) -> Self {
         match event {
-            GameEvent::RemoveEntity { .. } => GameEventType::RemoveEntity,
-            GameEvent::SpawnEntity { .. } => GameEventType::SpawnEntity,
-            GameEvent::Input { .. } => GameEventType::Input,
+            EngineEvent::RemoveEntity { .. } => EngineEventType::RemoveEntity,
+            EngineEvent::SpawnEntity { .. } => EngineEventType::SpawnEntity,
+            EngineEvent::Input { .. } => EngineEventType::Input,
         }
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum GameEvent {
+pub enum EngineEvent {
     RemoveEntity {
         id: u128,
         entity_id: u128,
@@ -57,12 +57,12 @@ pub trait HasId {
     fn id(&self) -> u128;
 }
 
-impl HasId for GameEvent {
+impl HasId for EngineEvent {
     fn id(&self) -> u128 {
         match self {
-            GameEvent::RemoveEntity { id, .. } => *id,
-            GameEvent::SpawnEntity { id, .. } => *id,
-            GameEvent::Input { id, .. } => *id,
+            EngineEvent::RemoveEntity { id, .. } => *id,
+            EngineEvent::SpawnEntity { id, .. } => *id,
+            EngineEvent::Input { id, .. } => *id,
         }
     }
 }
@@ -71,12 +71,12 @@ pub trait HasUniversal {
     fn universal(&self) -> bool;
 }
 
-impl HasUniversal for GameEvent {
+impl HasUniversal for EngineEvent {
     fn universal(&self) -> bool {
         match self {
-            GameEvent::RemoveEntity { universal, .. } => *universal,
-            GameEvent::SpawnEntity { universal, .. } => *universal,
-            GameEvent::Input { universal, .. } => *universal,
+            EngineEvent::RemoveEntity { universal, .. } => *universal,
+            EngineEvent::SpawnEntity { universal, .. } => *universal,
+            EngineEvent::Input { universal, .. } => *universal,
         }
     }
 }

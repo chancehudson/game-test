@@ -37,8 +37,8 @@ use entity::SEEntity;
 use entity::player::PlayerEntity;
 
 use crate::engine::entity::platform::PlatformEntity;
-use crate::engine::game_event::GameEvent;
-use crate::engine::game_event::GameEventType;
+use crate::engine::game_event::EngineEvent;
+use crate::engine::game_event::EngineEventType;
 use crate::engine::game_event::HasUniversal;
 use crate::engine::game_event::ServerEvent;
 use crate::map::MapData;
@@ -64,7 +64,7 @@ pub struct GameEngine {
     // step index keyed to entity id to struct
     pub entities_by_step: BTreeMap<u64, BTreeMap<u128, EngineEntity>>,
 
-    pub events_by_type: HashMap<GameEventType, BTreeMap<u64, BTreeMap<u128, GameEvent>>>,
+    pub events_by_type: HashMap<EngineEventType, BTreeMap<u64, BTreeMap<u128, EngineEvent>>>,
 
     // for external use
     #[serde(skip)]
@@ -286,7 +286,7 @@ impl GameEngine {
         if target_step_index >= self.step_index {
             self.register_event(
                 Some(target_step_index),
-                GameEvent::SpawnEntity {
+                EngineEvent::SpawnEntity {
                     id,
                     entity,
                     universal: is_universal,
@@ -295,7 +295,7 @@ impl GameEngine {
         } else {
             self.integrate_event(
                 target_step_index,
-                GameEvent::SpawnEntity {
+                EngineEvent::SpawnEntity {
                     id,
                     entity,
                     universal: is_universal,
@@ -308,7 +308,7 @@ impl GameEngine {
         let id = self.rng().random();
         self.register_event(
             None,
-            GameEvent::RemoveEntity {
+            EngineEvent::RemoveEntity {
                 id,
                 entity_id,
                 universal,
@@ -316,8 +316,8 @@ impl GameEngine {
         );
     }
 
-    pub fn integrate_event(&mut self, step_index: u64, event: GameEvent) {
-        let mut btree: BTreeMap<u64, HashMap<u128, GameEvent>> = BTreeMap::new();
+    pub fn integrate_event(&mut self, step_index: u64, event: EngineEvent) {
+        let mut btree: BTreeMap<u64, HashMap<u128, EngineEvent>> = BTreeMap::new();
         btree
             .entry(step_index)
             .or_default()
@@ -325,7 +325,7 @@ impl GameEngine {
         self.integrate_events(btree);
     }
 
-    pub fn integrate_events(&mut self, events: BTreeMap<u64, HashMap<u128, GameEvent>>) {
+    pub fn integrate_events(&mut self, events: BTreeMap<u64, HashMap<u128, EngineEvent>>) {
         if events.is_empty() {
             return;
         }
@@ -377,14 +377,14 @@ impl GameEngine {
         }
     }
 
-    pub fn register_event(&mut self, step_index: Option<u64>, event: GameEvent) {
+    pub fn register_event(&mut self, step_index: Option<u64>, event: EngineEvent) {
         let step_index = step_index.unwrap_or(self.step_index);
         // if the step is in the past we insert and replay
         // engine will replay all over events that ocurred as well
         let event_id = self.generate_id();
         if let Some(event) = self
             .events_by_type
-            .entry(GameEventType::from(&event))
+            .entry(EngineEventType::from(&event))
             .or_default()
             .entry(step_index)
             .or_default()
@@ -396,13 +396,13 @@ impl GameEngine {
 
     pub fn latest_input(&mut self, id: &u128) -> (u64, EntityInput) {
         self.events_by_type
-            .entry(GameEventType::Input)
+            .entry(EngineEventType::Input)
             .or_default()
             .range(..=self.step_index)
             .rev()
             .find_map(|(step_index, events)| {
                 events.values().find_map(|event| match event {
-                    GameEvent::Input {
+                    EngineEvent::Input {
                         entity_id, input, ..
                     } if entity_id == id => Some((*step_index, input.clone())),
                     _ => None,
@@ -480,13 +480,13 @@ impl GameEngine {
         // Execute the creation phase of the step
         for (_event_id, event) in self
             .events_by_type
-            .entry(GameEventType::SpawnEntity)
+            .entry(EngineEventType::SpawnEntity)
             .or_default()
             .entry(self.step_index)
             .or_default()
         {
             match event {
-                GameEvent::SpawnEntity {
+                EngineEvent::SpawnEntity {
                     id: _,
                     entity,
                     universal: _,
@@ -506,13 +506,13 @@ impl GameEngine {
         // Execute the removal phase of the step
         for (_event_id, event) in self
             .events_by_type
-            .entry(GameEventType::RemoveEntity)
+            .entry(EngineEventType::RemoveEntity)
             .or_default()
             .entry(self.step_index)
             .or_default()
         {
             match event {
-                GameEvent::RemoveEntity {
+                EngineEvent::RemoveEntity {
                     id: _,
                     entity_id,
                     universal: _,
