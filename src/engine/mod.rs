@@ -15,7 +15,6 @@
 ///
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::mem;
 use std::mem::Discriminant;
 use std::mem::discriminant;
 
@@ -25,7 +24,6 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 use serde::Serialize;
-use serde::Serializer;
 
 pub mod entity;
 pub mod game_event;
@@ -37,13 +35,12 @@ use entity::EngineEntity;
 use entity::EntityInput;
 use entity::SEEntity;
 use entity::player::PlayerEntity;
-use game_event::ServerEvent;
 
 use crate::engine::entity::platform::PlatformEntity;
-use crate::engine::entity::text::TextEntity;
 use crate::engine::game_event::GameEvent;
 use crate::engine::game_event::GameEventType;
 use crate::engine::game_event::HasUniversal;
+use crate::engine::game_event::ServerEvent;
 use crate::map::MapData;
 use crate::timestamp;
 
@@ -56,6 +53,7 @@ pub const TRAILING_STATE_COUNT: u64 = 360;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameEngine {
     pub id: u128,
+    pub seed: u64,
     pub step_index: u64,
     pub start_timestamp: f64,
     pub map: MapData,
@@ -64,27 +62,36 @@ pub struct GameEngine {
     // #[serde(serialize_with = "serialize_unpure_entities")]
     pub entities: BTreeMap<u128, EngineEntity>,
     // step index keyed to entity id to struct
-    // #[serde(skip)]
     pub entities_by_step: BTreeMap<u64, BTreeMap<u128, EngineEntity>>,
 
-    // #[serde(skip)]
-    // pub events_by_step: BTreeMap<A
     pub events_by_type: HashMap<GameEventType, BTreeMap<u64, BTreeMap<u128, GameEvent>>>,
-    #[serde(skip)]
-    pub server_events: Vec<ServerEvent>,
 
+    // for external use
     #[serde(skip)]
     grouped_entities: (u64, HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>>),
-    #[serde(skip)]
-    pub enable_debug_markers: bool,
-    pub seed: u64,
+    #[serde(skip, default = "default_game_events")]
+    pub game_events: (
+        flume::Sender<(u64, ServerEvent)>,
+        flume::Receiver<(u64, ServerEvent)>,
+    ),
+
     #[serde(skip, default = "default_rng")]
     rng: (u64, ChaCha8Rng),
+
+    #[serde(skip)]
+    pub enable_debug_markers: bool,
 }
 
 // default seeded rng for engine
 fn default_rng() -> (u64, ChaCha8Rng) {
     (0, ChaCha8Rng::seed_from_u64(0))
+}
+
+fn default_game_events() -> (
+    flume::Sender<(u64, ServerEvent)>,
+    flume::Receiver<(u64, ServerEvent)>,
+) {
+    flume::bounded(10)
 }
 
 impl Default for GameEngine {
@@ -97,7 +104,7 @@ impl Default for GameEngine {
             entities: BTreeMap::new(),
             entities_by_step: BTreeMap::new(),
             events_by_type: HashMap::new(),
-            server_events: Vec::new(),
+            game_events: default_game_events(),
             grouped_entities: (0, HashMap::new()),
             enable_debug_markers: false,
             seed: 0,
@@ -174,10 +181,6 @@ impl GameEngine {
         }
     }
 
-    pub fn server_events(&mut self) -> Vec<ServerEvent> {
-        mem::take(&mut self.server_events)
-    }
-
     pub fn rng(&mut self) -> &mut ChaCha8Rng {
         if self.rng.0 != self.step_index {
             self.rng.0 = self.step_index;
@@ -194,23 +197,6 @@ impl GameEngine {
             if !self.entities.contains_key(&id) {
                 return id;
             }
-        }
-    }
-
-    pub fn say_to(&mut self, entity_id: &u128, msg: String) {
-        if let Some(entity) = self.entities.get(entity_id).cloned() {
-            let mut text = TextEntity::new(self.generate_id(), IVec2::MAX, IVec2::splat(100));
-            text.text = msg;
-            text.attached_to = Some((
-                *entity_id,
-                entity.center() + IVec2::new(0, entity.size().y + 50),
-            ));
-            text.disappears_at_step_index = self.step_index + 120;
-            self.spawn_entity(EngineEntity::Text(text), None, true);
-        } else {
-            println!(
-                "WARNING: attempting to say {msg} to entity {entity_id} which does not exist in engine"
-            );
         }
     }
 
@@ -242,7 +228,10 @@ impl GameEngine {
             out.enable_debug_markers = self.enable_debug_markers;
             out.entities_by_step = self
                 .entities_by_step
-                .range((self.step_index - TRAILING_STATE_COUNT)..*target_step_index)
+                .range(
+                    (self.step_index - TRAILING_STATE_COUNT.min(self.step_index))
+                        ..*target_step_index,
+                )
                 .map(|(si, data)| (*si, data.clone()))
                 .collect::<BTreeMap<_, _>>();
 
@@ -251,39 +240,6 @@ impl GameEngine {
         } else {
             anyhow::bail!("WARNING: step index {target_step_index} is too far in the past")
         }
-    }
-
-    /// Return the game events necessary to replay a past engine
-    /// to current engine state
-    pub fn universal_events_since_step(
-        &self,
-        from_step_index: &u64,
-        to_step_index: Option<u64>,
-    ) -> BTreeMap<u64, HashMap<u128, GameEvent>> {
-        let to_step_index = to_step_index.unwrap_or(self.step_index);
-        let mut out = BTreeMap::new();
-        for (_, events_by_step) in &self.events_by_type {
-            for (step_index, events) in events_by_step {
-                if step_index < &from_step_index
-                    || step_index >= &to_step_index
-                    || events.is_empty()
-                {
-                    continue;
-                }
-                let universal_events = events
-                    .iter()
-                    .filter(|(_event_id, event)| event.universal())
-                    .collect::<BTreeMap<_, _>>();
-                if universal_events.is_empty() {
-                    continue;
-                }
-                let out_step: &mut HashMap<u128, GameEvent> = out.entry(*step_index).or_default();
-                for (event_id, event) in universal_events {
-                    out_step.insert(*event_id, event.clone());
-                }
-            }
-        }
-        out
     }
 
     /// TODO: generic implementation

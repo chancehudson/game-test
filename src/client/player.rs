@@ -74,7 +74,10 @@ fn input_system(
 
     // request engine reload if p key is pressed
     if keyboard.just_pressed(KeyCode::KeyP) {
-        action_events.write(NetworkAction(Action::RequestEngineReload(engine.id)));
+        action_events.write(NetworkAction(Action::RequestEngineReload(
+            engine.id,
+            engine.step_index,
+        )));
         return;
     }
 

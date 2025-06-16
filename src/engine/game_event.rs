@@ -53,6 +53,20 @@ pub enum GameEvent {
     },
 }
 
+pub trait HasId {
+    fn id(&self) -> u128;
+}
+
+impl HasId for GameEvent {
+    fn id(&self) -> u128 {
+        match self {
+            GameEvent::RemoveEntity { id, .. } => *id,
+            GameEvent::SpawnEntity { id, .. } => *id,
+            GameEvent::Input { id, .. } => *id,
+        }
+    }
+}
+
 pub trait HasUniversal {
     fn universal(&self) -> bool;
 }

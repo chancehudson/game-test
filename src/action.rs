@@ -17,8 +17,8 @@ pub enum Action {
     LogoutPlayer,
     // engine id, game event, step_index
     EngineEvent(u128, GameEvent, u64),
-    // engine id
-    RequestEngineReload(u128),
+    // engine id, divergent step index
+    RequestEngineReload(u128, u64),
     Ping,
 }
 

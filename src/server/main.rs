@@ -108,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
         let tick_start = timestamp();
         // step the game state in parallel
         let mut join_set = JoinSet::new();
-        for map_instance in game.map_instances.values().cloned().collect::<Vec<_>>() {
+        for map_instance in game.map_instances.values().cloned() {
             join_set.spawn(async move {
                 let mut map_instance = map_instance.write().await;
                 if let Err(e) = map_instance.tick().await {
@@ -117,21 +117,17 @@ async fn main() -> anyhow::Result<()> {
                 }
             });
         }
-        // wait for all map ticks to complete then process game events
         join_set.join_all().await;
-        // grab and handle all server events
         let mut join_set = JoinSet::new();
-        for map_instance in game.map_instances.values().cloned().collect::<Vec<_>>() {
-            let game_clone = game.clone();
+        for map_instance in game.map_instances.values().cloned() {
+            let game = game.clone();
             join_set.spawn(async move {
-                let events;
-                {
-                    let mut map_instance = map_instance.write().await;
-                    events = map_instance.engine.server_events();
-                }
-                for event in events {
-                    if let Err(e) = game_clone.handle_server_event(event).await {
-                        println!("Error handling server event: {:?}", e);
+                let read_game_events = map_instance.read().await.engine.game_events.1.clone();
+                drop(map_instance);
+                for event in read_game_events.drain() {
+                    if let Err(e) = game.handle_server_event(event.1).await {
+                        println!("WARNING: error handling game events!");
+                        println!("{:?}", e);
                     }
                 }
             });

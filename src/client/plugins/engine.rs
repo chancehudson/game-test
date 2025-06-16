@@ -164,8 +164,15 @@ fn handle_engine_stats(
             if !engine_sync.requested_resync {
                 if let Ok(local_engine_hash) = engine.step_hash(&hash_step_index) {
                     if &local_engine_hash != server_engine_hash {
-                        action_events_writer
-                            .write(NetworkAction(Action::RequestEngineReload(engine.id)));
+                        println!("WARNING: desync detected");
+                        println!(
+                            "local engine state: {:?}",
+                            active_engine_state.0.entities_by_step.get(hash_step_index)
+                        );
+                        action_events_writer.write(NetworkAction(Action::RequestEngineReload(
+                            engine.id,
+                            *hash_step_index,
+                        )));
                         engine_sync.requested_resync = true;
                         // trigger resync
                     }

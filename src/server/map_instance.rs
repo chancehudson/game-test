@@ -6,6 +6,7 @@ use game_test::action::PlayerState;
 use game_test::engine::STEPS_PER_SECOND;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::game_event::GameEvent;
+use game_test::engine::game_event::HasId;
 use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
 
 use game_test::STEP_DELAY;
@@ -20,8 +21,8 @@ pub struct RemotePlayerEngine {
     pub engine_id: u128,
     pub is_inited: bool,
     pub player_id: String,
-    pub last_step_index: u64,
     pub last_input_step_index: u64,
+    pub pending_events: BTreeMap<u64, HashMap<u128, GameEvent>>,
 }
 
 /// A distinct instance of a map. Each map is it's own game instance
@@ -72,7 +73,6 @@ impl MapInstance {
         client_engine.id = rand::random();
         client_engine.step_to(&engine.step_index);
 
-        player.last_step_index = client_engine.step_index - STEP_DELAY;
         player.is_inited = true;
         player.engine_id = client_engine.id;
 
@@ -94,44 +94,23 @@ impl MapInstance {
         if !player.is_inited {
             return;
         }
-        let to_step = engine.step_index - STEP_DELAY;
-        let events = engine.universal_events_since_step(&player.last_step_index, Some(to_step));
-        player.last_step_index = to_step;
-        if events.is_empty() {
+        // remove empty entries from pending events
+        let start_count = player.pending_events.len();
+        player
+            .pending_events
+            .retain(|_si, pending_hashmap| !pending_hashmap.is_empty());
+        if start_count != player.pending_events.len() {
+            println!("WARNING: removed empty RemotePlayerEngine pending_events btreemap entries");
+        }
+        // check if the structure has no entries
+        if player.pending_events.is_empty() {
             return;
         }
 
         // discard input events for this user (they already know about them)
         // TODO: generalized event filtering ???
-        let events = events
-            .iter()
-            .filter_map(|(step_index, events)| {
-                let events = events
-                    .iter()
-                    .filter(|(_, event)| match event {
-                        GameEvent::Input { entity_id: id, .. } => {
-                            // don't send input events back to the original engine
-                            if let Some(player_entity_id) = player.entity_id {
-                                return &player_entity_id != id;
-                            }
-                            true
-                        }
-                        _ => true,
-                    })
-                    .map(|(id, event)| (*id, event.clone()))
-                    .collect::<HashMap<_, _>>();
-                if events.is_empty() {
-                    None
-                } else {
-                    Some((*step_index, events))
-                }
-            })
-            .collect::<BTreeMap<_, _>>();
-        if events.is_empty() {
-            return;
-        }
-
-        let response = Response::EngineEvents(player.engine_id, events);
+        let pending_events = std::mem::take(&mut player.pending_events);
+        let response = Response::EngineEvents(player.engine_id, pending_events);
         let player_id = player_id.to_string();
         tokio::spawn(async move {
             network_server.send_to_player(&player_id, response).await;
@@ -148,8 +127,8 @@ impl MapInstance {
                 is_inited: false,
                 player_id: player_state.id.clone(),
                 entity_id: None,
-                last_step_index: 0,
                 last_input_step_index: self.engine.step_index,
+                pending_events: BTreeMap::default(),
             },
         ) {
             // cleanup previous engine connection
@@ -203,6 +182,7 @@ impl MapInstance {
         }
 
         // player action validity checks/logic
+        let mut new_events = vec![];
         if let Some(player) = self.player_engines.get_mut(player_id) {
             if &player.engine_id != engine_id {
                 anyhow::bail!("engine id mismatch in client event, discarding");
@@ -219,10 +199,6 @@ impl MapInstance {
                     id: _, // we'll generate the id from our engine seeded rng
                 } => {
                     if let Some(entity_id) = player.entity_id {
-                        self.engine.say_to(
-                            &entity_id,
-                            format!("stop trying to spawn entities, {}", player.player_id),
-                        );
                         anyhow::bail!("player attempted to spawn second self");
                     }
                     match entity {
@@ -236,12 +212,9 @@ impl MapInstance {
                                 anyhow::bail!("attempted to spawn player with duplicate entity id");
                             }
                             player.entity_id = Some(p.id);
-                            let mut entity = p.clone();
-                            self.engine.spawn_entity(
-                                EngineEntity::Player(entity.clone()),
-                                None,
-                                true,
-                            );
+                            self.engine
+                                .spawn_entity(EngineEntity::Player(p.clone()), None, true);
+                            new_events.push(event.clone());
                         }
                         _ => {}
                     }
@@ -254,11 +227,11 @@ impl MapInstance {
                 } => {
                     if let Some(id) = player.entity_id {
                         if entity_id != &id {
-                            self.engine.say_to(&id, format!("hello you tried to move a character that is not you. probably don't try that again"));
                             anyhow::bail!("player tried to input for wrong entity");
                         }
                         println!("integrating input event at {step_index}");
                         player.last_input_step_index = step_index;
+                        new_events.push(event.clone());
                         self.engine.integrate_event(step_index, event);
                     } else {
                         println!("attempting to send input with no spawned entity");
@@ -271,10 +244,10 @@ impl MapInstance {
                 } => {
                     if let Some(id) = player.entity_id {
                         if entity_id != &id {
-                            self.engine.say_to(&id, format!("hello you tried to remove a character that is not you. probably don't try that again"));
                             anyhow::bail!("player tried to remove non-self entity");
                         }
                         player.entity_id = None;
+                        new_events.push(event.clone());
                         self.engine.integrate_event(step_index, event);
                     } else {
                         println!("attempting to send removal with no spawned entity");
@@ -283,6 +256,15 @@ impl MapInstance {
             }
         } else {
             anyhow::bail!("unknown player id, discarding game events");
+        }
+        for event in new_events {
+            for (_, player) in self.player_engines.iter_mut() {
+                player
+                    .pending_events
+                    .entry(self.engine.step_index)
+                    .or_default()
+                    .insert(event.id(), event.clone());
+            }
         }
         Ok(())
     }

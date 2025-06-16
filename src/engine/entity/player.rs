@@ -80,28 +80,44 @@ impl SEEntity for PlayerEntity {
         }
         if input.enter_portal {
             // TODO: clean up storage/memory in this if clause
-            let mut pending_events = vec![];
             let map_name = engine.map.name.clone();
+            let events_channel = engine.game_events.0.clone();
             for entity in engine.entities_by_type(&discriminant(&EngineEntity::Portal(
                 PortalEntity::default(),
             ))) {
                 match entity {
                     EngineEntity::Portal(p) => {
                         if p.can_enter(self) {
-                            pending_events.push(ServerEvent::PlayerEnterPortal {
-                                player_id: self.player_id.clone(),
-                                entity_id: self.id,
-                                from_map: map_name.clone(),
-                                to_map: p.to.clone(),
-                            });
+                            //
+                            //
+                            //
+                            // HERE we want to push the event outward into a channel ???
+                            // to be consumed elsewhere
+                            //
+                            // TODO: debounce
+                            // pending_events.push(ServerEvent::PlayerEnterPortal {
+                            //     player_id: self.player_id.clone(),
+                            //     entity_id: self.id,
+                            //     from_map: map_name.clone(),
+                            //     to_map: p.to.clone(),
+                            // });
+                            // engine.game_events.0.send()
+                            events_channel
+                                .send((
+                                    step_index,
+                                    ServerEvent::PlayerEnterPortal {
+                                        player_id: self.player_id.clone(),
+                                        entity_id: self.id,
+                                        from_map: map_name.clone(),
+                                        to_map: p.to.clone(),
+                                    },
+                                ))
+                                .unwrap();
                             break;
                         }
                     }
                     _ => panic!("unexpected variant"),
                 }
-            }
-            for event in pending_events.into_iter() {
-                engine.server_events.push(event);
             }
         }
         if !input.move_left && !input.move_right {

@@ -2,8 +2,8 @@ use anyhow::Result;
 use nanoid::nanoid;
 use serde::Deserialize;
 use serde::Serialize;
-use sled::transaction::ConflictableTransactionError;
 use sled::Transactional;
+use sled::transaction::ConflictableTransactionError;
 
 // player record
 const PLAYER_TREE: &str = "players";
@@ -26,7 +26,7 @@ impl PlayerRecord {
         let player = Self {
             id: player_id.clone(),
             username,
-            current_map: "digital_skyscrapers_1".to_string(),
+            current_map: super::DEFAULT_MAP.to_string(),
             experience: 0,
             max_health: 50,
             health: 50,
@@ -60,7 +60,7 @@ impl PlayerRecord {
         player_id: &str,
         from_map: &str,
         to_map: &str,
-    ) -> Result<()> {
+    ) -> Result<PlayerRecord> {
         let tree = db.open_tree(PLAYER_TREE)?;
         tree.transaction(move |player_tree| {
             if let Some(player) = player_tree.get(&player_id)? {
@@ -76,15 +76,14 @@ impl PlayerRecord {
                     player_id.to_string().into_bytes(),
                     bincode::serialize(&player).unwrap(),
                 )?;
-                Ok(())
+                Ok(player)
             } else {
                 Err(ConflictableTransactionError::Abort(
                     "user not found".to_string(),
                 ))
             }
         })
-        .map_err(|e| anyhow::anyhow!("Failed to change player map: {}", e))?;
-        Ok(())
+        .map_err(|e| anyhow::anyhow!("Failed to change player map: {}", e))
     }
 
     // Load a player from the database
