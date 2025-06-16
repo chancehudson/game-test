@@ -1,13 +1,24 @@
 use bevy::prelude::*;
 use bevy_egui::egui::{Color32, RichText};
 use bevy_egui::{EguiContextPass, EguiContexts, egui};
+use game_test::MapData;
 use game_test::action::{Action, Response};
+use game_test::engine::GameEngine;
+use game_test::engine::entity::EngineEntity;
+use game_test::engine::entity::mob::MobEntity;
+use game_test::engine::entity::mob_spawn::MobSpawnEntity;
+use game_test::engine::entity::platform::PlatformEntity;
+use game_test::engine::game_event::EngineEvent;
 use web_time::Instant;
 
+use crate::map::MapLoader;
 use crate::network::{NetworkConnectionMaybe, NetworkMessage};
 
 use crate::GameState;
 use crate::network::NetworkConnection;
+use crate::plugins::engine::ActiveGameEngine;
+
+use super::engine::sync_engine_components;
 
 // A player connects to a server
 #[derive(Resource)]
@@ -49,8 +60,52 @@ impl Plugin for GuiPlugin {
             .add_systems(
                 EguiContextPass,
                 (connect_view, login_view, playtest_info_view),
+            )
+            .add_systems(OnEnter(GameState::Disconnected), show_home_engine)
+            .add_systems(
+                Update,
+                (step_home_engine, sync_engine_components)
+                    .chain()
+                    .run_if(in_state(GameState::Disconnected).or(in_state(GameState::LoggedOut))),
             );
     }
+}
+
+fn show_home_engine(mut active_engine_state: ResMut<ActiveGameEngine>) {
+    let mut home_map = MapData::default();
+    home_map.size = IVec2::splat(1000);
+    let engine = GameEngine::new(home_map);
+    active_engine_state.0 = engine;
+    let engine = &mut active_engine_state.0;
+
+    let platform = PlatformEntity::new(rand::random(), IVec2::new(200, 200), IVec2::new(200, 25));
+    let mut mob_spawner = MobSpawnEntity::new(
+        rand::random(),
+        platform.position + IVec2::new(0, platform.size.y + 20),
+        IVec2::new(200, 1),
+    );
+    mob_spawner.max_count = 2;
+    mob_spawner.mob_type = 1;
+    engine.register_event(
+        None,
+        EngineEvent::SpawnEntity {
+            id: rand::random(),
+            entity: EngineEntity::Platform(platform),
+            universal: true,
+        },
+    );
+    engine.register_event(
+        None,
+        EngineEvent::SpawnEntity {
+            id: rand::random(),
+            entity: EngineEntity::MobSpawner(mob_spawner),
+            universal: true,
+        },
+    );
+}
+
+fn step_home_engine(mut active_engine_state: ResMut<ActiveGameEngine>) {
+    active_engine_state.0.step();
 }
 
 fn playtest_info_view(

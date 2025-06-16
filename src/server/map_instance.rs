@@ -283,7 +283,8 @@ impl MapInstance {
         // step as needed
         self.engine.tick();
 
-        // build a checksum to send to the client for detecting desync
+        // build a checksum for a step in the recent past to
+        // send to the client for detecting desync
         let engine_hash = if timestamp() - self.last_stats_broadcast > 2.0
             && self.engine.step_index >= 2 * STEPS_PER_SECOND
         {
@@ -311,8 +312,11 @@ impl MapInstance {
             }
             if player.is_inited {
                 if has_events {
-                    let response =
-                        Response::RemoteEngineEvents(player.engine_id, new_events.clone());
+                    let response = Response::RemoteEngineEvents(
+                        player.engine_id,
+                        new_events.clone(),
+                        self.engine.step_index,
+                    );
                     self.network_server.send_to_player(id, response).await;
                 }
             } else {

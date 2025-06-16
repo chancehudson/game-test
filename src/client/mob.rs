@@ -13,10 +13,7 @@ pub struct MobPlugin;
 
 impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            animate_mobs.run_if(in_state(crate::GameState::OnMap)),
-        );
+        app.add_systems(Update, animate_mobs);
     }
 }
 

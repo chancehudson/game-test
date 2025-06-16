@@ -52,21 +52,25 @@ impl Plugin for EnginePlugin {
             .add_systems(
                 Update,
                 (
+                    handle_engine_stats,
                     handle_engine_event,
                     step_game_engine,
                     sync_engine_components,
                 )
                     .chain()
-                    .run_if(in_state(GameState::OnMap)),
+                    .run_if(
+                        in_state(GameState::OnMap)
+                            .or(in_state(GameState::LoadingMap))
+                            .or(in_state(GameState::Waiting)),
+                    ),
             )
             .add_systems(
                 FixedUpdate,
                 (
                     handle_login,
                     handle_exit_map,
-                    handle_engine_state,
                     handle_player_state,
-                    handle_engine_stats,
+                    handle_engine_state,
                 ),
             );
     }
@@ -105,10 +109,10 @@ fn step_game_engine(
         + (((timestamp() - sync_info.server_step_timestamp) / STEP_LEN_S).ceil() as u64);
     if target_step > engine.step_index {
         let steps = target_step - engine.step_index;
-        if steps >= 40 {
+        if steps >= 30 {
             println!("skipping forward {} steps", steps / 2);
             engine.step_to(&(engine.step_index + (steps / 2)));
-        } else if steps >= 20 {
+        } else if steps >= 10 {
             engine.step();
             engine.step();
         } else {
@@ -143,14 +147,17 @@ fn handle_exit_map(
 fn handle_engine_event(
     mut action_events: EventReader<NetworkMessage>,
     mut active_engine_state: ResMut<ActiveGameEngine>,
+    mut engine_sync: ResMut<EngineSyncInfo>,
 ) {
     for event in action_events.read() {
         match &event.0 {
-            Response::RemoteEngineEvents(engine_id, events) => {
+            Response::RemoteEngineEvents(engine_id, events, server_step_index) => {
                 let engine = &mut active_engine_state.0;
                 if engine.id != *engine_id {
                     continue;
                 }
+                engine_sync.server_step = *server_step_index;
+                engine_sync.server_step_timestamp = timestamp();
                 engine.integrate_events(events.clone());
             }
             _ => {}
@@ -229,7 +236,7 @@ fn handle_engine_state(
 ///
 /// This logical split happens at the Bevy/plugin level, not the engine level. So the engine
 /// remains deterministic and checksum verifiable
-fn sync_engine_components(
+pub fn sync_engine_components(
     mut commands: Commands,
     active_engine_state: Res<ActiveGameEngine>,
     mut entity_query: Query<(Entity, &GameEntityComponent, &mut Transform, &mut Sprite)>,

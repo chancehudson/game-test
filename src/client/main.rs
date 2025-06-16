@@ -58,7 +58,7 @@ fn main() {
         .add_plugins(network::NetworkPlugin)
         .add_plugins(player::PlayerPlugin)
         .add_plugins(mob::MobPlugin)
-        .add_systems(Update, load_sprite_manager)
+        .add_systems(FixedUpdate, load_sprite_manager)
         .run();
 }
 
