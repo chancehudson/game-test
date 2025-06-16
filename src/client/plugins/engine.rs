@@ -52,6 +52,7 @@ impl Plugin for EnginePlugin {
             .add_systems(
                 Update,
                 (
+                    handle_engine_state,
                     handle_engine_stats,
                     handle_engine_event,
                     step_game_engine,
@@ -66,12 +67,7 @@ impl Plugin for EnginePlugin {
             )
             .add_systems(
                 FixedUpdate,
-                (
-                    handle_login,
-                    handle_exit_map,
-                    handle_player_state,
-                    handle_engine_state,
-                ),
+                (handle_login, handle_exit_map, handle_player_state),
             );
     }
 }
@@ -80,11 +76,13 @@ fn handle_login(
     mut action_events: EventReader<NetworkMessage>,
     mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
     mut logged_in_at: ResMut<LoggedInAt>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
     for event in action_events.read() {
         if let Response::PlayerLoggedIn(_state) = &event.0 {
             active_player_entity_id.0 = None;
             logged_in_at.0 = timestamp();
+            next_state.set(GameState::Waiting);
         }
     }
 }
@@ -217,13 +215,13 @@ fn handle_engine_state(
             *engine_sync = EngineSyncInfo::default();
             engine_sync.server_step = *server_step;
             engine_sync.server_step_timestamp = timestamp();
-            println!("INFO: Received engine with id: {}", engine.id);
-            // TODO: figure out how to get rid of this clone
             active_engine_state.0 = engine.clone();
             let engine = &mut active_engine_state.0;
-            // approximate locally
-            engine.start_timestamp = timestamp() - ((engine.step_index as f64) * STEP_LEN_S);
-
+            if server_step > &engine.step_index {
+                engine.step_to(&server_step);
+            }
+            println!("INFO: Received engine with id: {}", engine.id);
+            // TODO: figure out how to get rid of this clone
             next_state.set(GameState::LoadingMap);
         }
     }

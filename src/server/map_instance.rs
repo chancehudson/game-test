@@ -12,6 +12,7 @@ use game_test::engine::game_event::EngineEvent;
 use game_test::engine::game_event::HasId;
 use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
 
+use game_test::STEP_DELAY;
 use game_test::action::Response;
 use game_test::map::MapData;
 use game_test::timestamp;
@@ -30,7 +31,6 @@ pub struct RemotePlayerEngine {
 /// A distinct instance of a map. Each map is it's own game instance
 /// responsible for player communication, mob management, and physics.
 pub struct MapInstance {
-    pub map: MapData,
     pub engine: GameEngine,
 
     // actions received from players. These must be sanitized before
@@ -60,39 +60,10 @@ impl MapInstance {
             pending_actions: flume::unbounded(),
             pending_events: flume::unbounded(),
             player_engines: HashMap::new(),
-            engine: GameEngine::new(map.clone()),
+            engine: GameEngine::new(map),
             network_server,
-            map,
             last_stats_broadcast: 0.,
         }
-    }
-
-    pub async fn init_player(
-        network_server: Arc<network::Server>,
-        engine: &GameEngine,
-        player_id: &str,
-        player: &mut RemotePlayerEngine,
-    ) {
-        // reverse the engine by 30 frames, insert the player, and step 30 frames forward
-        // to allow 30 frames of replay
-        const ENGINE_HISTORY_STEPS: u64 = 30;
-        let mut client_engine = if let Ok(engine) =
-            engine.engine_at_step(&(engine.step_index - ENGINE_HISTORY_STEPS))
-        {
-            engine
-        } else {
-            // engine needs to warm up, try init on next tick
-            return;
-        };
-        client_engine.id = rand::random();
-        client_engine.step_to(&engine.step_index);
-
-        player.is_inited = true;
-        player.engine_id = client_engine.id;
-
-        let response = Response::EngineState(client_engine, player.entity_id, engine.step_index);
-        let player_id = player_id.to_string();
-        network_server.send_to_player(&player_id, response).await;
     }
 
     /// insert our new player into the map and send the current state
@@ -156,7 +127,7 @@ impl MapInstance {
         } else {
             println!(
                 "WARNING: attempted to remove {player_id} from {} instance",
-                self.map.name
+                self.engine.map.name
             );
         }
         Ok(())
@@ -320,9 +291,32 @@ impl MapInstance {
                     self.network_server.send_to_player(id, response).await;
                 }
             } else {
-                Self::init_player(self.network_server.clone(), &self.engine, &id, player).await;
+                Self::init_remote_engine(self.network_server.clone(), &self.engine, &id, player)
+                    .await;
             }
         }
         Ok(())
+    }
+
+    pub async fn init_remote_engine(
+        network_server: Arc<network::Server>,
+        engine: &GameEngine,
+        player_id: &str,
+        player: &mut RemotePlayerEngine,
+    ) {
+        let client_engine = engine.engine_at_step(&(engine.step_index - STEP_DELAY));
+        if client_engine.is_err() {
+            // engine warming up, we'll try again next tick
+            return;
+        }
+        let mut client_engine = client_engine.unwrap();
+        client_engine.id = rand::random();
+
+        player.is_inited = true;
+        player.engine_id = client_engine.id;
+
+        let response = Response::EngineState(client_engine, player.entity_id, engine.step_index);
+        let player_id = player_id.to_string();
+        network_server.send_to_player(&player_id, response).await;
     }
 }
