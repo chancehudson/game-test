@@ -1,6 +1,3 @@
-use std::time::Duration;
-use std::time::Instant;
-
 use bevy::prelude::*;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
@@ -14,7 +11,8 @@ pub struct NetworkConnection {
     url: String,
     send_tx: flume::Sender<Action>,
     receive_rx: flume::Receiver<Response>,
-    pub connected_rx: flume::Receiver<anyhow::Result<()>>,
+    connected_rx: flume::Receiver<anyhow::Result<()>>,
+    connected_tx: flume::Sender<anyhow::Result<()>>,
     worker_thread: std::thread::JoinHandle<()>,
 }
 
@@ -27,10 +25,21 @@ impl NetworkConnection {
         if self.connected_rx.is_empty() {
             return Ok(false);
         }
+        // this consumes the thing
         let msg = self.connected_rx.recv();
+        if msg.is_err() {
+            println!("WARNING: NetworkConnection: all senders are dropped");
+        }
+        let msg = msg.unwrap();
+        // put the message back in the channel
         if let Err(e) = msg {
+            // safe to unwrap because we're holding self.connected_rx
+            self.connected_tx
+                .send(Err(anyhow::anyhow!("original error consumed!")))
+                .unwrap();
             Err(anyhow::format_err!(e))
         } else {
+            self.connected_tx.send(Ok(())).unwrap();
             Ok(true)
         }
     }
@@ -43,6 +52,7 @@ impl NetworkConnection {
         Self {
             url,
             connected_rx,
+            connected_tx: connected_tx.clone(),
             send_tx,
             receive_rx,
             worker_thread: std::thread::spawn(move || {
@@ -50,6 +60,7 @@ impl NetworkConnection {
                 rt.block_on(async {
                     let connection = connect_async(url_clone).await;
                     if let Err(e) = connection {
+                        println!("Connection errored: {:?}", e);
                         connected_tx.send(Err(anyhow::format_err!(e))).ok();
                         return; // thread ends
                     }

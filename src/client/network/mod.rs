@@ -42,28 +42,47 @@ impl Plugin for NetworkPlugin {
 
 // System to handle sending messages
 fn send_system(
-    connection_maybe: Res<NetworkConnectionMaybe>,
+    mut connection_maybe: ResMut<NetworkConnectionMaybe>,
     mut action_events: EventReader<NetworkAction>,
     mut next_state: ResMut<NextState<GameState>>,
+    game_state: Res<State<GameState>>,
 ) {
+    if game_state.get() == &GameState::Disconnected {
+        return;
+    }
     if let Some(connection) = &connection_maybe.0 {
         for action in action_events.read() {
             if connection.is_closed() {
+                println!("Connection detected closed in send system");
+                connection_maybe.0 = None;
                 next_state.set(GameState::Disconnected);
+                return;
             }
             connection.write_connection(action.0.clone());
         }
     } else {
         println!("WARNING: attempting to send network event without connection");
+        next_state.set(GameState::Disconnected);
     }
 }
 
 // System to handle receiving messages
 fn receive_system(
-    connection_maybe: Res<NetworkConnectionMaybe>,
+    mut connection_maybe: ResMut<NetworkConnectionMaybe>,
     mut message_events: EventWriter<NetworkMessage>,
+    mut next_state: ResMut<NextState<GameState>>,
+    game_state: Res<State<GameState>>,
 ) {
+    if game_state.get() == &GameState::Disconnected {
+        return;
+    }
     if let Some(connection) = &connection_maybe.0 {
+        if connection.is_closed() {
+            println!("Connection detected closed in send system");
+            connection_maybe.0 = None;
+            next_state.set(GameState::Disconnected);
+            return;
+        }
         let messages = connection
             .read_connection()
             .iter()
@@ -73,5 +92,6 @@ fn receive_system(
         message_events.write_batch(messages);
     } else {
         println!("WARNING: attempting to receive network event without connection");
+        next_state.set(GameState::Disconnected);
     }
 }

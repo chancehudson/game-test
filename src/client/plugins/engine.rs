@@ -197,9 +197,9 @@ fn handle_engine_state(
 }
 
 /// Call S the current step number
-/// By default we'll show all components at their positions S - STEP_DELAY
-/// The Player entity with is_active == true will be shown at S, any entities spawned by
-/// the player will be shown at S as well
+/// By default we'll show all components with player_creator_id != self at their positions S - STEP_DELAY
+/// any entity with player_creator_id == self will be shown at S
+/// if player_creator_id == None we show at S because it's assume deterministic
 ///
 /// This logical split happens at the Bevy/plugin level, not the engine level. So the engine
 /// remains deterministic and checksum verifiable

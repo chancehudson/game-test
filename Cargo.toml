@@ -58,8 +58,7 @@ dashmap = "6.1.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.43.0", features = ["full"] }
-tokio-tungstenite = "0.26.1"
-tungstenite = "0.26.1"
+tokio-tungstenite = { version = "0.26.1", features = ["handshake", "native-tls"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-timers = { version = "0.3.0", features = ["futures"] }
