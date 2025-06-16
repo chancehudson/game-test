@@ -1,3 +1,4 @@
+use bevy_math::IVec2;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -13,6 +14,7 @@ pub enum GameEvent {
         // to left or right automatically?
         from_map: String,
         to_map: String,
+        requested_spawn_pos: Option<IVec2>,
     },
 }
 

@@ -27,8 +27,8 @@ pub enum Action {
 pub enum Response {
     PlayerLoggedIn(PlayerState),
     PlayerRemoved(String),
-    // engine, server_step_index
-    EngineState(GameEngine),
+    // engine, entity id the player controls
+    EngineState(GameEngine, Option<u128>),
     EngineStats(u64, (u64, blake3::Hash)),
     // engine id, game events <step_index, <event_id, event>>
     RemoteEngineEvents(u128, BTreeMap<u64, HashMap<u128, EngineEvent>>),

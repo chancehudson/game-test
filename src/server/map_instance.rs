@@ -2,10 +2,12 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use bevy_math::IVec2;
 use game_test::action::PlayerState;
 use game_test::engine::STEPS_PER_SECOND;
 use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
+use game_test::engine::entity::player::PlayerEntity;
 use game_test::engine::game_event::EngineEvent;
 use game_test::engine::game_event::HasId;
 use game_test::engine::{GameEngine, TRAILING_STATE_COUNT};
@@ -88,29 +90,53 @@ impl MapInstance {
         player.is_inited = true;
         player.engine_id = client_engine.id;
 
-        let response = Response::EngineState(client_engine);
+        let response = Response::EngineState(client_engine, player.entity_id);
         let player_id = player_id.to_string();
         network_server.send_to_player(&player_id, response).await;
     }
 
     /// insert our new player into the map and send the current state
-    pub async fn add_player(&mut self, player_state: &PlayerState) -> anyhow::Result<()> {
-        // we've inserted a new player, last_engine is the old player engine data, if it exists
-        if let Some(last_engine) = self.player_engines.insert(
+    pub async fn add_player(
+        &mut self,
+        player_state: &PlayerState,
+        requested_spawn_pos: Option<IVec2>,
+    ) -> anyhow::Result<()> {
+        let entity = EngineEntity::Player(PlayerEntity::new_with_ids(
+            rand::random(),
             player_state.id.clone(),
-            RemotePlayerEngine {
-                engine_id: rand::random(),
-                is_inited: false,
-                player_id: player_state.id.clone(),
-                entity_id: None,
-                last_input_step_index: self.engine.step_index,
-            },
-        ) {
+        ));
+        let player = RemotePlayerEngine {
+            engine_id: rand::random(),
+            is_inited: false,
+            player_id: player_state.id.clone(),
+            entity_id: Some(entity.id()),
+            last_input_step_index: self.engine.step_index,
+        };
+        // we've inserted a new player, last_engine is the old player engine data, if it exists
+        if let Some(last_engine) = self.player_engines.insert(player_state.id.clone(), player) {
             // cleanup previous engine connection
             if let Some(entity_id) = last_engine.entity_id {
                 self.engine.remove_entity(entity_id, true);
+                let remove = EngineEvent::RemoveEntity {
+                    id: rand::random(),
+                    entity_id,
+                    universal: true,
+                };
+                self.engine.register_event(None, remove.clone());
+                self.pending_events
+                    .0
+                    .send((self.engine.step_index, remove))?;
             }
         }
+        let add_event = EngineEvent::SpawnEntity {
+            id: rand::random(),
+            entity,
+            universal: true,
+        };
+        self.engine.register_event(None, add_event.clone());
+        self.pending_events
+            .0
+            .send((self.engine.step_index, add_event))?;
         Ok(())
     }
 
@@ -178,35 +204,9 @@ impl MapInstance {
             match &event {
                 EngineEvent::SpawnEntity {
                     universal: _, // player should not set this
-                    entity,
+                    entity: _,
                     id: _, // we'll generate the id from our engine seeded rng
-                } => {
-                    if let Some(_) = player.entity_id {
-                        anyhow::bail!("player attempted to spawn second self");
-                    }
-                    match entity {
-                        EngineEntity::Player(p) => {
-                            if &p.player_id != player_id {
-                                anyhow::bail!(
-                                    "attempted to spawn player entity with incorrect player id"
-                                );
-                            }
-                            if self.engine.entities.contains_key(&p.id) {
-                                anyhow::bail!("attempted to spawn player with duplicate entity id");
-                            }
-                            player.entity_id = Some(p.id);
-                            return Ok(Some((
-                                *step_index,
-                                EngineEvent::SpawnEntity {
-                                    id: entity.id(),
-                                    entity: entity.clone(),
-                                    universal: true,
-                                },
-                            )));
-                        }
-                        _ => {}
-                    }
-                }
+                } => {}
                 EngineEvent::Input {
                     universal: _,
                     input: _,

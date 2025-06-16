@@ -2,12 +2,9 @@ use bevy::prelude::*;
 use bevy_egui::egui::{Color32, RichText};
 use bevy_egui::{EguiContextPass, EguiContexts, egui};
 use game_test::action::{Action, Response};
-use game_test::timestamp;
 use web_time::Instant;
 
 use crate::network::{NetworkConnectionMaybe, NetworkMessage};
-use crate::plugins::engine::ActivePlayerEntityId;
-use crate::plugins::engine::LoggedInAt;
 
 use crate::GameState;
 use crate::network::NetworkConnection;
@@ -51,35 +48,8 @@ impl Plugin for GuiPlugin {
             .add_systems(FixedUpdate, (handle_login_error,))
             .add_systems(
                 EguiContextPass,
-                (
-                    connect_view,
-                    login_view,
-                    spawn_howto_view,
-                    playtest_info_view,
-                ),
+                (connect_view, login_view, playtest_info_view),
             );
-    }
-}
-
-fn spawn_howto_view(
-    mut contexts: EguiContexts,
-    game_state: Res<State<GameState>>,
-    active_player_entity_id: Res<ActivePlayerEntityId>,
-    logged_in_at: Res<LoggedInAt>,
-) {
-    if game_state.get() != &GameState::OnMap || active_player_entity_id.0.is_some() {
-        return;
-    }
-    // spawn 6 seconds after logging in if no entity is spawned
-    if timestamp() - logged_in_at.0 > 6. {
-        egui::Window::new("Spawn Howto!")
-            .resizable(false)
-            .collapsible(false)
-            .show(contexts.ctx_mut(), |ui| {
-                ui.label("Press j to spawn");
-                ui.add_space(10.);
-                ui.label("lbh qhzo vqvbg");
-            });
     }
 }
 

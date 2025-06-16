@@ -12,18 +12,14 @@ use crate::Response;
 use crate::SpriteDataAsset;
 use crate::SpriteManager;
 use crate::map::MapEntity;
-use crate::map_data_loader::MapDataAsset;
 use crate::mob::MobComponent;
 use crate::network::NetworkAction;
 use crate::player::PlayerComponent;
 use crate::plugins::engine_sync::EngineSyncInfo;
-use crate::plugins::smooth_camera::CameraMovement;
 
 use game_test::engine::STEP_LEN_S;
 use game_test::engine::entity::EEntity;
 use game_test::engine::entity::EngineEntity;
-use game_test::engine::entity::player::PlayerEntity;
-use game_test::engine::game_event::EngineEvent;
 use game_test::timestamp;
 
 /// Engine tracking resources/components
@@ -112,14 +108,16 @@ fn handle_exit_map(
     query: Query<Entity, With<MapEntity>>,
     mut commands: Commands,
     mut next_state: ResMut<NextState<GameState>>,
+    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
+    mut active_game_engine: ResMut<ActiveGameEngine>,
 ) {
     for event in action_events.read() {
         if let Response::PlayerExitMap(_from_map) = &event.0 {
-            // despawn everything??
-            // TODO: check that from_map is the current map
             for entity in query {
                 commands.entity(entity).despawn();
             }
+            active_player_entity_id.0 = None;
+            active_game_engine.0 = GameEngine::default();
             next_state.set(GameState::Waiting);
         }
     }
@@ -177,62 +175,22 @@ fn handle_engine_stats(
 
 fn handle_engine_state(
     mut action_events: EventReader<NetworkMessage>,
-    mut action_events_write: EventWriter<NetworkAction>,
     mut active_engine_state: ResMut<ActiveGameEngine>,
     mut next_state: ResMut<NextState<GameState>>,
-    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
-    active_player_state: Res<ActivePlayerState>,
-    mut camera_query: Query<(&mut Transform, &mut CameraMovement), With<Camera2d>>,
-    map_loader: Res<crate::map::MapLoader>,
-    map_assets: Res<Assets<MapDataAsset>>,
-    windows: Query<&Window>,
     mut engine_sync: ResMut<EngineSyncInfo>,
+    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
 ) {
     for event in action_events.read() {
-        if let Response::EngineState(engine) = &event.0 {
+        if let Response::EngineState(engine, player_entity_id_maybe) = &event.0 {
+            active_player_entity_id.0 = *player_entity_id_maybe;
             *engine_sync = EngineSyncInfo::default();
             println!("INFO: Received engine with id: {}", engine.id);
             // TODO: figure out how to get rid of this clone
-            let is_map_change = active_engine_state.0.map.name != engine.map.name;
             active_engine_state.0 = engine.clone();
             let engine = &mut active_engine_state.0;
             // approximate locally
             engine.start_timestamp = timestamp() - ((engine.step_index as f64) * STEP_LEN_S);
 
-            if is_map_change {
-                if let Some(active_entity_id) = &mut active_player_entity_id.0 {
-                    if let Some(player_state) = &active_player_state.0 {
-                        let mut entity =
-                            PlayerEntity::new_with_ids(rand::random(), player_state.id.clone());
-                        entity.position = engine.map.spawn_location;
-                        if let Ok((mut camera_transform, _)) = camera_query.single_mut() {
-                            camera_transform.translation = entity.position_f32().extend(0.0);
-                        }
-                        // TODO: move this to camera
-                        crate::plugins::smooth_camera::snap_to_position(
-                            &mut camera_query,
-                            &map_loader,
-                            &map_assets,
-                            windows,
-                            true,
-                        );
-                        *active_entity_id = entity.id;
-                        let spawn_event = EngineEvent::SpawnEntity {
-                            id: rand::random(),
-                            entity: EngineEntity::Player(entity),
-                            universal: true,
-                        };
-                        // register the event locally
-                        engine.register_event(None, spawn_event.clone());
-                        // send the new input to the server
-                        action_events_write.write(NetworkAction(Action::RemoteEngineEvent(
-                            engine.id,
-                            spawn_event,
-                            engine.step_index,
-                        )));
-                    }
-                }
-            }
             next_state.set(GameState::LoadingMap);
         }
     }

@@ -110,6 +110,7 @@ impl SEEntity for PlayerEntity {
                                         entity_id: self.id,
                                         from_map: map_name.clone(),
                                         to_map: p.to.clone(),
+                                        requested_spawn_pos: None,
                                     },
                                 ))
                                 .unwrap();

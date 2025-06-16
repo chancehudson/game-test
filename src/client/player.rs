@@ -58,7 +58,7 @@ impl Plugin for PlayerPlugin {
 
 /// hello i'm storing keybindings complexity here
 fn input_system(
-    mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
+    active_player_entity_id: Res<ActivePlayerEntityId>,
     mut active_game_engine: ResMut<ActiveGameEngine>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut action_events: EventWriter<NetworkAction>,
@@ -78,26 +78,6 @@ fn input_system(
             engine.step_index,
         )));
         return;
-    }
-
-    // handle spawn requests
-    if keyboard.just_pressed(KeyCode::KeyJ) && active_player_entity_id.0.is_none() {
-        let mut entity = PlayerEntity::new_with_ids(rand::random(), player_state.id.clone());
-        active_player_entity_id.0 = Some(entity.id);
-        entity.position = engine.map.spawn_location;
-        let spawn_event = EngineEvent::SpawnEntity {
-            id: rand::random(),
-            entity: EngineEntity::Player(entity),
-            universal: true,
-        };
-        // register the event locally
-        engine.register_event(None, spawn_event.clone());
-        // send the new input to the server
-        action_events.write(NetworkAction(Action::RemoteEngineEvent(
-            engine.id,
-            spawn_event,
-            engine.step_index,
-        )));
     }
 
     // allow general input if spawned

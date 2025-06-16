@@ -101,6 +101,7 @@ impl Game {
                 entity_id: _,
                 from_map,
                 to_map,
+                requested_spawn_pos,
             } => {
                 if from_map == to_map {
                     println!("WARNING: trying to move to same map");
@@ -125,12 +126,14 @@ impl Game {
                         .await?;
 
                         // must wait for all
-                        from_instance.remove_player(&player_id).await;
+                        from_instance.remove_player(&player_id).await?;
                         self.instance_for_player_id.insert(
                             player_id.clone(),
                             (to_instance.pending_actions.0.clone(), to_instance_ref),
                         );
-                        to_instance.add_player(&PlayerState::from(&record)).await?;
+                        to_instance
+                            .add_player(&PlayerState::from(&record), requested_spawn_pos)
+                            .await?;
                         // send an update
                         self.network_server
                             .send_to_player(&player_id, Response::PlayerExitMap(from_map))
@@ -178,8 +181,8 @@ impl Game {
             (map_instance.pending_actions.0.clone(), map_instance_ref),
         );
 
-        map_instance.remove_player(&player_state.id).await;
-        map_instance.add_player(&player_state).await?;
+        map_instance.remove_player(&player_state.id).await?;
+        map_instance.add_player(&player_state, None).await?;
 
         self.network_server
             .register_player(socket_id.to_string(), record.id.clone())
@@ -190,7 +193,6 @@ impl Game {
         self.network_server
             .send_to_player(&record.id, Response::PlayerState(PlayerState::from(record)))
             .await;
-        drop(map_instance);
 
         Ok(())
     }
