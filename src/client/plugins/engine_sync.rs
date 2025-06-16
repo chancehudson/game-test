@@ -11,6 +11,7 @@ use crate::plugins::engine::{ActiveGameEngine, ActivePlayerEntityId};
 pub struct EngineSyncInfo {
     pub fps: f64,
     pub last_frame: f64,
+    pub server_step_timestamp: f64,
     pub server_step: u64,
     pub sync_distance: i64,
     pub requested_resync: bool,

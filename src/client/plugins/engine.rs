@@ -45,7 +45,6 @@ pub struct EnginePlugin;
 
 impl Plugin for EnginePlugin {
     fn build(&self, app: &mut App) {
-        println!("building this piece of shit");
         app.init_resource::<ActiveGameEngine>()
             .init_resource::<ActivePlayerEntityId>()
             .init_resource::<ActivePlayerState>()
@@ -58,7 +57,7 @@ impl Plugin for EnginePlugin {
                     sync_engine_components,
                 )
                     .chain()
-                    .run_if(in_state(crate::GameState::OnMap)),
+                    .run_if(in_state(GameState::OnMap)),
             )
             .add_systems(
                 FixedUpdate,
@@ -97,9 +96,27 @@ fn handle_player_state(
     }
 }
 
-fn step_game_engine(mut active_game_engine: ResMut<ActiveGameEngine>) {
+fn step_game_engine(
+    mut active_game_engine: ResMut<ActiveGameEngine>,
+    sync_info: Res<EngineSyncInfo>,
+) {
     let engine = &mut active_game_engine.0;
-    engine.tick();
+    let target_step = sync_info.server_step
+        + (((timestamp() - sync_info.server_step_timestamp) / STEP_LEN_S).ceil() as u64);
+    if target_step > engine.step_index {
+        let steps = target_step - engine.step_index;
+        if steps >= 40 {
+            println!("skipping forward {} steps", steps / 2);
+            engine.step_to(&(engine.step_index + (steps / 2)));
+        } else if steps >= 20 {
+            engine.step();
+            engine.step();
+        } else {
+            engine.step();
+        }
+    } else {
+        // local engine is ahead of server, skip a step
+    }
     engine.game_events.1.drain(); // drain here to avoid memory leaks
 }
 
@@ -151,6 +168,7 @@ fn handle_engine_stats(
     for event in action_events.read() {
         if let Response::EngineStats(step_index, (hash_step_index, server_engine_hash)) = &event.0 {
             engine_sync.server_step = *step_index;
+            engine_sync.server_step_timestamp = timestamp();
             engine_sync.sync_distance = (engine.step_index as i64) - (*step_index as i64);
             if !engine_sync.requested_resync {
                 if let Ok(local_engine_hash) = engine.step_hash(&hash_step_index) {
@@ -181,9 +199,11 @@ fn handle_engine_state(
     mut active_player_entity_id: ResMut<ActivePlayerEntityId>,
 ) {
     for event in action_events.read() {
-        if let Response::EngineState(engine, player_entity_id_maybe) = &event.0 {
+        if let Response::EngineState(engine, player_entity_id_maybe, server_step) = &event.0 {
             active_player_entity_id.0 = *player_entity_id_maybe;
             *engine_sync = EngineSyncInfo::default();
+            engine_sync.server_step = *server_step;
+            engine_sync.server_step_timestamp = timestamp();
             println!("INFO: Received engine with id: {}", engine.id);
             // TODO: figure out how to get rid of this clone
             active_engine_state.0 = engine.clone();

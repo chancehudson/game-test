@@ -11,8 +11,9 @@ use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_tungstenite::WebSocketStream;
-use tungstenite::Message;
-use tungstenite::protocol::frame::CloseFrame;
+use tokio_tungstenite::tungstenite;
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::protocol::frame::CloseFrame;
 
 use super::Action;
 

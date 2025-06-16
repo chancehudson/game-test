@@ -90,7 +90,7 @@ impl MapInstance {
         player.is_inited = true;
         player.engine_id = client_engine.id;
 
-        let response = Response::EngineState(client_engine, player.entity_id);
+        let response = Response::EngineState(client_engine, player.entity_id, engine.step_index);
         let player_id = player_id.to_string();
         network_server.send_to_player(&player_id, response).await;
     }
