@@ -14,7 +14,7 @@ use crate::engine::GameEngine;
 use crate::engine::STEPS_PER_SECOND_I32;
 use crate::engine::entity::EngineEntity;
 use crate::engine::entity::SEEntity;
-use crate::engine::game_event::ServerEvent;
+use crate::engine::game_event::GameEvent;
 use crate::entity_struct;
 
 entity_struct!(
@@ -105,7 +105,7 @@ impl SEEntity for PlayerEntity {
                             events_channel
                                 .send((
                                     step_index,
-                                    ServerEvent::PlayerEnterPortal {
+                                    GameEvent::PlayerEnterPortal {
                                         player_id: self.player_id.clone(),
                                         entity_id: self.id,
                                         from_map: map_name.clone(),

@@ -39,8 +39,8 @@ use entity::player::PlayerEntity;
 use crate::engine::entity::platform::PlatformEntity;
 use crate::engine::game_event::EngineEvent;
 use crate::engine::game_event::EngineEventType;
+use crate::engine::game_event::GameEvent;
 use crate::engine::game_event::HasUniversal;
-use crate::engine::game_event::ServerEvent;
 use crate::map::MapData;
 use crate::timestamp;
 
@@ -71,8 +71,8 @@ pub struct GameEngine {
     grouped_entities: (u64, HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>>),
     #[serde(skip, default = "default_game_events")]
     pub game_events: (
-        flume::Sender<(u64, ServerEvent)>,
-        flume::Receiver<(u64, ServerEvent)>,
+        flume::Sender<(u64, GameEvent)>,
+        flume::Receiver<(u64, GameEvent)>,
     ),
 
     #[serde(skip, default = "default_rng")]
@@ -88,8 +88,8 @@ fn default_rng() -> (u64, ChaCha8Rng) {
 }
 
 fn default_game_events() -> (
-    flume::Sender<(u64, ServerEvent)>,
-    flume::Receiver<(u64, ServerEvent)>,
+    flume::Sender<(u64, GameEvent)>,
+    flume::Receiver<(u64, GameEvent)>,
 ) {
     flume::bounded(10)
 }

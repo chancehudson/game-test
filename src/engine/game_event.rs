@@ -5,7 +5,7 @@ use crate::engine::entity::EngineEntity;
 use crate::engine::entity::EntityInput;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ServerEvent {
+pub enum GameEvent {
     PlayerEnterPortal {
         player_id: String,
         entity_id: u128,

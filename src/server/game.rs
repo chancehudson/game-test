@@ -9,8 +9,7 @@ use game_test::action::Action;
 use game_test::action::PlayerState;
 use game_test::action::Response;
 use game_test::engine::STEPS_PER_SECOND;
-use game_test::engine::game_event::EngineEvent;
-use game_test::engine::game_event::ServerEvent;
+use game_test::engine::game_event::GameEvent;
 use game_test::map::MapData;
 use tokio::sync::RwLock;
 
@@ -82,9 +81,9 @@ impl Game {
         })
     }
 
-    pub async fn handle_server_event(&self, event: ServerEvent) -> anyhow::Result<()> {
+    pub async fn handle_game_event(&self, event: GameEvent) -> anyhow::Result<()> {
         match event {
-            ServerEvent::PlayerEnterPortal {
+            GameEvent::PlayerEnterPortal {
                 player_id,
                 entity_id: _,
                 from_map,

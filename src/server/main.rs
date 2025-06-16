@@ -125,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
                 let read_game_events = map_instance.read().await.engine.game_events.1.clone();
                 drop(map_instance);
                 for event in read_game_events.drain() {
-                    if let Err(e) = game.handle_server_event(event.1).await {
+                    if let Err(e) = game.handle_game_event(event.1).await {
                         println!("WARNING: error handling game events!");
                         println!("{:?}", e);
                     }
