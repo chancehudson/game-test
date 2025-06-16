@@ -160,12 +160,12 @@ impl MapInstance {
         {
             anyhow::bail!("event too far in the past, discarding");
         }
+        if step_index > &self.engine.expected_step_index() {
+            anyhow::bail!("event too far in the future, discarding");
+        }
 
         // player action validity checks/logic
         if let Some(player) = self.player_engines.get_mut(player_id) {
-            if &player.engine_id != engine_id {
-                anyhow::bail!("engine id mismatch in client event, discarding");
-            }
             // check that we're syncing with the correct engine
             if &player.engine_id != engine_id {
                 anyhow::bail!("event from incorrect engine_id for player");
@@ -197,7 +197,7 @@ impl MapInstance {
                 } => {}
             }
         } else {
-            anyhow::bail!("unknown player id, discarding game events");
+            anyhow::bail!("unknown player id, discarding game event");
         }
         Ok(None)
     }
