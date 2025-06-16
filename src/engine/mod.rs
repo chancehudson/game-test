@@ -91,7 +91,7 @@ fn default_game_events() -> (
     flume::Sender<(u64, GameEvent)>,
     flume::Receiver<(u64, GameEvent)>,
 ) {
-    flume::bounded(10)
+    flume::unbounded()
 }
 
 impl Default for GameEngine {

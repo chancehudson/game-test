@@ -100,24 +100,6 @@ fn input_system(
         )));
     }
 
-    if keyboard.just_pressed(KeyCode::KeyK) && active_player_entity_id.0.is_some() {
-        let despawn_event = EngineEvent::RemoveEntity {
-            id: rand::random(),
-            entity_id: active_player_entity_id.0.unwrap(),
-            universal: true,
-        };
-        // register the event locally
-        engine.register_event(None, despawn_event.clone());
-        // send the new input to the server
-        action_events.write(NetworkAction(Action::RemoteEngineEvent(
-            engine.id,
-            despawn_event,
-            engine.step_index,
-        )));
-        active_player_entity_id.0 = None;
-        return;
-    }
-
     // allow general input if spawned
     if let Some(entity_id) = active_player_entity_id.0 {
         // input currently being received

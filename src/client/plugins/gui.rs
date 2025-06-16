@@ -1,9 +1,8 @@
 use bevy::prelude::*;
 use bevy_egui::egui::{Color32, RichText};
-use bevy_egui::{EguiContextPass, EguiContexts, EguiPlugin, egui};
+use bevy_egui::{EguiContextPass, EguiContexts, egui};
 use game_test::action::{Action, Response};
 use game_test::timestamp;
-use web_time::Duration;
 use web_time::Instant;
 
 use crate::network::{NetworkConnectionMaybe, NetworkMessage};

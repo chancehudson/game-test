@@ -1,11 +1,10 @@
-use bevy::{prelude::*, render::Render};
+use bevy::prelude::*;
 use bevy_egui::egui::{Color32, RichText};
-use bevy_egui::{EguiContextPass, EguiContexts, EguiPlugin, egui};
+use bevy_egui::{EguiContextPass, EguiContexts, egui};
 use game_test::engine::entity::EEntity;
 use game_test::engine::{STEP_LEN_S, STEPS_PER_SECOND};
 use game_test::timestamp;
 
-use crate::GameState;
 use crate::plugins::engine::{ActiveGameEngine, ActivePlayerEntityId};
 
 #[derive(Resource, Default)]

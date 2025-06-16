@@ -1,7 +1,4 @@
-use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
-use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::prelude::*;
-use bevy::text::FontSmoothing;
 
 use bevy_egui::EguiPlugin;
 pub use game_test::MapData;

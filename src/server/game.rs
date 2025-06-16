@@ -35,6 +35,7 @@ impl From<&PlayerRecord> for PlayerState {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct RemoteEngineEvent {
     pub player_id: String,
     pub engine_id: u128,
@@ -106,15 +107,6 @@ impl Game {
                     return Ok(());
                 }
 
-                let network_server_clone = self.network_server.clone();
-                let from_map_clone = from_map.clone();
-                let player_id_clone = player_id.clone();
-                tokio::spawn(async move {
-                    network_server_clone
-                        .send_to_player(&player_id_clone, Response::PlayerExitMap(from_map_clone))
-                        .await;
-                });
-
                 // this is the slowest, but safest implementation
                 // TODO: switch to channels
                 if let Some(from_instance) = self.map_instances.get(&from_map) {
@@ -140,6 +132,9 @@ impl Game {
                         );
                         to_instance.add_player(&PlayerState::from(&record)).await?;
                         // send an update
+                        self.network_server
+                            .send_to_player(&player_id, Response::PlayerExitMap(from_map))
+                            .await;
                         self.network_server
                             .send_to_player(
                                 &player_id,
@@ -236,14 +231,13 @@ impl Game {
                 }
                 let player_id = player_id.unwrap();
                 if let Some(entry) = self.instance_for_player_id.get(&player_id) {
-                    let (event_sender, map_instance) = entry.value();
-                    // let mut map_instance = map_instance.write().await;
+                    let (event_sender, _map_instance) = entry.value();
                     event_sender.send(RemoteEngineEvent {
                         player_id,
                         engine_id,
                         event,
                         step_index,
-                    });
+                    })?;
                 }
             }
             // This is a task that occurs outside of the engine because it may be stalled

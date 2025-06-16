@@ -23,7 +23,6 @@ pub struct RemotePlayerEngine {
     pub is_inited: bool,
     pub player_id: String,
     pub last_input_step_index: u64,
-    pub pending_events: BTreeMap<u64, HashMap<u128, EngineEvent>>,
 }
 
 /// A distinct instance of a map. Each map is it's own game instance
@@ -32,9 +31,15 @@ pub struct MapInstance {
     pub map: MapData,
     pub engine: GameEngine,
 
+    // actions received from players. These must be sanitized before
+    // ingesting to engine
     pub pending_actions: (
         flume::Sender<RemoteEngineEvent>,
         flume::Receiver<RemoteEngineEvent>,
+    ),
+    pub pending_events: (
+        flume::Sender<(u64, EngineEvent)>,
+        flume::Receiver<(u64, EngineEvent)>,
     ),
     pub player_engines: HashMap<String, RemotePlayerEngine>,
     last_stats_broadcast: f64,
@@ -51,6 +56,7 @@ impl MapInstance {
     pub fn new(map: MapData, network_server: Arc<network::Server>) -> Self {
         Self {
             pending_actions: flume::unbounded(),
+            pending_events: flume::unbounded(),
             player_engines: HashMap::new(),
             engine: GameEngine::new(map.clone()),
             network_server,
@@ -59,7 +65,7 @@ impl MapInstance {
         }
     }
 
-    pub fn init_player(
+    pub async fn init_player(
         network_server: Arc<network::Server>,
         engine: &GameEngine,
         player_id: &str,
@@ -84,43 +90,7 @@ impl MapInstance {
 
         let response = Response::EngineState(client_engine);
         let player_id = player_id.to_string();
-        tokio::spawn(async move {
-            network_server.send_to_player(&player_id, response).await;
-        });
-    }
-
-    /// TODO: move synchronization management into a structure ?
-    pub fn send_event_sync(
-        network_server: Arc<network::Server>,
-        engine: &GameEngine,
-        player_id: &str,
-        player: &mut RemotePlayerEngine,
-    ) {
-        // if the initial game state has not been sent we don't want to send updates
-        if !player.is_inited {
-            return;
-        }
-        // remove empty entries from pending events
-        let start_count = player.pending_events.len();
-        player
-            .pending_events
-            .retain(|_si, pending_hashmap| !pending_hashmap.is_empty());
-        if start_count != player.pending_events.len() {
-            println!("WARNING: removed empty RemotePlayerEngine pending_events btreemap entries");
-        }
-        // check if the structure has no entries
-        if player.pending_events.is_empty() {
-            return;
-        }
-
-        // discard input events for this user (they already know about them)
-        // TODO: generalized event filtering ???
-        let pending_events = std::mem::take(&mut player.pending_events);
-        let response = Response::RemoteEngineEvents(player.engine_id, pending_events);
-        let player_id = player_id.to_string();
-        tokio::spawn(async move {
-            network_server.send_to_player(&player_id, response).await;
-        });
+        network_server.send_to_player(&player_id, response).await;
     }
 
     /// insert our new player into the map and send the current state
@@ -134,7 +104,6 @@ impl MapInstance {
                 player_id: player_state.id.clone(),
                 entity_id: None,
                 last_input_step_index: self.engine.step_index,
-                pending_events: BTreeMap::default(),
             },
         ) {
             // cleanup previous engine connection
@@ -145,11 +114,18 @@ impl MapInstance {
         Ok(())
     }
 
-    pub async fn remove_player(&mut self, player_id: &str) {
+    pub async fn remove_player(&mut self, player_id: &str) -> anyhow::Result<()> {
         if let Some(player) = self.player_engines.remove(player_id) {
             if let Some(entity_id) = player.entity_id {
-                // cleanup engine connection
-                self.engine.remove_entity(entity_id, true);
+                let event = EngineEvent::RemoveEntity {
+                    id: rand::random(),
+                    entity_id,
+                    universal: true,
+                };
+                self.engine.register_event(None, event.clone());
+                self.pending_events
+                    .0
+                    .send((self.engine.step_index, event))?;
             }
         } else {
             println!(
@@ -157,6 +133,7 @@ impl MapInstance {
                 self.map.name
             );
         }
+        Ok(())
     }
 
     /// Reload fully reload the players engine instance without respawning them
@@ -179,22 +156,22 @@ impl MapInstance {
             engine_id,
             event,
             step_index,
-        }: RemoteEngineEvent,
+        }: &RemoteEngineEvent,
     ) -> anyhow::Result<Option<(u64, EngineEvent)>> {
         // discard events too far back
-        if step_index < self.engine.step_index
+        if step_index < &self.engine.step_index
             && self.engine.step_index - step_index >= TRAILING_STATE_COUNT
         {
             anyhow::bail!("event too far in the past, discarding");
         }
 
         // player action validity checks/logic
-        if let Some(player) = self.player_engines.get_mut(&player_id) {
-            if player.engine_id != engine_id {
+        if let Some(player) = self.player_engines.get_mut(player_id) {
+            if &player.engine_id != engine_id {
                 anyhow::bail!("engine id mismatch in client event, discarding");
             }
             // check that we're syncing with the correct engine
-            if player.engine_id != engine_id {
+            if &player.engine_id != engine_id {
                 anyhow::bail!("event from incorrect engine_id for player");
             }
             // Structure for validity checks
@@ -204,12 +181,12 @@ impl MapInstance {
                     entity,
                     id: _, // we'll generate the id from our engine seeded rng
                 } => {
-                    if let Some(entity_id) = player.entity_id {
+                    if let Some(_) = player.entity_id {
                         anyhow::bail!("player attempted to spawn second self");
                     }
                     match entity {
                         EngineEntity::Player(p) => {
-                            if p.player_id != player_id {
+                            if &p.player_id != player_id {
                                 anyhow::bail!(
                                     "attempted to spawn player entity with incorrect player id"
                                 );
@@ -219,7 +196,7 @@ impl MapInstance {
                             }
                             player.entity_id = Some(p.id);
                             return Ok(Some((
-                                step_index,
+                                *step_index,
                                 EngineEvent::SpawnEntity {
                                     id: entity.id(),
                                     entity: entity.clone(),
@@ -241,27 +218,17 @@ impl MapInstance {
                             anyhow::bail!("player tried to input for wrong entity");
                         }
                         println!("integrating input event at {step_index}");
-                        player.last_input_step_index = step_index;
-                        return Ok(Some((step_index, event)));
+                        player.last_input_step_index = *step_index;
+                        return Ok(Some((*step_index, event.clone())));
                     } else {
                         println!("WARNING: attempting to send input with no spawned entity");
                     }
                 }
                 EngineEvent::RemoveEntity {
                     id: _,
-                    entity_id,
+                    entity_id: _,
                     universal: _,
-                } => {
-                    if let Some(id) = player.entity_id {
-                        if entity_id != &id {
-                            anyhow::bail!("player tried to remove non-self entity");
-                        }
-                        player.entity_id = None;
-                        return Ok(Some((step_index, event)));
-                    } else {
-                        println!("attempting to send removal with no spawned entity");
-                    }
-                }
+                } => {}
             }
         } else {
             anyhow::bail!("unknown player id, discarding game events");
@@ -278,7 +245,7 @@ impl MapInstance {
 
         for remote_event in remote_events {
             if let Some((step_index, engine_event)) =
-                self.process_remote_event(remote_event).await?
+                self.process_remote_event(&remote_event).await?
             {
                 if let Some(_) = events
                     .entry(step_index)
@@ -287,30 +254,39 @@ impl MapInstance {
                 {
                     println!("WARNING: duplicate action/event detected!");
                 }
-                for (_, player) in self.player_engines.iter_mut() {
-                    player
-                        .pending_events
-                        .entry(step_index)
-                        .or_default()
-                        .insert(engine_event.id(), engine_event.clone());
-                }
+            } else {
+                println!("Error processing remote engine event: {:?}", remote_event);
             }
         }
         Ok(events)
     }
 
     pub async fn tick(&mut self) -> anyhow::Result<()> {
+        // integrate any events we've received since last tick
         let pending_actions = self.pending_actions.1.drain().collect::<Vec<_>>();
-        if pending_actions.len() > 0 {
-            let new_events = self.process_remote_events(pending_actions).await?;
-            self.engine.integrate_events(new_events);
+        let pending_events = self.pending_events.1.drain().collect::<Vec<_>>();
+        let has_events = !pending_events.is_empty() || !pending_actions.is_empty();
+        let mut new_events = if pending_actions.len() > 0 {
+            self.process_remote_events(pending_actions).await?
+        } else {
+            BTreeMap::new()
+        };
+        for (si, event) in pending_events {
+            if let Some(_) = new_events.entry(si).or_default().insert(event.id(), event) {
+                println!("WARNING: overwriting existing event");
+            }
+        }
+        if has_events {
+            self.engine.integrate_events(new_events.clone());
         }
 
+        // step as needed
         self.engine.tick();
 
-        // let player_ids = self.player_engines.keys().cloned().collect::<Vec<_>>();
-        // TODO: collect errors and finish syncing
-        let engine_hash = if timestamp() - self.last_stats_broadcast > 2.0 {
+        // build a checksum to send to the client for detecting desync
+        let engine_hash = if timestamp() - self.last_stats_broadcast > 2.0
+            && self.engine.step_index >= 2 * STEPS_PER_SECOND
+        {
             self.last_stats_broadcast = timestamp();
             let target_step = self.engine.step_index - 2 * STEPS_PER_SECOND;
             Some((target_step, self.engine.step_hash(&target_step)?))
@@ -320,20 +296,23 @@ impl MapInstance {
         for (id, player) in self.player_engines.iter_mut() {
             // send engine stats
             if let Some(engine_hash) = engine_hash {
-                let network_server = self.network_server.clone();
-                let step_index = self.engine.step_index;
                 let id = id.to_string();
                 let engine_hash = engine_hash.clone();
-                tokio::spawn(async move {
-                    network_server
-                        .send_to_player(&id, Response::EngineStats(step_index, engine_hash))
-                        .await;
-                });
+                self.network_server
+                    .send_to_player(
+                        &id,
+                        Response::EngineStats(self.engine.step_index, engine_hash),
+                    )
+                    .await;
             }
             if player.is_inited {
-                Self::send_event_sync(self.network_server.clone(), &self.engine, id, player);
+                if has_events {
+                    let response =
+                        Response::RemoteEngineEvents(player.engine_id, new_events.clone());
+                    self.network_server.send_to_player(id, response).await;
+                }
             } else {
-                Self::init_player(self.network_server.clone(), &self.engine, &id, player);
+                Self::init_player(self.network_server.clone(), &self.engine, &id, player).await;
             }
         }
         Ok(())

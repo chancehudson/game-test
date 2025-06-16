@@ -103,15 +103,8 @@ fn handle_player_state(
 
 fn step_game_engine(mut active_game_engine: ResMut<ActiveGameEngine>) {
     let engine = &mut active_game_engine.0;
-    let expected = engine.expected_step_index();
-    if expected <= engine.step_index {
-        engine.step();
-    } else {
-        let step_count = expected - engine.step_index;
-        for _ in 0..step_count {
-            engine.step();
-        }
-    }
+    engine.tick();
+    engine.game_events.1.drain(); // drain here to avoid memory leaks
 }
 
 fn handle_exit_map(
