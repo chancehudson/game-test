@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::collections::VecDeque;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -11,7 +9,6 @@ use futures_util::stream::SplitStream;
 use game_test::action::Response;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
-use tokio::sync::RwLock;
 use tokio::sync::mpsc;
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::Message;
@@ -22,7 +19,10 @@ use super::Action;
 pub struct Server {
     pub listener: TcpListener,
     // socket_id, reverse communication channel, action
-    pub action_queue: RwLock<VecDeque<(String, Action)>>,
+    pub pending_actions: (
+        flume::Sender<(String, Action)>,
+        flume::Receiver<(String, Action)>,
+    ),
     pub socket_sender: DashMap<String, mpsc::Sender<Response>>,
     // player id keyed to socket
     // and socket keyed to player id
@@ -31,14 +31,12 @@ pub struct Server {
 
 impl Server {
     pub async fn new() -> Result<Self> {
-        let action_queue = RwLock::new(VecDeque::new());
-
         let addr = "0.0.0.0:1351";
         let try_socket = TcpListener::bind(addr).await;
         let listener = try_socket.expect("Failed to bind");
 
         Ok(Self {
-            action_queue,
+            pending_actions: flume::unbounded(),
             socket_sender: DashMap::new(),
             listener,
             player_socket_map: DashMap::new(),
@@ -167,7 +165,7 @@ impl Server {
                             if msg.is_binary() {
                                 let action = bincode::deserialize::<Action>(&msg.clone().into_data())?;
                                 // println!("{:?}", action);
-                                self.action_queue.write().await.push_back((socket_id.to_string(), action));
+                                self.pending_actions.0.send((socket_id.to_string(), action)).unwrap();
                             } else if msg.is_close() {
                                 self.cleanup_connection(socket_id, recv).await;
                                 break;

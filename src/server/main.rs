@@ -53,13 +53,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         loop {
             // handle inputs from the clients
-            while let Some((socket_id, action)) = game_clone
-                .network_server
-                .action_queue
-                .write()
-                .await
-                .pop_front()
-            {
+            for (socket_id, action) in game_clone.network_server.pending_actions.1.drain() {
                 if let Err(e) = game_clone.handle_action(socket_id, action.clone()).await {
                     println!("failed to handle action: {:?} {:?}", action, e);
                 }
@@ -72,8 +66,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(5)).await;
-            let network_action_queue_len =
-                game_clone.network_server.action_queue.read().await.len();
+            let network_action_queue_len = game_clone.network_server.pending_actions.1.len();
             let connected_count = game_clone.network_server.socket_sender.len();
             if network_action_queue_len > 0 || connected_count > 0 {
                 for (name, instance) in game_clone.map_instances.iter() {
@@ -83,10 +76,7 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
 
-                println!(
-                    "server action_queue len: {}",
-                    game_clone.network_server.action_queue.read().await.len()
-                );
+                println!("server action_queue len: {}", network_action_queue_len);
                 println!(
                     "server socket_sender len: {}",
                     game_clone.network_server.socket_sender.len()
