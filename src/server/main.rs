@@ -74,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
             tokio::time::sleep(Duration::from_secs(5)).await;
             let network_action_queue_len =
                 game_clone.network_server.action_queue.read().await.len();
-            let connected_count = game_clone.network_server.socket_sender.read().await.len();
+            let connected_count = game_clone.network_server.socket_sender.len();
             if network_action_queue_len > 0 || connected_count > 0 {
                 for (name, instance) in game_clone.map_instances.iter() {
                     let entity_count = instance.read().await.engine.entities.len();
@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
                 );
                 println!(
                     "server socket_sender len: {}",
-                    game_clone.network_server.socket_sender.read().await.len()
+                    game_clone.network_server.socket_sender.len()
                 );
             }
         }

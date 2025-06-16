@@ -3,18 +3,19 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use anyhow::Result;
-use futures_util::stream::SplitSink;
-use futures_util::stream::SplitStream;
+use dashmap::DashMap;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
+use futures_util::stream::SplitSink;
+use futures_util::stream::SplitStream;
 use game_test::action::Response;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
-use tokio::sync::mpsc;
 use tokio::sync::RwLock;
+use tokio::sync::mpsc;
 use tokio_tungstenite::WebSocketStream;
-use tungstenite::protocol::frame::CloseFrame;
 use tungstenite::Message;
+use tungstenite::protocol::frame::CloseFrame;
 
 use super::Action;
 
@@ -22,10 +23,10 @@ pub struct Server {
     pub listener: TcpListener,
     // socket_id, reverse communication channel, action
     pub action_queue: RwLock<VecDeque<(String, Action)>>,
-    pub socket_sender: RwLock<HashMap<String, mpsc::Sender<Response>>>,
+    pub socket_sender: DashMap<String, mpsc::Sender<Response>>,
     // player id keyed to socket
     // and socket keyed to player id
-    player_socket_map: RwLock<HashMap<String, String>>,
+    player_socket_map: DashMap<String, String>,
 }
 
 impl Server {
@@ -38,9 +39,9 @@ impl Server {
 
         Ok(Self {
             action_queue,
-            socket_sender: RwLock::new(HashMap::new()),
+            socket_sender: DashMap::new(),
             listener,
-            player_socket_map: RwLock::new(HashMap::new()),
+            player_socket_map: DashMap::new(),
         })
     }
 
@@ -70,7 +71,8 @@ impl Server {
     /// Send to a socket id
     /// This can be invoked from any thread
     pub async fn send(&self, socket_id: &str, res: Response) -> anyhow::Result<()> {
-        if let Some(sender) = self.socket_sender.write().await.get_mut(socket_id) {
+        if let Some(mut sender) = self.socket_sender.get_mut(socket_id) {
+            let sender = sender.value_mut();
             sender.send(res).await?;
             Ok(())
         } else {
@@ -98,10 +100,7 @@ impl Server {
         let (mut write, mut read) = ws_stream.split();
 
         let (sendv, mut recv) = mpsc::channel::<Response>(64);
-        self.socket_sender
-            .write()
-            .await
-            .insert(socket_id.clone(), sendv);
+        self.socket_sender.insert(socket_id.clone(), sendv);
         // our client loop may throw errors. We don't want to propagate them through
         // into the main network logic so we handle them here
         if let Err(e) = self
@@ -193,14 +192,15 @@ impl Server {
     }
 
     async fn cleanup_connection(&self, socket_id: &str, recv: &mut mpsc::Receiver<Response>) {
-        self.socket_sender.write().await.remove(socket_id);
+        self.socket_sender.remove(socket_id);
         recv.close();
     }
 
     pub async fn player_by_socket_id(&self, socket_id: &str) -> Option<String> {
-        let player_socket_map = self.player_socket_map.read().await;
-        if let Some(player_id) = player_socket_map.get(socket_id) {
-            if let Some(socket_id_internal) = player_socket_map.get(player_id) {
+        if let Some(player_id) = self.player_socket_map.get(socket_id) {
+            let player_id = player_id.value();
+            if let Some(socket_id_internal) = self.player_socket_map.get(player_id) {
+                let socket_id_internal = socket_id_internal.value();
                 if socket_id == socket_id_internal {
                     return Some(player_id.clone());
                 }
@@ -210,22 +210,24 @@ impl Server {
     }
 
     pub async fn socket_by_player_id(&self, player_id: &str) -> Option<String> {
-        let player_socket_map = self.player_socket_map.read().await;
-        player_socket_map.get(player_id).cloned()
+        if let Some(v) = self.player_socket_map.get(player_id) {
+            Some(v.value().clone())
+        } else {
+            None
+        }
     }
 
     pub async fn logout_socket(&self, socket_id: &str) -> Option<String> {
-        let mut player_socket_map = self.player_socket_map.write().await;
-        let player_id = player_socket_map.remove(socket_id);
-        if let Some(player_id) = player_id.as_ref() {
-            player_socket_map.remove(player_id);
+        let player_id = self.player_socket_map.remove(socket_id);
+        if let Some((_, player_id)) = player_id.as_ref() {
+            self.player_socket_map.remove(player_id);
         }
-        player_id
+        player_id.and_then(|(_, v)| Some(v))
     }
 
     pub async fn register_player(&self, socket_id: String, player_id: String) {
-        let mut player_socket_map = self.player_socket_map.write().await;
-        player_socket_map.insert(socket_id.clone(), player_id.clone());
-        player_socket_map.insert(player_id, socket_id);
+        self.player_socket_map
+            .insert(socket_id.clone(), player_id.clone());
+        self.player_socket_map.insert(player_id, socket_id);
     }
 }
