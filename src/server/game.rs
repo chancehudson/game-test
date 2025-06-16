@@ -124,6 +124,12 @@ impl Game {
                             &to_map,
                         )
                         .await?;
+                        let socket_id = self.network_server.socket_by_player_id(&player_id).await;
+                        if socket_id.is_none() {
+                            println!("WARNING: player disconnected during map change");
+                            return Ok(());
+                        }
+                        let socket_id = socket_id.unwrap();
 
                         // must wait for all
                         from_instance.remove_player(&player_id).await?;
@@ -132,7 +138,7 @@ impl Game {
                             (to_instance.pending_actions.0.clone(), to_instance_ref),
                         );
                         to_instance
-                            .add_player(&PlayerState::from(&record), requested_spawn_pos)
+                            .add_player(socket_id, &PlayerState::from(&record), requested_spawn_pos)
                             .await?;
                         // send an update
                         self.network_server
@@ -182,7 +188,9 @@ impl Game {
         );
 
         map_instance.remove_player(&player_state.id).await?;
-        map_instance.add_player(&player_state, None).await?;
+        map_instance
+            .add_player(socket_id.to_string(), &player_state, None)
+            .await?;
 
         self.network_server
             .register_player(socket_id.to_string(), record.id.clone())

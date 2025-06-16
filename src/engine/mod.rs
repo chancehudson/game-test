@@ -40,6 +40,7 @@ use crate::engine::entity::platform::PlatformEntity;
 use crate::engine::game_event::EngineEvent;
 use crate::engine::game_event::EngineEventType;
 use crate::engine::game_event::GameEvent;
+use crate::engine::game_event::HasId;
 use crate::engine::game_event::HasUniversal;
 use crate::map::MapData;
 use crate::timestamp;
@@ -381,14 +382,13 @@ impl GameEngine {
         let step_index = step_index.unwrap_or(self.step_index);
         // if the step is in the past we insert and replay
         // engine will replay all over events that ocurred as well
-        let event_id = self.generate_id();
         if let Some(event) = self
             .events_by_type
             .entry(EngineEventType::from(&event))
             .or_default()
             .entry(step_index)
             .or_default()
-            .insert(event_id, event)
+            .insert(event.id(), event)
         {
             println!("overwriting event: {:?}", event);
         }

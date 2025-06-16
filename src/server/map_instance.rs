@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::mem::discriminant;
 use std::sync::Arc;
 
 use bevy_math::IVec2;
@@ -21,6 +22,7 @@ use crate::game::RemoteEngineEvent;
 use crate::network;
 
 pub struct RemotePlayerEngine {
+    pub socket_id: String,
     pub entity_id: Option<u128>,
     pub engine_id: u128,
     pub is_inited: bool,
@@ -69,6 +71,7 @@ impl MapInstance {
     /// insert our new player into the map and send the current state
     pub async fn add_player(
         &mut self,
+        socket_id: String,
         player_state: &PlayerState,
         requested_spawn_pos: Option<IVec2>,
     ) -> anyhow::Result<()> {
@@ -77,6 +80,7 @@ impl MapInstance {
             player_state.id.clone(),
         ));
         let player = RemotePlayerEngine {
+            socket_id,
             engine_id: rand::random(),
             is_inited: false,
             player_id: player_state.id.clone(),
@@ -294,6 +298,58 @@ impl MapInstance {
                 Self::init_remote_engine(self.network_server.clone(), &self.engine, &id, player)
                     .await;
             }
+        }
+        // cleanup players that have disconnected
+        let mut removal_events = vec![];
+        if let Some(player_entities) =
+            self.engine
+                .grouped_entities()
+                .get(&discriminant(
+                    &EngineEntity::Player(PlayerEntity::default()),
+                ))
+        {
+            for entity in player_entities {
+                match entity {
+                    EngineEntity::Player(p) => {
+                        if let Some(player) = self.player_engines.get(&p.player_id) {
+                            let player_disconnected = if let Some(socket_id) = self
+                                .network_server
+                                .socket_by_player_id(&player.player_id)
+                                .await
+                            {
+                                socket_id != player.socket_id
+                            } else {
+                                true
+                            };
+                            if !player_disconnected {
+                                if let Some(entity_id) = player.entity_id {
+                                    if entity_id == p.id {
+                                        // player still connected/active
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                        // otherwise remove the entity
+                        removal_events.push((
+                            p.player_id.clone(),
+                            EngineEvent::RemoveEntity {
+                                id: rand::random(),
+                                entity_id: p.id,
+                                universal: true,
+                            },
+                        ));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+        for (player_id, e) in removal_events {
+            self.player_engines.remove(&player_id);
+            self.pending_events
+                .0
+                .send((self.engine.step_index, e.clone()))?;
+            self.engine.register_event(None, e);
         }
         Ok(())
     }
