@@ -23,7 +23,7 @@ use crate::network;
 
 pub struct RemotePlayerEngine {
     pub socket_id: String,
-    pub entity_id: Option<u128>,
+    pub entity_id: u128,
     pub engine_id: u128,
     pub is_inited: bool,
     pub player_id: String,
@@ -84,24 +84,21 @@ impl MapInstance {
             engine_id: rand::random(),
             is_inited: false,
             player_id: player_state.id.clone(),
-            entity_id: Some(entity.id()),
+            entity_id: entity.id(),
             last_input_step_index: self.engine.step_index,
         };
         // we've inserted a new player, last_engine is the old player engine data, if it exists
         if let Some(last_engine) = self.player_engines.insert(player_state.id.clone(), player) {
             // cleanup previous engine connection
-            if let Some(entity_id) = last_engine.entity_id {
-                self.engine.remove_entity(entity_id, true);
-                let remove = EngineEvent::RemoveEntity {
-                    id: rand::random(),
-                    entity_id,
-                    universal: true,
-                };
-                self.engine.register_event(None, remove.clone());
-                self.pending_events
-                    .0
-                    .send((self.engine.step_index, remove))?;
-            }
+            let remove = EngineEvent::RemoveEntity {
+                id: rand::random(),
+                entity_id: last_engine.entity_id,
+                universal: true,
+            };
+            self.engine.register_event(None, remove.clone());
+            self.pending_events
+                .0
+                .send((self.engine.step_index, remove))?;
         }
         let add_event = EngineEvent::SpawnEntity {
             id: rand::random(),
@@ -117,17 +114,15 @@ impl MapInstance {
 
     pub async fn remove_player(&mut self, player_id: &str) -> anyhow::Result<()> {
         if let Some(player) = self.player_engines.remove(player_id) {
-            if let Some(entity_id) = player.entity_id {
-                let event = EngineEvent::RemoveEntity {
-                    id: rand::random(),
-                    entity_id,
-                    universal: true,
-                };
-                self.engine.register_event(None, event.clone());
-                self.pending_events
-                    .0
-                    .send((self.engine.step_index, event))?;
-            }
+            let event = EngineEvent::RemoveEntity {
+                id: rand::random(),
+                entity_id: player.entity_id,
+                universal: true,
+            };
+            self.engine.register_event(None, event.clone());
+            self.pending_events
+                .0
+                .send((self.engine.step_index, event))?;
         } else {
             println!(
                 "WARNING: attempted to remove {player_id} from {} instance",
@@ -188,16 +183,12 @@ impl MapInstance {
                     id: _,
                     entity_id,
                 } => {
-                    if let Some(id) = player.entity_id {
-                        if entity_id != &id {
-                            anyhow::bail!("player tried to input for wrong entity");
-                        }
-                        println!("integrating input event at {step_index}");
-                        player.last_input_step_index = *step_index;
-                        return Ok(Some((*step_index, event.clone())));
-                    } else {
-                        println!("WARNING: attempting to send input with no spawned entity");
+                    if entity_id != &player.entity_id {
+                        anyhow::bail!("player tried to input for wrong entity");
                     }
+                    println!("integrating input event at {step_index}");
+                    player.last_input_step_index = *step_index;
+                    return Ok(Some((*step_index, event.clone())));
                 }
                 EngineEvent::RemoveEntity {
                     id: _,
@@ -269,7 +260,30 @@ impl MapInstance {
         } else {
             None
         };
+        let mut ids_to_remove = vec![];
         for (id, player) in self.player_engines.iter_mut() {
+            let player_disconnected = if let Some(socket_id) = self
+                .network_server
+                .socket_by_player_id(&player.player_id)
+                .await
+            {
+                socket_id != player.socket_id
+            } else {
+                true
+            };
+            if player_disconnected {
+                let removal_event = EngineEvent::RemoveEntity {
+                    id: rand::random(),
+                    entity_id: player.entity_id,
+                    universal: true,
+                };
+                self.engine.register_event(None, removal_event.clone());
+                self.pending_events
+                    .0
+                    .send((self.engine.step_index, removal_event))?;
+                ids_to_remove.push(id.clone());
+                continue;
+            }
             // send engine stats
             if let Some(engine_hash) = engine_hash {
                 let id = id.to_string();
@@ -299,6 +313,9 @@ impl MapInstance {
                     .await;
             }
         }
+        for id in ids_to_remove {
+            self.player_engines.remove(&id);
+        }
         // cleanup players that have disconnected
         let mut removal_events = vec![];
         if let Some(player_entities) =
@@ -312,22 +329,9 @@ impl MapInstance {
                 match entity {
                     EngineEntity::Player(p) => {
                         if let Some(player) = self.player_engines.get(&p.player_id) {
-                            let player_disconnected = if let Some(socket_id) = self
-                                .network_server
-                                .socket_by_player_id(&player.player_id)
-                                .await
-                            {
-                                socket_id != player.socket_id
-                            } else {
-                                true
-                            };
-                            if !player_disconnected {
-                                if let Some(entity_id) = player.entity_id {
-                                    if entity_id == p.id {
-                                        // player still connected/active
-                                        continue;
-                                    }
-                                }
+                            if player.entity_id == p.id {
+                                // player still connected/active
+                                continue;
                             }
                         }
                         // otherwise remove the entity

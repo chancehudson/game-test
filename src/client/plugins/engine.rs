@@ -211,7 +211,7 @@ fn handle_engine_state(
 ) {
     for event in action_events.read() {
         if let Response::EngineState(engine, player_entity_id_maybe, server_step) = &event.0 {
-            active_player_entity_id.0 = *player_entity_id_maybe;
+            active_player_entity_id.0 = Some(*player_entity_id_maybe);
             *engine_sync = EngineSyncInfo::default();
             engine_sync.server_step = *server_step;
             engine_sync.server_step_timestamp = timestamp();
