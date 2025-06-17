@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy_egui::egui::{Color32, RichText};
 use bevy_egui::{EguiContextPass, EguiContexts, egui};
+use web_time::Instant;
+
 use game_test::MapData;
 use game_test::action::{Action, Response};
 use game_test::engine::GameEngine;
@@ -8,7 +10,6 @@ use game_test::engine::entity::EngineEntity;
 use game_test::engine::entity::mob_spawn::MobSpawnEntity;
 use game_test::engine::entity::platform::PlatformEntity;
 use game_test::engine::game_event::EngineEvent;
-use web_time::Instant;
 
 use crate::network::{NetworkConnectionMaybe, NetworkMessage};
 
