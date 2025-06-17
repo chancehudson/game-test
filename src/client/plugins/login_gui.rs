@@ -5,13 +5,11 @@ use game_test::MapData;
 use game_test::action::{Action, Response};
 use game_test::engine::GameEngine;
 use game_test::engine::entity::EngineEntity;
-use game_test::engine::entity::mob::MobEntity;
 use game_test::engine::entity::mob_spawn::MobSpawnEntity;
 use game_test::engine::entity::platform::PlatformEntity;
 use game_test::engine::game_event::EngineEvent;
 use web_time::Instant;
 
-use crate::map::MapLoader;
 use crate::network::{NetworkConnectionMaybe, NetworkMessage};
 
 use crate::GameState;
@@ -50,9 +48,9 @@ impl Default for ConnectViewState {
     }
 }
 
-pub struct GuiPlugin;
+pub struct LoginGuiPlugin;
 
-impl Plugin for GuiPlugin {
+impl Plugin for LoginGuiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ConnectViewState>()
             .init_resource::<LoginViewState>()

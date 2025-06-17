@@ -50,7 +50,7 @@ fn main() {
         .add_plugins(plugins::loading_screen::LoadingScreenPlugin)
         .add_plugins(plugins::smooth_camera::SmoothCameraPlugin)
         .add_plugins(plugins::animated_sprite::AnimatedSpritePlugin)
-        .add_plugins(plugins::gui::GuiPlugin)
+        .add_plugins(plugins::login_gui::LoginGuiPlugin)
         // nonsene
         .add_plugins(map::MapPlugin)
         .add_plugins(map_data_loader::MapDataLoaderPlugin)
