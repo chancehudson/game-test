@@ -88,20 +88,6 @@ impl SEEntity for PlayerEntity {
                 match entity {
                     EngineEntity::Portal(p) => {
                         if p.can_enter(self) {
-                            //
-                            //
-                            //
-                            // HERE we want to push the event outward into a channel ???
-                            // to be consumed elsewhere
-                            //
-                            // TODO: debounce
-                            // pending_events.push(ServerEvent::PlayerEnterPortal {
-                            //     player_id: self.player_id.clone(),
-                            //     entity_id: self.id,
-                            //     from_map: map_name.clone(),
-                            //     to_map: p.to.clone(),
-                            // });
-                            // engine.game_events.0.send()
                             events_channel
                                 .send((
                                     step_index,
@@ -117,7 +103,7 @@ impl SEEntity for PlayerEntity {
                             break;
                         }
                     }
-                    _ => panic!("unexpected variant"),
+                    _ => unreachable!(),
                 }
             }
         }

@@ -6,7 +6,6 @@ use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::STEP_DELAY;
 use crate::engine::GameEngine;
 
 pub mod emoji;
