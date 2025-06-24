@@ -17,6 +17,10 @@ fn main() -> anyhow::Result<()> {
                 continue;
             }
             if let Some(file_name) = entry.file_name().to_str() {
+                // fucking apple
+                if file_name.starts_with("._") {
+                    continue;
+                }
                 let data_str = std::fs::read_to_string(path).unwrap();
                 let data: HashMap<String, serde_json::Value> = json5::from_str(&data_str)?;
                 // zzzzz

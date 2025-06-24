@@ -1,9 +1,9 @@
 use bevy::asset::LoadedUntypedAsset;
-use bevy::image::ImageSampler;
 use bevy::prelude::*;
 
 use game_test::MapData;
 
+use crate::components::damage::DamageComponent;
 // use crate::mob::MobRegistry;
 use crate::plugins::engine::ActiveGameEngine;
 use crate::plugins::smooth_camera::CAMERA_Y_PADDING;
@@ -118,8 +118,15 @@ fn update_map_loading(
     }
 }
 
-fn exit_map(mut commands: Commands, old_map_query: Query<Entity, With<MapEntity>>) {
+fn exit_map(
+    mut commands: Commands,
+    old_map_query: Query<Entity, With<MapEntity>>,
+    damage_query: Query<Entity, With<DamageComponent>>,
+) {
     for v in &old_map_query {
+        commands.entity(v).despawn();
+    }
+    for v in &damage_query {
         commands.entity(v).despawn();
     }
 }

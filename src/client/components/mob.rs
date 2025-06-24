@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::entity::mob::MobEntity;
 
+use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;
 use crate::plugins::engine::ActiveGameEngine;
 use crate::plugins::engine::GameEntityComponent;
@@ -13,67 +14,60 @@ pub struct MobPlugin;
 
 impl Plugin for MobPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, animate_mobs);
+        app.add_systems(
+            Update,
+            (animate_mobs, animate_left_right_system, damage_text_system),
+        );
     }
 }
 
-// fn animate_mob_damage(
-//     mut commands: Commands,
-//     mut damage_query: Query<(Entity, &DamageText, &mut Transform, &mut TextColor)>,
-//     time: Res<Time>,
-// ) {
-//     let current_time = time.elapsed_secs_f64();
-//     for (entity, text, mut transform, mut color) in &mut damage_query {
-//         if current_time - text.created_at > 0.7 {
-//             let new_alpha = color.0.alpha() - 0.05;
-//             color.0.set_alpha(new_alpha);
-//         }
-//         if current_time - text.created_at > 3.0 {
-//             commands.entity(entity).despawn();
-//         } else {
-//             transform.translation.y += 1.0;
-//         }
-//     }
-// }
+fn damage_text_system(
+    mut commands: Commands,
+    mut entity_query: Query<&GameEntityComponent, With<MobComponent>>,
+    active_engine: Res<ActiveGameEngine>,
+) {
+    let engine = &active_engine.0;
+    for entity in entity_query.iter_mut() {
+        if let Some(entity) = &entity.entity {
+            match entity {
+                EngineEntity::Mob(p) => {
+                    for amount in &p.received_damage_this_step {
+                        if let Some((_aggro_to_entity_id, _)) = p.aggro_to {
+                            commands.spawn(DamageComponent::mob_damage(
+                                engine.step_index,
+                                &p,
+                                *amount,
+                            ));
+                        } else {
+                            unreachable!();
+                        }
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+}
 
-// fn handle_mob_damage(
-//     mob_registry: Res<MobRegistry>,
-//     mut action_events: EventReader<NetworkMessage>,
-//     mut commands: Commands,
-//     mut mob_query: Query<(&mut MobEntity, &Transform)>,
-//     time: Res<Time>,
-// ) {
-//     for event in action_events.read() {
-//         if let Response::MobDamage(id, amount) = &event.0 {
-//             if let Some(&entity) = mob_registry.mobs.get(id) {
-//                 if let Ok((mut mob, transform)) = mob_query.get_mut(entity) {
-//                     if amount >= &mob.mob.health {
-//                         mob.mob.health = 0;
-//                         println!("killed entity {}", mob.mob.id);
-//                         commands.entity(entity).despawn_recursive();
-//                     } else {
-//                         mob.mob.health -= amount;
-//                     }
-//                     let data = MOB_DATA.get(&mob.mob.mob_type).unwrap();
-//                     commands.spawn((
-//                         DamageText {
-//                             created_at: time.elapsed_secs_f64(),
-//                         },
-//                         Transform::from_translation(
-//                             transform.translation + Vec3::new(0.0, data.size.y + 10.0, 99.0),
-//                         ),
-//                         Text2d::new(format!("{}", amount)),
-//                         TextColor(Color::srgba(1., 0.0, 0.2, 1.0)),
-//                         TextFont {
-//                             font_size: 25.0,
-//                             ..default()
-//                         },
-//                     ));
-//                 }
-//             }
-//         }
-//     }
-// }
+fn animate_left_right_system(
+    mut entity_query: Query<(&GameEntityComponent, &mut Sprite), With<MobComponent>>,
+) {
+    for (entity, mut sprite) in entity_query.iter_mut() {
+        if let Some(entity) = &entity.entity {
+            match entity {
+                EngineEntity::Mob(p) => {
+                    if p.moving_sign > 0 {
+                        sprite.flip_x = true;
+                    }
+                    if p.moving_sign < 0 {
+                        sprite.flip_x = false;
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+}
 
 fn animate_mobs(
     mut query: Query<(
@@ -163,6 +157,7 @@ impl MobComponent {
                     layout: standing_atlas.clone(),
                     index: 0,
                 }),
+                // color: Color::BLACK,
                 anchor: bevy::sprite::Anchor::BottomLeft,
                 ..default()
             },

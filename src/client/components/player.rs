@@ -1,36 +1,35 @@
 use bevy::prelude::*;
 
 use game_test::action::Action;
-use game_test::action::PlayerState;
 use game_test::engine::entity::EngineEntity;
 use game_test::engine::entity::EntityInput;
-use game_test::engine::entity::player::PlayerEntity;
 use game_test::engine::game_event::EngineEvent;
 
+use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;
 use crate::plugins::engine::ActiveGameEngine;
 use crate::plugins::engine::ActivePlayerEntityId;
-use crate::plugins::engine::ActivePlayerState;
+use crate::plugins::engine::GameEntityComponent;
 use crate::sprite_data_loader::SpriteManager;
 
-use super::GameState;
-use super::network::NetworkAction;
+use crate::GameState;
+use crate::network::NetworkAction;
 
 pub struct PlayerPlugin;
 
 #[derive(Component)]
-pub struct PlayerComponent {
-    pub state: PlayerState,
-    pub entity_id: u128,
-}
+pub struct PlayerComponent;
 
 impl PlayerComponent {
-    pub fn default_sprite(sprite_manager: &SpriteManager) -> (AnimatedSprite, Sprite) {
+    pub fn default_sprite(
+        sprite_manager: &SpriteManager,
+    ) -> (PlayerComponent, AnimatedSprite, Sprite) {
         let (handle, atlas) = sprite_manager
             .sprite("sprites/banana/standing.png")
             .unwrap();
 
         (
+            PlayerComponent,
             AnimatedSprite {
                 fps: 2,
                 frame_count: 2,
@@ -51,8 +50,79 @@ impl PlayerComponent {
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, input_system.run_if(in_state(GameState::OnMap)));
+        app.add_systems(
+            Update,
+            (
+                animation_system,
+                input_system,
+                iframe_blink_system,
+                damage_text_system,
+            )
+                .run_if(in_state(GameState::OnMap)),
+        );
         // .add_systems(OnEnter(GameState::LoggedOut), despawn_all_players);
+    }
+}
+
+fn animation_system(
+    mut entity_query: Query<(&GameEntityComponent, &mut Sprite), With<PlayerComponent>>,
+) {
+    for (entity, mut sprite) in entity_query.iter_mut() {
+        if let Some(entity) = &entity.entity {
+            match entity {
+                EngineEntity::Player(p) => {
+                    sprite.flip_x = !p.facing_left;
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
+fn damage_text_system(
+    mut commands: Commands,
+    mut entity_query: Query<(&GameEntityComponent), With<PlayerComponent>>,
+    active_engine: Res<ActiveGameEngine>,
+) {
+    let engine = &active_engine.0;
+    for entity in entity_query.iter_mut() {
+        if let Some(entity) = &entity.entity {
+            match entity {
+                EngineEntity::Player(p) => {
+                    if p.received_damage_this_step.0 {
+                        commands.spawn(DamageComponent::player_damage(
+                            engine.step_index,
+                            &p,
+                            p.received_damage_this_step.1,
+                        ));
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
+fn iframe_blink_system(
+    mut entity_query: Query<(&GameEntityComponent, &mut Sprite), With<PlayerComponent>>,
+    active_engine: Res<ActiveGameEngine>,
+) {
+    let blink_step_interval = 8;
+    let blink = (active_engine.0.step_index / blink_step_interval) % 2 == 0;
+    for (entity, mut sprite) in entity_query.iter_mut() {
+        if let Some(entity) = &entity.entity {
+            match entity {
+                EngineEntity::Player(p) => {
+                    if let Some(_) = p.receiving_damage_until {
+                        let alpha = if blink { 0.4 } else { 1.0 };
+                        sprite.color.set_alpha(alpha);
+                    } else {
+                        sprite.color.set_alpha(1.0);
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
     }
 }
 
@@ -62,15 +132,8 @@ fn input_system(
     mut active_game_engine: ResMut<ActiveGameEngine>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut action_events: EventWriter<NetworkAction>,
-    active_player_state: Res<ActivePlayerState>,
 ) {
     let engine = &mut active_game_engine.0;
-    if active_player_state.0.is_none() {
-        println!("WARNING: attempting input with no player state");
-        return;
-    }
-    let player_state = active_player_state.0.as_ref().unwrap();
-
     // request engine reload if p key is pressed
     if keyboard.just_pressed(KeyCode::KeyP) {
         action_events.write(NetworkAction(Action::RequestEngineReload(
@@ -92,6 +155,7 @@ fn input_system(
             enter_portal: keyboard.pressed(KeyCode::ArrowUp),
             admin_enable_debug_markers: keyboard.just_pressed(KeyCode::Digit9),
             show_emoji: keyboard.just_pressed(KeyCode::KeyQ),
+            respawn: keyboard.just_pressed(KeyCode::KeyR),
         };
         let (_latest_input_step, latest_input) = engine.latest_input(&entity_id);
         if latest_input == input {

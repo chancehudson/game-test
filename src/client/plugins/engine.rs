@@ -1,35 +1,44 @@
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use bevy::prelude::*;
+
 use game_test::STEP_DELAY;
+use game_test::db::AbilityExpRecord;
+use game_test::db::PlayerRecord;
+use game_test::engine::STEP_LEN_S;
+use game_test::engine::entity::EEntity;
+use game_test::engine::entity::EngineEntity;
+use game_test::engine::entity::mob::MobEntity;
+use game_test::engine::entity::player::PlayerEntity;
+use game_test::engine::game_event::GameEvent;
+use game_test::timestamp;
 
 use crate::Action;
 use crate::GameEngine;
 use crate::GameState;
 use crate::NetworkMessage;
-use crate::PlayerState;
 use crate::Response;
 use crate::SpriteDataAsset;
 use crate::SpriteManager;
+use crate::components::mob::MobComponent;
+use crate::components::player::PlayerComponent;
+use crate::interpolation::InterpolatingEntities;
+use crate::interpolation::Interpolation;
+use crate::interpolation::interpolate_mobs;
 use crate::map::MapEntity;
-use crate::mob::MobComponent;
 use crate::network::NetworkAction;
-use crate::player::PlayerComponent;
 use crate::plugins::engine_sync::EngineSyncInfo;
-
-use game_test::engine::STEP_LEN_S;
-use game_test::engine::entity::EEntity;
-use game_test::engine::entity::EngineEntity;
-use game_test::timestamp;
 
 /// Engine tracking resources/components
 ///
 #[derive(Resource, Default)]
-pub struct ActiveGameEngine(pub GameEngine, pub u64);
+pub struct ActiveGameEngine(pub GameEngine);
 
 #[derive(Component, Default)]
 pub struct GameEntityComponent {
     pub entity_id: u128,
+    pub entity: Option<EngineEntity>,
 }
 
 #[derive(Resource, Default)]
@@ -39,7 +48,7 @@ pub struct ActivePlayerEntityId(pub Option<u128>);
 pub struct LoggedInAt(pub f64);
 
 #[derive(Resource, Default)]
-pub struct ActivePlayerState(pub Option<PlayerState>);
+pub struct ActivePlayerState(pub Option<PlayerRecord>);
 
 pub struct EnginePlugin;
 
@@ -49,6 +58,7 @@ impl Plugin for EnginePlugin {
             .init_resource::<ActivePlayerEntityId>()
             .init_resource::<ActivePlayerState>()
             .init_resource::<LoggedInAt>()
+            .init_resource::<InterpolatingEntities>()
             .add_systems(
                 Update,
                 (
@@ -118,7 +128,7 @@ fn step_game_engine(
         }
     } else {
         // local engine is ahead of server, skip a step
-    }
+    };
     engine.game_events.1.drain(); // drain here to avoid memory leaks
 }
 
@@ -146,17 +156,31 @@ fn handle_engine_event(
     mut action_events: EventReader<NetworkMessage>,
     mut active_engine_state: ResMut<ActiveGameEngine>,
     mut engine_sync: ResMut<EngineSyncInfo>,
+    active_player_entity_id: Res<ActivePlayerEntityId>,
+    mut interpolating_entities: ResMut<InterpolatingEntities>,
 ) {
     for event in action_events.read() {
         match &event.0 {
             Response::RemoteEngineEvents(engine_id, events, server_step_index) => {
                 let engine = &mut active_engine_state.0;
-                if engine.id != *engine_id {
+                if engine.id != *engine_id || events.is_empty() {
                     continue;
                 }
+                let player_entity_id = active_player_entity_id.0.unwrap_or_default();
                 engine_sync.server_step = *server_step_index;
                 engine_sync.server_step_timestamp = timestamp();
+                // these are the mobs we were seeing before
+                let last_mobs = engine
+                    .entities_by_type::<MobEntity>()
+                    .cloned()
+                    .collect::<Vec<_>>();
                 engine.integrate_events(events.clone());
+                interpolate_mobs(
+                    last_mobs,
+                    engine,
+                    player_entity_id,
+                    &mut interpolating_entities,
+                );
             }
             _ => {}
         }
@@ -237,24 +261,34 @@ fn handle_engine_state(
 pub fn sync_engine_components(
     mut commands: Commands,
     active_engine_state: Res<ActiveGameEngine>,
-    mut entity_query: Query<(Entity, &GameEntityComponent, &mut Transform, &mut Sprite)>,
+    mut entity_query: Query<(Entity, &mut GameEntityComponent, &mut Transform)>,
     asset_server: Res<AssetServer>,
     mut sprite_manager: ResMut<SpriteManager>,
     sprite_data: Res<Assets<SpriteDataAsset>>,
     active_player_entity_id: Res<ActivePlayerEntityId>,
+    mut interpolating_entities: ResMut<InterpolatingEntities>,
 ) {
+    let player_entity_id = active_player_entity_id.0.unwrap_or_default();
     let engine = &active_engine_state.0;
     // this is the entities in relative positions we want to render
+    let mut aggrod_mobs = HashMap::new();
     let mut current_entities = engine
         .entities
         .iter()
         .filter(|(_id, entity)| {
-            if let Some(player_creator_id) = entity.player_creator_id() {
-                if let Some(active_entity_id) = active_player_entity_id.0 {
-                    player_creator_id == active_entity_id
-                } else {
-                    true
+            match entity {
+                EngineEntity::Mob(p) => {
+                    if let Some(aggro_to) = p.aggro_to {
+                        if aggro_to.0 != player_entity_id {
+                            aggrod_mobs.insert(p.id, true);
+                            return false;
+                        }
+                    }
                 }
+                _ => {}
+            }
+            if let Some(player_creator_id) = entity.player_creator_id() {
+                player_creator_id == player_entity_id
             } else {
                 true
             }
@@ -263,13 +297,12 @@ pub fn sync_engine_components(
     if engine.step_index >= STEP_DELAY {
         let past_step_index = engine.step_index - STEP_DELAY;
         if let Some(past_entities) = engine.entities_by_step.get(&past_step_index) {
-            for (entity_id, entity) in past_entities.iter().filter(|(_id, entity)| {
+            for (entity_id, entity) in past_entities.iter().filter(|(id, entity)| {
+                if aggrod_mobs.contains_key(&id) {
+                    return true;
+                }
                 if let Some(player_creator_id) = entity.player_creator_id() {
-                    if let Some(active_entity_id) = active_player_entity_id.0 {
-                        player_creator_id != active_entity_id
-                    } else {
-                        false
-                    }
+                    player_creator_id != player_entity_id
                 } else {
                     false
                 }
@@ -280,132 +313,178 @@ pub fn sync_engine_components(
             }
         }
     }
-    for (entity, entity_component, mut transform, mut sprite) in entity_query.iter_mut() {
+    let mut position_overrides = HashMap::new();
+    for (entity_id, interpolation) in &interpolating_entities.0 {
+        if engine.step_index < interpolation.to_step {
+            let pos = interpolation.start_position
+                + IVec2::splat((engine.step_index - interpolation.from_step) as i32)
+                    * interpolation.diff_position;
+            position_overrides.insert(*entity_id, pos);
+        }
+    }
+    interpolating_entities
+        .0
+        .retain(|_, Interpolation { to_step, .. }| engine.step_index < *to_step);
+
+    for (entity, mut entity_component, mut transform) in entity_query.iter_mut() {
         if let Some(game_entity) = current_entities.get(&entity_component.entity_id) {
-            transform.translation = game_entity.position_f32().extend(transform.translation.z);
-            match game_entity {
-                EngineEntity::Player(p) => {
-                    sprite.flip_x = !p.facing_left;
-                }
-                EngineEntity::Mob(p) => {
-                    if p.velocity.x < 0 {
-                        sprite.flip_x = false;
-                    }
-                    if p.velocity.x > 0 {
-                        sprite.flip_x = true;
-                    }
-                }
-                _ => {}
+            if let Some(position_override) = position_overrides.get(&game_entity.id()) {
+                transform.translation = Vec3::new(
+                    position_override.x as f32,
+                    position_override.y as f32,
+                    transform.translation.z,
+                );
+            } else {
+                transform.translation = game_entity.position_f32().extend(transform.translation.z);
             }
+            entity_component.entity = Some((*game_entity).clone());
             current_entities.remove(&game_entity.id());
         } else {
             commands.entity(entity).despawn();
         }
     }
     // we're left with game entities we need to spawn
-    for (id, game_entity) in current_entities {
-        match game_entity {
-            EngineEntity::Player(p) => {
-                println!("spawning player {:?}", p);
-                if !sprite_manager.is_loaded(&0, &sprite_data) {
-                    sprite_manager.load(0, &asset_server);
-                    continue;
-                }
-                commands.spawn((
-                    GameEntityComponent { entity_id: *id },
-                    Transform::from_translation(p.position_f32().extend(100.0)),
-                    PlayerComponent::default_sprite(sprite_manager.as_ref()),
-                    MapEntity,
-                ));
+    for (_id, engine_entity) in current_entities {
+        spawn_bevy_entity(
+            engine_entity,
+            &mut commands,
+            &asset_server,
+            &mut sprite_manager,
+            &sprite_data,
+        );
+    }
+}
+
+pub fn spawn_bevy_entity(
+    engine_entity: &EngineEntity,
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    sprite_manager: &mut ResMut<SpriteManager>,
+    sprite_data: &Res<Assets<SpriteDataAsset>>,
+) {
+    match engine_entity {
+        EngineEntity::Player(p) => {
+            println!("spawning player {:?}", p);
+            if !sprite_manager.is_loaded(&0, &sprite_data) {
+                sprite_manager.load(0, &asset_server);
+                return;
             }
-            EngineEntity::MobSpawner(_) => {}
-            EngineEntity::Mob(p) => {
-                if !sprite_manager.is_loaded(&p.mob_type, &sprite_data) {
-                    sprite_manager.load(p.mob_type, &asset_server);
-                    continue;
-                }
-                commands.spawn((
-                    GameEntityComponent { entity_id: *id },
-                    Transform::from_translation(p.position_f32().extend(1.0)),
-                    // Text2d(p.id.to_string().split_off(15)),
-                    // TextFont {
-                    //     font_size: 8.0,
-                    //     ..default()
-                    // },
-                    MobComponent::new(p.clone(), &sprite_data, sprite_manager.as_ref()),
-                    MapEntity,
-                ));
-            }
-            EngineEntity::Platform(p) => {
-                commands.spawn((
-                    GameEntityComponent { entity_id: *id },
-                    Transform::from_translation(p.position_f32().extend(0.0)),
-                    MapEntity,
-                    Sprite {
-                        color: Color::srgb(0.0, 0.0, 1.0),
-                        custom_size: Some(p.size_f32()),
-                        anchor: bevy::sprite::Anchor::BottomLeft,
-                        ..default()
-                    },
-                ));
-            }
-            EngineEntity::Portal(p) => {
-                commands.spawn((
-                    GameEntityComponent { entity_id: *id },
-                    Transform::from_translation(p.position_f32().extend(0.0)),
-                    MapEntity,
-                    Sprite {
-                        color: Color::srgb(0.0, 1.0, 0.0),
-                        custom_size: Some(p.size_f32()),
-                        anchor: bevy::sprite::Anchor::BottomLeft,
-                        ..default()
-                    },
-                ));
-            }
-            EngineEntity::Rect(p) => {
-                commands.spawn((
-                    GameEntityComponent { entity_id: *id },
-                    Transform::from_translation(p.position_f32().extend(0.0)),
-                    MapEntity,
-                    Sprite {
-                        color: Color::srgb(p.color.x, p.color.y, p.color.z),
-                        custom_size: Some(p.size_f32()),
-                        anchor: bevy::sprite::Anchor::BottomLeft,
-                        ..default()
-                    },
-                ));
-            }
-            EngineEntity::Emoji(p) => {
-                let asset_name = "reactions/eqib.jpg".to_string();
-                if !sprite_manager.is_image_loaded(&asset_name, &asset_server) {
-                    sprite_manager.load_image(asset_name.clone(), &asset_server);
-                    continue;
-                }
-                commands.spawn((
-                    GameEntityComponent { entity_id: *id },
-                    Transform::from_translation(p.position_f32().extend(20.0)),
-                    MapEntity,
-                    Sprite {
-                        image: sprite_manager.image_handle(&asset_name),
-                        custom_size: Some(p.size_f32()),
-                        anchor: bevy::sprite::Anchor::BottomLeft,
-                        ..default()
-                    },
-                ));
-            }
-            EngineEntity::Text(p) => {
-                commands.spawn((
-                    GameEntityComponent { entity_id: *id },
-                    Transform::from_translation(p.position_f32().extend(20.0)),
-                    MapEntity,
-                    Text2d(p.text.clone()),
-                    TextFont {
-                        font_size: p.font_size,
-                        ..default()
-                    },
-                    TextColor(Color::srgb(p.color.x, p.color.y, p.color.z)),
-                ));
-            }
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(100.0)),
+                PlayerComponent::default_sprite(sprite_manager.as_ref()),
+                MapEntity,
+            ));
         }
+        EngineEntity::MobSpawner(_) => {}
+        EngineEntity::Mob(p) => {
+            if !sprite_manager.is_loaded(&p.mob_type, &sprite_data) {
+                sprite_manager.load(p.mob_type, &asset_server);
+                return;
+            }
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(1.0)),
+                // Text2d(p.id.to_string().split_off(15)),
+                // TextFont {
+                //     font_size: 8.0,
+                //     ..default()
+                // },
+                MobComponent::new(p.clone(), &sprite_data, sprite_manager.as_ref()),
+                MapEntity,
+            ));
+        }
+        EngineEntity::Platform(p) => {
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(0.0)),
+                MapEntity,
+                Sprite {
+                    color: Color::srgb(0.0, 0.0, 1.0),
+                    custom_size: Some(p.size_f32()),
+                    anchor: bevy::sprite::Anchor::BottomLeft,
+                    ..default()
+                },
+            ));
+        }
+        EngineEntity::Portal(p) => {
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(0.0)),
+                MapEntity,
+                Sprite {
+                    color: Color::srgb(0.0, 1.0, 0.0),
+                    custom_size: Some(p.size_f32()),
+                    anchor: bevy::sprite::Anchor::BottomLeft,
+                    ..default()
+                },
+            ));
+        }
+        EngineEntity::Rect(p) => {
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(0.0)),
+                MapEntity,
+                Sprite {
+                    color: Color::srgb(p.color.x, p.color.y, p.color.z),
+                    custom_size: Some(p.size_f32()),
+                    anchor: bevy::sprite::Anchor::BottomLeft,
+                    ..default()
+                },
+            ));
+        }
+        EngineEntity::Emoji(p) => {
+            let asset_name = "reactions/eqib.jpg".to_string();
+            if !sprite_manager.is_image_loaded(&asset_name, &asset_server) {
+                sprite_manager.load_image(asset_name.clone(), &asset_server);
+                return;
+            }
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(20.0)),
+                MapEntity,
+                Sprite {
+                    image: sprite_manager.image_handle(&asset_name),
+                    custom_size: Some(p.size_f32()),
+                    anchor: bevy::sprite::Anchor::BottomLeft,
+                    ..default()
+                },
+            ));
+        }
+        EngineEntity::Text(p) => {
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(20.0)),
+                MapEntity,
+                Text2d(p.text.clone()),
+                TextFont {
+                    font_size: p.font_size,
+                    ..default()
+                },
+                TextColor(Color::srgb(p.color.x, p.color.y, p.color.z)),
+            ));
+        }
+        EngineEntity::MobDamage(_) => {}
     }
 }

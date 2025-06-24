@@ -12,11 +12,11 @@
 ///   modification: entities modify themselves and schedule entities for creation/removal
 ///   creation: entities scheduled for creation are created
 ///   removal: entities pending removal are removed
+///   game events: game events are processed by the engine, and then by any external observers
 ///
+use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::mem::Discriminant;
-use std::mem::discriminant;
 
 use bevy_math::IVec2;
 use rand::Rng;
@@ -25,7 +25,9 @@ use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
+pub mod damage_calc;
 pub mod entity;
+pub mod game;
 pub mod game_event;
 // #[cfg(test)]
 // pub mod tests;
@@ -34,7 +36,6 @@ use entity::EEntity;
 use entity::EngineEntity;
 use entity::EntityInput;
 use entity::SEEntity;
-use entity::player::PlayerEntity;
 
 use crate::engine::entity::platform::PlatformEntity;
 use crate::engine::game_event::EngineEvent;
@@ -67,14 +68,14 @@ pub struct GameEngine {
 
     pub events_by_type: HashMap<EngineEventType, BTreeMap<u64, BTreeMap<u128, EngineEvent>>>,
 
+    #[serde(skip)]
+    pub game_events_by_step: BTreeMap<u64, Vec<GameEvent>>,
+
     // for external use
     #[serde(skip)]
-    grouped_entities: (u64, HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>>),
+    grouped_entities: (u64, HashMap<TypeId, Vec<EngineEntity>>),
     #[serde(skip, default = "default_game_events")]
-    pub game_events: (
-        flume::Sender<(u64, GameEvent)>,
-        flume::Receiver<(u64, GameEvent)>,
-    ),
+    pub game_events: (flume::Sender<GameEvent>, flume::Receiver<GameEvent>),
 
     #[serde(skip, default = "default_rng")]
     rng: (u64, ChaCha8Rng),
@@ -88,29 +89,13 @@ fn default_rng() -> (u64, ChaCha8Rng) {
     (0, ChaCha8Rng::seed_from_u64(0))
 }
 
-fn default_game_events() -> (
-    flume::Sender<(u64, GameEvent)>,
-    flume::Receiver<(u64, GameEvent)>,
-) {
+fn default_game_events() -> (flume::Sender<GameEvent>, flume::Receiver<GameEvent>) {
     flume::unbounded()
 }
 
 impl Default for GameEngine {
     fn default() -> Self {
-        Self {
-            id: 0,
-            step_index: 0,
-            start_timestamp: 0.0,
-            map: MapData::default(),
-            entities: BTreeMap::new(),
-            entities_by_step: BTreeMap::new(),
-            events_by_type: HashMap::new(),
-            game_events: default_game_events(),
-            grouped_entities: (0, HashMap::new()),
-            enable_debug_markers: false,
-            seed: 0,
-            rng: default_rng(),
-        }
+        Self::new(MapData::default())
     }
 }
 
@@ -122,7 +107,14 @@ impl GameEngine {
             map: map.clone(),
             step_index: 0,
             rng: default_rng(),
-            ..Default::default()
+            entities: BTreeMap::new(),
+            entities_by_step: BTreeMap::new(),
+            events_by_type: HashMap::new(),
+            game_events: default_game_events(),
+            grouped_entities: (0, HashMap::new()),
+            enable_debug_markers: false,
+            seed: 0,
+            game_events_by_step: BTreeMap::new(),
         };
         // TODO: move this into map parsing/loading logicso the
         // system can be extended without involving the engineI
@@ -201,6 +193,14 @@ impl GameEngine {
         }
     }
 
+    pub fn game_events(&self, from_step: u64, to_step: u64) -> Vec<GameEvent> {
+        self.game_events_by_step
+            .range(from_step..to_step)
+            .map(|(_, game_events)| game_events.clone())
+            .flatten()
+            .collect::<Vec<_>>()
+    }
+
     /// Retrieve a past instance of the engine that will be equal
     /// to self after N steps
     /// universal events occur independently on the engine state. e.g. a player logging on
@@ -219,10 +219,15 @@ impl GameEngine {
                         continue;
                     }
                     // keep only universal events and inputs in the future
-                    events.retain(|_event_id, event| event.universal());
+                    events.retain(|_event_id, event| event.is_universal());
                 }
             }
 
+            out.game_events_by_step = self
+                .game_events_by_step
+                .range(..target_step_index)
+                .map(|(k, v)| (*k, v.clone()))
+                .collect::<BTreeMap<_, _>>();
             out.start_timestamp = self.start_timestamp;
             out.map = self.map.clone();
             out.entities = entities.clone();
@@ -241,27 +246,6 @@ impl GameEngine {
         } else {
             anyhow::bail!("WARNING: step index {target_step_index} is too far in the past")
         }
-    }
-
-    /// TODO: generic implementation
-    /// e.g. spawn_entity::<PlayerEntity>(&mut self)
-    /// optionally provide a step index the player should spawn at (must be in the past)
-    pub fn spawn_player_entity(
-        &mut self,
-        player_id: String,
-        position_maybe: Option<IVec2>,
-        step_index: Option<u64>,
-    ) -> EngineEntity {
-        let id = self.generate_id();
-        let player_entity = PlayerEntity::new_with_ids(id, player_id);
-        let mut engine_entity = EngineEntity::Player(player_entity);
-        if let Some(position) = position_maybe {
-            *engine_entity.position_mut() = position;
-        } else {
-            *engine_entity.position_mut() = self.map.spawn_location;
-        }
-        self.spawn_entity(engine_entity.clone(), step_index, true);
-        engine_entity
     }
 
     pub fn spawn_entity(
@@ -368,6 +352,7 @@ impl GameEngine {
                         println!("ENTITY DOES NOT EXIST");
                     }
                 }
+                self.game_events_by_step = past_engine.game_events_by_step;
                 self.entities = past_engine.entities;
                 self.entities_by_step = past_engine.entities_by_step;
                 self.events_by_type = past_engine.events_by_type;
@@ -411,6 +396,85 @@ impl GameEngine {
             .unwrap_or((0, EntityInput::default()))
     }
 
+    /// Return an entity by id at a certain step index, if possible. Extracts the underlying
+    /// entity type from the EngineEntity
+    pub fn entity_by_id<T: 'static>(&self, id: &u128, step_index: Option<u64>) -> Option<&T>
+    where
+        T: EEntity,
+    {
+        let step_index = step_index.unwrap_or(self.step_index);
+        let entities = if step_index == self.step_index {
+            Some(&self.entities)
+        } else {
+            self.entities_by_step.get(&step_index)
+        };
+        if let Some(entities) = entities {
+            if let Some(engine_entity) = entities.get(id) {
+                if let Some(e) = engine_entity.extract_ref::<T>() {
+                    return Some(e);
+                } else {
+                    println!("WARNING: attempting to extract entity of mismatched type");
+                }
+            }
+        }
+        None
+    }
+
+    pub fn entity_by_id_mut<T: 'static>(
+        &mut self,
+        id: &u128,
+        step_index: Option<u64>,
+    ) -> Option<&mut T>
+    where
+        T: EEntity,
+    {
+        let step_index = step_index.unwrap_or(self.step_index);
+        let entities = if step_index == self.step_index {
+            Some(&mut self.entities)
+        } else {
+            self.entities_by_step.get_mut(&step_index)
+        };
+        if let Some(entities) = entities {
+            if let Some(engine_entity) = entities.get_mut(id) {
+                if let Some(e) = engine_entity.extract_ref_mut::<T>() {
+                    return Some(e);
+                } else {
+                    println!("WARNING: attempting to extract entity of mismatched type");
+                }
+            }
+        }
+        None
+    }
+
+    pub fn entities_by_type<T>(&mut self) -> impl Iterator<Item = &T>
+    where
+        T: 'static,
+    {
+        self.grouped_entities();
+        let type_id = TypeId::of::<T>();
+        self.grouped_entities
+            .1
+            .entry(type_id)
+            .or_default()
+            .iter()
+            .filter_map(|entity| entity.extract_ref::<T>())
+    }
+
+    /// Construct or retrieve entities by type for the current step
+    pub fn grouped_entities(&mut self) -> &HashMap<TypeId, Vec<EngineEntity>> {
+        if self.grouped_entities.0 == self.step_index {
+            return &self.grouped_entities.1;
+        }
+        let mut groups: HashMap<TypeId, Vec<EngineEntity>> = HashMap::new();
+
+        for entity in self.entities.clone() {
+            let type_id = entity.1.type_id();
+            groups.entry(type_id).or_default().push(entity.1);
+        }
+        self.grouped_entities = (self.step_index, groups);
+        &self.grouped_entities.1
+    }
+
     pub fn expected_step_index(&self) -> u64 {
         let now = timestamp();
         assert!(now >= self.start_timestamp, "GameEngine time ran backward");
@@ -419,52 +483,28 @@ impl GameEngine {
     }
 
     /// Automatically step forward in time as much as needed
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> Vec<GameEvent> {
         let expected = self.expected_step_index();
         if expected <= self.step_index {
             println!("noop tick: your tick rate is too high!");
-            return;
+            return vec![];
         }
-        self.step_to(&expected);
+        self.step_to(&expected)
     }
 
-    pub fn entities_by_type(&mut self, discr: &Discriminant<EngineEntity>) -> &Vec<EngineEntity> {
-        self.grouped_entities();
-        self.grouped_entities
-            .1
-            .entry(discr.clone())
-            .or_insert(vec![])
-    }
-
-    /// Construct or retrieve entities by type for the current step
-    pub fn grouped_entities(&mut self) -> &HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>> {
-        if self.grouped_entities.0 == self.step_index {
-            return &self.grouped_entities.1;
-        }
-        let mut groups: HashMap<Discriminant<EngineEntity>, Vec<EngineEntity>> = HashMap::new();
-
-        for entity in self.entities.clone() {
-            let discriminant = discriminant(&entity.1);
-            groups
-                .entry(discriminant)
-                .or_insert_with(Vec::new)
-                .push(entity.1);
-        }
-        self.grouped_entities = (self.step_index, groups);
-        &self.grouped_entities.1
-    }
-
-    pub fn step_to(&mut self, target_step_index: &u64) {
+    pub fn step_to(&mut self, target_step_index: &u64) -> Vec<GameEvent> {
         if target_step_index < &self.step_index {
             panic!("cannot step forward to a point in the past");
         }
+        let mut out = vec![];
         while &self.step_index != target_step_index {
-            self.step();
+            out.append(&mut self.step());
         }
+        out
     }
 
     /// A step is considered complete at the _end_ of this function
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> Vec<GameEvent> {
         let entities_clone = self.entities.clone();
         self.entities_by_step
             .insert(self.step_index, entities_clone);
@@ -530,9 +570,22 @@ impl GameEngine {
             for (_, events_by_step) in self.events_by_type.iter_mut() {
                 events_by_step.remove(&step_to_remove);
             }
+            self.game_events_by_step.remove(&step_to_remove);
         }
+
+        let game_events = self.game_events.1.drain().collect::<Vec<_>>();
+        self.game_events_by_step
+            .insert(self.step_index, game_events.clone());
 
         // Officially move to the next step
         self.step_index += 1;
+
+        // process these events in the next step so that events are registered
+        // correctly using None
+        for game_event in &game_events {
+            game::default_handler(self, game_event);
+        }
+
+        game_events
     }
 }

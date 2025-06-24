@@ -2,6 +2,7 @@ use bevy_math::IVec2;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::db::Ability;
 use crate::engine::entity::EngineEntity;
 use crate::engine::entity::EntityInput;
 
@@ -16,6 +17,9 @@ pub enum GameEvent {
         to_map: String,
         requested_spawn_pos: Option<IVec2>,
     },
+    // player entity id, ability
+    PlayerAbilityExp(u128, Ability, u64),
+    PlayerHealth(String, u64), // player health has changed through damage or healing
 }
 
 #[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Clone, Debug)]
@@ -70,11 +74,11 @@ impl HasId for EngineEvent {
 }
 
 pub trait HasUniversal {
-    fn universal(&self) -> bool;
+    fn is_universal(&self) -> bool;
 }
 
 impl HasUniversal for EngineEvent {
-    fn universal(&self) -> bool {
+    fn is_universal(&self) -> bool {
         match self {
             EngineEvent::RemoveEntity { universal, .. } => *universal,
             EngineEvent::SpawnEntity { universal, .. } => *universal,

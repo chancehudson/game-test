@@ -5,6 +5,7 @@ use web_time::Instant;
 
 pub mod action;
 pub mod actor;
+pub mod db;
 pub mod engine;
 pub mod map;
 pub mod mob;
@@ -21,7 +22,7 @@ pub struct AnimationData {
 }
 
 // how many steps each client is behind the server
-pub static STEP_DELAY: u64 = 60;
+pub static STEP_DELAY: u64 = 40;
 
 pub static TICK_RATE_MS: f64 = 50.;
 pub static TICK_RATE_S_F32: f32 = (TICK_RATE_MS as f32) / 1000.;

@@ -1,7 +1,5 @@
 /// game physics logic
 /// probably needs it's own crate
-use std::mem::discriminant;
-
 use bevy_math::IRect;
 use bevy_math::IVec2;
 
@@ -14,17 +12,10 @@ use crate::engine::entity::rect::RectEntity;
 use super::MapData;
 
 pub fn contains_platform(engine: &mut GameEngine, rect: IRect) -> bool {
-    let platforms = engine
-        .grouped_entities()
-        .get(&discriminant(&EngineEntity::Platform(
-            PlatformEntity::default(),
-        )));
-    if let Some(platforms) = platforms {
-        for platform in platforms {
-            let intersection = rect.intersect(platform.rect());
-            if intersection.width() >= 1 && intersection.height() >= 1 {
-                return true;
-            }
+    for platform in engine.entities_by_type::<PlatformEntity>() {
+        let intersection = rect.intersect(platform.rect());
+        if intersection.width() >= 1 && intersection.height() >= 1 {
+            return true;
         }
     }
     false
@@ -101,7 +92,10 @@ pub fn move_x(body: IRect, dx: i32, map: &MapData) -> i32 {
     body.min.x
 }
 
-pub fn move_y(body: IRect, dy: i32, platforms: &[EngineEntity], map_size: IVec2) -> i32 {
+pub fn move_y<T>(body: IRect, dy: i32, platforms: &[&T], map_size: IVec2) -> i32
+where
+    T: EEntity,
+{
     if dy == 0 {
         return body.min.y;
     }

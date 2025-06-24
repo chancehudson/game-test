@@ -10,6 +10,7 @@ use crate::engine::GameEngine;
 
 pub mod emoji;
 pub mod mob;
+pub mod mob_damage;
 pub mod mob_spawn;
 pub mod platform;
 pub mod player;
@@ -28,6 +29,7 @@ pub struct EntityInput {
     pub enter_portal: bool,
     pub admin_enable_debug_markers: bool,
     pub show_emoji: bool,
+    pub respawn: bool,
 }
 
 /// An entity that exists inside the engine.
@@ -104,6 +106,43 @@ macro_rules! engine_entity_enum {
             )*
         }
 
+        impl $enum_name {
+            /// Get the TypeId for this entity variant
+            pub fn type_id(&self) -> std::any::TypeId {
+                match self {
+                    $(
+                        $enum_name::$variant(_) => std::any::TypeId::of::<$type>(),
+                    )*
+                }
+            }
+
+            /// Extract reference to inner value
+            pub fn extract_ref<T: 'static>(&self) -> Option<&T> {
+                use std::any::{Any, TypeId};
+                $(
+                    if TypeId::of::<T>() == TypeId::of::<$type>() {
+                        if let $enum_name::$variant(inner) = self {
+                            return (inner as &dyn Any).downcast_ref::<T>();
+                        }
+                    }
+                )*
+                None
+            }
+
+            /// Extract a mutable reference
+            pub fn extract_ref_mut<T: 'static>(&mut self) -> Option<&mut T> {
+                use std::any::{Any, TypeId};
+                $(
+                    if TypeId::of::<T>() == TypeId::of::<$type>() {
+                        if let $enum_name::$variant(inner) = self {
+                            return (inner as &mut dyn Any).downcast_mut::<T>();
+                        }
+                    }
+                )*
+                None
+            }
+        }
+
         impl SEEntity for $enum_name {
             fn step(&self, engine: &mut GameEngine) -> Self {
                 match self {
@@ -168,6 +207,7 @@ macro_rules! engine_entity_enum {
 
 engine_entity_enum! {
     EngineEntity {
+        MobDamage(mob_damage::MobDamageEntity),
         Rect(rect::RectEntity),
         Player(player::PlayerEntity),
         Mob(mob::MobEntity),

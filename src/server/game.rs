@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 /// The Game module handles everything outside of each individual map.
 /// This includes authentication, administration, and meta tasks like moving
 /// between maps.
@@ -7,10 +6,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use dashmap::DashMap;
+use game_test::db::DEFAULT_MAP;
+use game_test::db::PlayerStats;
 use tokio::sync::RwLock;
 
 use game_test::action::Action;
-use game_test::action::PlayerState;
 use game_test::action::Response;
 use game_test::engine::STEPS_PER_SECOND;
 use game_test::engine::game_event::EngineEvent;
@@ -21,19 +21,6 @@ use super::MapInstance;
 use super::network;
 
 use super::PlayerRecord;
-
-impl From<&PlayerRecord> for PlayerState {
-    fn from(value: &PlayerRecord) -> Self {
-        PlayerState {
-            id: value.id.clone(),
-            username: value.username.clone(),
-            current_map: value.current_map.clone(),
-            experience: value.experience,
-            max_health: value.max_health,
-            health: value.health,
-        }
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct RemoteEngineEvent {
@@ -48,14 +35,19 @@ pub struct Game {
     pub db: sled::Db,
     pub network_server: Arc<network::Server>,
     // name keyed to instance
-    pub map_instances: Arc<HashMap<String, Arc<RwLock<MapInstance>>>>,
+    pub map_instances: HashMap<String, Arc<RwLock<MapInstance>>>,
     pub instance_for_player_id:
         Arc<DashMap<String, (flume::Sender<RemoteEngineEvent>, Arc<RwLock<MapInstance>>)>>,
+    // game events that bubble up
+    game_events: (flume::Sender<GameEvent>, flume::Receiver<GameEvent>),
 }
 
 impl Game {
     pub async fn new() -> anyhow::Result<Self> {
+        let db = sled::open("./game_data")?;
         let network_server = Arc::new(network::Server::new().await?);
+        let game_events = flume::unbounded();
+
         let mut map_instances = HashMap::new();
         let mut engine_id_to_map_name = HashMap::new();
         println!("Loading maps...");
@@ -75,10 +67,19 @@ impl Game {
                     .to_str()
                     .unwrap()
                     .replace(".map", "");
-                if let Some(_file_name) = entry.file_name().to_str() {
+                if let Some(file_name) = entry.file_name().to_str() {
+                    // fucking apple
+                    if file_name.starts_with("._") {
+                        continue;
+                    }
                     let data_str = std::fs::read_to_string(path_str).unwrap();
                     let data = json5::from_str::<MapData>(&data_str).unwrap();
-                    let map_instance = MapInstance::new(data.clone(), network_server.clone());
+                    let map_instance = MapInstance::new(
+                        data.clone(),
+                        network_server.clone(),
+                        db.clone(),
+                        game_events.0.clone(),
+                    );
                     engine_id_to_map_name.insert(map_instance.engine.id, data.name.clone());
                     map_instances.insert(name.to_string(), Arc::new(RwLock::new(map_instance)));
                 }
@@ -87,69 +88,79 @@ impl Game {
         println!("Done loading maps!");
 
         Ok(Game {
-            db: sled::open("./game_data")?,
-            network_server,
-            map_instances: Arc::new(map_instances),
+            db: db.clone(),
+            network_server: network_server.clone(),
+            map_instances,
             instance_for_player_id: Arc::new(DashMap::new()),
+            game_events,
         })
     }
 
-    pub async fn handle_game_event(&self, event: GameEvent) -> anyhow::Result<()> {
-        match event {
-            GameEvent::PlayerEnterPortal {
-                player_id,
-                entity_id: _,
-                from_map,
-                to_map,
-                requested_spawn_pos,
-            } => {
-                if from_map == to_map {
-                    println!("WARNING: trying to move to same map");
-                    return Ok(());
+    pub async fn handle_events(&self) -> anyhow::Result<()> {
+        for game_event in self.game_events.1.drain() {
+            match game_event {
+                GameEvent::PlayerHealth(_, _) => {
+                    // handled in map_instance
+                    unreachable!()
                 }
+                GameEvent::PlayerAbilityExp(_, _, _) => {
+                    // handled in map_instance
+                    unreachable!()
+                }
+                GameEvent::PlayerEnterPortal {
+                    player_id,
+                    entity_id: _,
+                    from_map,
+                    to_map,
+                    requested_spawn_pos,
+                } => {
+                    if from_map == to_map {
+                        println!("WARNING: trying to move to same map");
+                        return Ok(());
+                    }
 
-                // this is the slowest, but safest implementation
-                // TODO: switch to channels
-                if let Some(from_instance) = self.map_instances.get(&from_map) {
-                    if let Some(to_instance) = self.map_instances.get(&to_map) {
-                        let to_instance_ref = to_instance.clone();
-                        // must wait for both
-                        let mut from_instance = from_instance.write().await;
-                        let mut to_instance = to_instance.write().await;
-                        // write change to db
-                        let record = PlayerRecord::change_map(
-                            self.db.clone(),
-                            &player_id,
-                            &from_map,
-                            &to_map,
-                        )
-                        .await?;
-                        let socket_id = self.network_server.socket_by_player_id(&player_id).await;
-                        if socket_id.is_none() {
-                            println!("WARNING: player disconnected during map change");
-                            return Ok(());
-                        }
-                        let socket_id = socket_id.unwrap();
-
-                        // must wait for all
-                        from_instance.remove_player(&player_id).await?;
-                        self.instance_for_player_id.insert(
-                            player_id.clone(),
-                            (to_instance.pending_actions.0.clone(), to_instance_ref),
-                        );
-                        to_instance
-                            .add_player(socket_id, &PlayerState::from(&record), requested_spawn_pos)
-                            .await?;
-                        // send an update
-                        self.network_server
-                            .send_to_player(&player_id, Response::PlayerExitMap(from_map))
-                            .await;
-                        self.network_server
-                            .send_to_player(
+                    // this is the slowest, but safest implementation
+                    // TODO: switch to channels
+                    if let Some(from_instance) = self.map_instances.get(&from_map) {
+                        if let Some(to_instance) = self.map_instances.get(&to_map) {
+                            let to_instance_ref = to_instance.clone();
+                            // must wait for both
+                            let mut from_instance = from_instance.write().await;
+                            let mut to_instance = to_instance.write().await;
+                            // write change to db
+                            // transaction ???
+                            let record = PlayerRecord::change_map(
+                                self.db.clone(),
                                 &player_id,
-                                Response::PlayerState(PlayerState::from(&record)),
-                            )
-                            .await;
+                                &from_map,
+                                &to_map,
+                            )?;
+                            let stats = PlayerStats::by_id(self.db.clone(), &record.id)?;
+                            let socket_id =
+                                self.network_server.socket_by_player_id(&player_id).await;
+                            if socket_id.is_none() {
+                                println!("WARNING: player disconnected during map change");
+                                return Ok(());
+                            }
+                            let socket_id = socket_id.unwrap();
+
+                            // must wait for all
+                            from_instance.remove_player(&player_id).await?;
+                            self.instance_for_player_id.insert(
+                                player_id.clone(),
+                                (to_instance.pending_actions.0.clone(), to_instance_ref),
+                            );
+                            to_instance
+                                .add_player(socket_id, &record, &stats, requested_spawn_pos)
+                                .await?;
+                            // send an update
+                            self.network_server
+                                .send_to_player(&player_id, Response::PlayerExitMap(from_map))
+                                .await;
+                            self.network_server
+                                .send_to_player(&player_id, Response::PlayerState(record))
+                                .await;
+                        }
                     }
                 }
             }
@@ -160,8 +171,12 @@ impl Game {
     /// Associate a socket id with a player id
     /// Key a reference to a map instance to the player id
     /// for all players that are "logged in"
-    pub async fn login_player(&self, socket_id: &str, record: &PlayerRecord) -> anyhow::Result<()> {
-        let player_state = PlayerState::from(record);
+    pub async fn login_player(
+        &self,
+        socket_id: &str,
+        record: &PlayerRecord,
+        stats: &PlayerStats,
+    ) -> anyhow::Result<()> {
         if let Some(entry) = self.instance_for_player_id.get(&record.id) {
             let (_, current_instance) = entry.value();
             let instance = current_instance.read().await;
@@ -174,32 +189,32 @@ impl Game {
         }
         let map_instance = self
             .map_instances
-            .get(&player_state.current_map)
+            .get(&record.current_map)
             .unwrap_or_else(|| {
                 println!("WARNING: player on unknown map");
-                self.map_instances.get(super::db::DEFAULT_MAP).unwrap()
+                self.map_instances.get(DEFAULT_MAP).unwrap()
             });
 
         let map_instance_ref = map_instance.clone();
         let mut map_instance = map_instance.write().await;
         self.instance_for_player_id.insert(
-            player_state.id.clone(),
+            record.id.clone(),
             (map_instance.pending_actions.0.clone(), map_instance_ref),
         );
 
-        map_instance.remove_player(&player_state.id).await?;
+        map_instance.remove_player(&record.id).await?;
         map_instance
-            .add_player(socket_id.to_string(), &player_state, None)
+            .add_player(socket_id.to_string(), &record, &stats, None)
             .await?;
 
         self.network_server
             .register_player(socket_id.to_string(), record.id.clone())
             .await;
         self.network_server
-            .send(&socket_id, Response::PlayerLoggedIn(player_state))
+            .send(&socket_id, Response::PlayerLoggedIn(record.clone()))
             .await?;
         self.network_server
-            .send_to_player(&record.id, Response::PlayerState(PlayerState::from(record)))
+            .send_to_player(&record.id, Response::PlayerState(record.clone()))
             .await;
 
         Ok(())
@@ -211,23 +226,18 @@ impl Game {
             Action::Ping => {
                 self.network_server.send(&socket_id, Response::Pong).await?;
             }
-            Action::CreatePlayer(name) => {
-                let record = PlayerRecord::create(self.db.clone(), name).await?;
-                if let Err(e) = self.login_player(&socket_id, &record).await {
-                    self.network_server
-                        .send(&socket_id, Response::LoginError(e.to_string()))
-                        .await?;
-                }
+            Action::CreatePlayer(_name) => {
+                panic!("not in use");
             }
             Action::LoginPlayer(name) => {
-                let player = if let Some(player) =
-                    PlayerRecord::player_by_name(self.db.clone(), &name).await?
-                {
-                    player
-                } else {
-                    PlayerRecord::create(self.db.clone(), name).await?
-                };
-                if let Err(e) = self.login_player(&socket_id, &player).await {
+                let player =
+                    if let Some(player) = PlayerRecord::player_by_name(self.db.clone(), &name)? {
+                        player
+                    } else {
+                        PlayerRecord::create(self.db.clone(), name)?
+                    };
+                let stats = PlayerStats::by_id(self.db.clone(), &player.id)?;
+                if let Err(e) = self.login_player(&socket_id, &player, &stats).await {
                     self.network_server
                         .send(&socket_id, Response::LoginError(e.to_string()))
                         .await?;

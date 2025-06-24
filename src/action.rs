@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::db::PlayerRecord;
 use crate::engine::GameEngine;
 use crate::engine::game_event::EngineEvent;
 
@@ -25,27 +26,17 @@ pub enum Action {
 /// Types of messages the client can receive from the server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Response {
-    PlayerLoggedIn(PlayerState),
+    PlayerLoggedIn(PlayerRecord),
     PlayerRemoved(String),
     // engine, entity id the player controls, server step
     EngineState(GameEngine, u128, u64),
     EngineStats(u128, u64, (u64, blake3::Hash)),
     // engine id, game events <step_index, <event_id, event>>, server step
     RemoteEngineEvents(u128, BTreeMap<u64, HashMap<u128, EngineEvent>>, u64),
-    PlayerState(PlayerState),
+    PlayerState(PlayerRecord),
     // from_map
     PlayerExitMap(String),
     LoginError(String),
     Pong,
     Tick,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct PlayerState {
-    pub id: String,
-    pub username: String,
-    pub current_map: String,
-    pub experience: u64,
-    pub max_health: u64,
-    pub health: u64,
 }

@@ -1,15 +1,15 @@
 use std::time::Duration;
 
+use game_test::TICK_RATE_MS;
 use game_test::TICK_RATE_S;
 use game_test::action::Action;
+pub use game_test::db::PlayerRecord;
 use game_test::timestamp;
 
-mod db;
 mod game;
 mod map_instance;
 mod network;
 
-pub use db::PlayerRecord;
 use map_instance::MapInstance;
 use tokio::signal::unix::SignalKind;
 use tokio::signal::unix::signal;
@@ -108,25 +108,16 @@ async fn main() -> anyhow::Result<()> {
             });
         }
         join_set.join_all().await;
-        let mut join_set = JoinSet::new();
-        for map_instance in game.map_instances.values().cloned() {
-            let game = game.clone();
-            join_set.spawn(async move {
-                let read_game_events = map_instance.read().await.engine.game_events.1.clone();
-                drop(map_instance);
-                for event in read_game_events.drain() {
-                    if let Err(e) = game.handle_game_event(event.1).await {
-                        println!("WARNING: error handling game events!");
-                        println!("{:?}", e);
-                    }
-                }
-            });
+        if let Err(e) = game.handle_events().await {
+            println!("WARNING: error handling game events {:?}", e);
         }
-        // wait for all map ticks to complete then process game events
-        join_set.join_all().await;
         let tick_time = timestamp() - tick_start;
         if tick_time >= TICK_RATE_S {
-            println!("WARNING: server tick took more than TICK_RATE_MS !");
+            println!(
+                "WARNING: server tick took more than TICK_RATE_MS ! target: {} ms, actual: {} ms",
+                TICK_RATE_MS.round(),
+                (1000.0 * tick_time).round(),
+            );
         } else {
             let remaining = TICK_RATE_S - tick_time;
             // println!("wait time: {}", remaining);
