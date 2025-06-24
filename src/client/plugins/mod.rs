@@ -1,4 +1,5 @@
 pub mod animated_sprite;
+pub mod chat;
 pub mod engine;
 pub mod engine_sync;
 pub mod gui;

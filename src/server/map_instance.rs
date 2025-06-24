@@ -187,17 +187,8 @@ impl MapInstance {
             }
             // Structure for validity checks
             match &event {
-                EngineEvent::SpawnEntity {
-                    universal: _, // player should not set this
-                    entity: _,
-                    id: _, // we'll generate the id from our engine seeded rng
-                } => {}
-                EngineEvent::Input {
-                    universal: _,
-                    input: _,
-                    id: _,
-                    entity_id,
-                } => {
+                EngineEvent::SpawnEntity { .. } => {}
+                EngineEvent::Input { entity_id, .. } => {
                     if entity_id != &player.entity_id {
                         anyhow::bail!("player tried to input for wrong entity");
                     }
@@ -205,11 +196,8 @@ impl MapInstance {
                     player.last_input_step_index = *step_index;
                     return Ok(Some((*step_index, event.clone())));
                 }
-                EngineEvent::RemoveEntity {
-                    id: _,
-                    entity_id: _,
-                    universal: _,
-                } => {}
+                EngineEvent::RemoveEntity { .. } => {}
+                EngineEvent::ChatMessage { .. } => return Ok(Some((*step_index, event.clone()))),
             }
         } else {
             anyhow::bail!("unknown player id, discarding game event");

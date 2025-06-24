@@ -7,8 +7,10 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::engine::GameEngine;
+use crate::engine::entity::message::MessageEntity;
 
 pub mod emoji;
+pub mod message;
 pub mod mob;
 pub mod mob_damage;
 pub mod mob_spawn;
@@ -216,6 +218,7 @@ engine_entity_enum! {
         Portal(portal::PortalEntity),
         Emoji(emoji::EmojiEntity),
         Text(text::TextEntity),
+        Message(message::MessageEntity),
         // Item(ItemEntity),  // Uncomment when ready
     }
 }

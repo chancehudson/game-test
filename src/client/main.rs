@@ -52,6 +52,7 @@ fn main() {
         .add_plugins(plugins::animated_sprite::AnimatedSpritePlugin)
         .add_plugins(plugins::login_gui::LoginGuiPlugin)
         .add_plugins(plugins::gui::GuiPlugin)
+        .add_plugins(plugins::chat::ChatPlugin)
         // components
         .add_plugins(components::player::PlayerPlugin)
         .add_plugins(components::mob::MobPlugin)

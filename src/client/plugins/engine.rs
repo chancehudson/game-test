@@ -486,5 +486,21 @@ pub fn spawn_bevy_entity(
             ));
         }
         EngineEntity::MobDamage(_) => {}
+        EngineEntity::Message(msg) => {
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(msg.position_f32().extend(20.0)),
+                MapEntity,
+                Text2d(msg.text.clone()),
+                TextFont {
+                    // font_size: p.font_size,
+                    ..default()
+                },
+                TextColor(Color::BLACK),
+            ));
+        }
     }
 }
