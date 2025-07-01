@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
+use bevy::text::TextBounds;
 use game_test::STEP_DELAY;
 use game_test::db::AbilityExpRecord;
 use game_test::db::PlayerRecord;
@@ -486,5 +487,23 @@ pub fn spawn_bevy_entity(
             ));
         }
         EngineEntity::MobDamage(_) => {}
+        EngineEntity::Message(msg) => {
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(msg.position_f32().extend(20.0)),
+                MapEntity,
+                Text2d(msg.text.clone()),
+                TextBounds::new_horizontal(100.0),
+                BackgroundColor(Color::srgba(0., 0., 0., 0.3)),
+                TextFont {
+                    font_size: 10.,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
+        }
     }
 }

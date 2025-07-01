@@ -27,6 +27,7 @@ pub enum EngineEventType {
     RemoveEntity,
     SpawnEntity,
     Input,
+    ChatMessage,
 }
 
 impl From<&EngineEvent> for EngineEventType {
@@ -35,6 +36,7 @@ impl From<&EngineEvent> for EngineEventType {
             EngineEvent::RemoveEntity { .. } => EngineEventType::RemoveEntity,
             EngineEvent::SpawnEntity { .. } => EngineEventType::SpawnEntity,
             EngineEvent::Input { .. } => EngineEventType::Input,
+            EngineEvent::ChatMessage { .. } => EngineEventType::ChatMessage,
         }
     }
 }
@@ -57,6 +59,12 @@ pub enum EngineEvent {
         entity_id: u128,
         universal: bool,
     },
+    ChatMessage {
+        id: u128,
+        text: String,
+        entity_id: u128,
+        universal: bool,
+    },
 }
 
 pub trait HasId {
@@ -69,6 +77,7 @@ impl HasId for EngineEvent {
             EngineEvent::RemoveEntity { id, .. } => *id,
             EngineEvent::SpawnEntity { id, .. } => *id,
             EngineEvent::Input { id, .. } => *id,
+            EngineEvent::ChatMessage { id, .. } => *id,
         }
     }
 }
@@ -83,6 +92,7 @@ impl HasUniversal for EngineEvent {
             EngineEvent::RemoveEntity { universal, .. } => *universal,
             EngineEvent::SpawnEntity { universal, .. } => *universal,
             EngineEvent::Input { universal, .. } => *universal,
+            EngineEvent::ChatMessage { universal, .. } => *universal,
         }
     }
 }

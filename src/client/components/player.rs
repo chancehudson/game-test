@@ -13,6 +13,7 @@ use crate::plugins::engine::GameEntityComponent;
 use crate::sprite_data_loader::SpriteManager;
 
 use crate::GameState;
+use crate::InputFocus;
 use crate::network::NetworkAction;
 
 pub struct PlayerPlugin;
@@ -52,12 +53,11 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (
-                animation_system,
-                input_system,
-                iframe_blink_system,
-                damage_text_system,
-            )
+            input_system.run_if(in_state(GameState::OnMap).and(in_state(InputFocus::Game))),
+        )
+        .add_systems(
+            Update,
+            (animation_system, iframe_blink_system, damage_text_system)
                 .run_if(in_state(GameState::OnMap)),
         );
         // .add_systems(OnEnter(GameState::LoggedOut), despawn_all_players);
@@ -81,7 +81,7 @@ fn animation_system(
 
 fn damage_text_system(
     mut commands: Commands,
-    mut entity_query: Query<(&GameEntityComponent), With<PlayerComponent>>,
+    mut entity_query: Query<&GameEntityComponent, With<PlayerComponent>>,
     active_engine: Res<ActiveGameEngine>,
 ) {
     let engine = &active_engine.0;
@@ -132,6 +132,7 @@ fn input_system(
     mut active_game_engine: ResMut<ActiveGameEngine>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut action_events: EventWriter<NetworkAction>,
+    mut next_state: ResMut<NextState<InputFocus>>,
 ) {
     let engine = &mut active_game_engine.0;
     // request engine reload if p key is pressed
@@ -140,6 +141,11 @@ fn input_system(
             engine.id,
             engine.step_index,
         )));
+        return;
+    }
+
+    if keyboard.just_pressed(KeyCode::Enter) {
+        next_state.set(InputFocus::Chat);
         return;
     }
 
