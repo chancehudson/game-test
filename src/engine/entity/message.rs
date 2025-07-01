@@ -18,7 +18,7 @@ impl MessageEntity {
             attached_to: Some((speaker_entity, IVec2::ZERO)),
             text,
             disappears_at,
-            ..Self::new(id, IVec2::ZERO, IVec2::new(100, 100))
+            ..Self::new(id, IVec2::MAX, IVec2::new(100, 100))
         }
     }
 }
@@ -32,7 +32,9 @@ impl SEEntity for MessageEntity {
         let mut next_self = self.clone();
         if let Some((attached_id, relative_pos)) = self.attached_to {
             if let Some(entity) = engine.entities.get(&attached_id) {
-                next_self.position = entity.position() + relative_pos;
+                next_self.position = entity.position()
+                    + IVec2::new(entity.size().x / 2, entity.size().y)
+                    + relative_pos;
             } else {
                 println!("WARNING: MessageEntity attached to non-existent entity");
             }

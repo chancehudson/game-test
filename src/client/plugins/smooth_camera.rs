@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_lunex::UiSourceCamera;
 use game_test::engine::entity::EEntity;
 
 use crate::plugins::engine::ActiveGameEngine;
@@ -33,12 +34,14 @@ impl Plugin for SmoothCameraPlugin {
 fn setup_camera(mut commands: Commands /*windows: Query<&Window>*/) {
     commands.spawn((
         Camera2d,
+        Camera { ..default() },
         CameraMovement {
             is_moving_x: false,
             is_moving_y: false,
             velocity: Vec2::ZERO,
         },
     ));
+
     // spawn a box onscreen showing the movement range
     // let window = windows.single();
     // let screen_width = window.resolution.width();

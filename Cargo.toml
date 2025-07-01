@@ -6,9 +6,10 @@ license-file = "LICENSE"
 
 [features]
 default = ["server", "client"]
-client = ["bevy", "bevy_egui", "bevy_simple_text_input", "bevy/web", "bevy/jpeg"]
+client = ["bevy", "bevy_egui", "bevy_simple_text_input", "bevy/web", "bevy/jpeg", "bevy_lunex"]
 server = ["sled"]
 trace = ["bevy/trace", "bevy/trace_tracy", "tracy-client"]
+bevy_simple_text_input = ["dep:bevy_simple_text_input"]
 
 [lib]
 name = "game_test"
@@ -57,6 +58,7 @@ bevy_egui = { version = "0.34.1", optional = true }
 blake3 = { version = "1.8.2", features = ["serde"] }
 dashmap = "6.1.0"
 strum = { version = "0.27.1", features = ["derive"] }
+bevy_lunex = { version = "0.4.2", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.43.0", features = ["full"] }

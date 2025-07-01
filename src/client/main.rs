@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 
 use bevy_egui::EguiPlugin;
+use bevy_lunex::UiLunexDebugPlugin;
+use bevy_lunex::UiLunexPlugins;
 pub use game_test::MapData;
 pub use game_test::action::Action;
 pub use game_test::action::Response;
@@ -29,6 +31,13 @@ pub enum GameState {
     OnMap,
 }
 
+#[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum InputFocus {
+    #[default]
+    Game,
+    Chat,
+}
+
 // Event for incoming messages
 #[derive(Event, Debug)]
 pub struct LoadSpriteRequest(pub u64);
@@ -39,11 +48,14 @@ fn main() {
     app.add_plugins(bevy_web_asset::WebAssetPlugin::default());
     app.add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()),))
         .init_state::<GameState>()
+        .init_state::<InputFocus>()
         .init_resource::<SpriteManager>()
         .add_event::<LoadSpriteRequest>()
         .add_plugins(EguiPlugin {
             enable_multipass_for_primary_context: false,
         })
+        .add_plugins((UiLunexPlugins, UiLunexDebugPlugin::<0, 0>))
+        .add_plugins(bevy_simple_text_input::TextInputPlugin)
         // state stuff
         .add_plugins(plugins::engine_sync::DataHUDPlugin)
         .add_plugins(plugins::engine::EnginePlugin)
