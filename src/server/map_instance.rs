@@ -51,7 +51,7 @@ pub struct MapInstance {
     last_stats_broadcast: f64,
 
     network_server: Arc<network::Server>,
-    db: sled::Db,
+    db: Arc<redb::Database>,
     pub game_events: flume::Sender<GameEvent>,
     latest_processed_game_events: u64,
 }
@@ -65,7 +65,7 @@ impl MapInstance {
     pub fn new(
         map: MapData,
         network_server: Arc<network::Server>,
-        db: sled::Db,
+        db: Arc<redb::Database>,
         game_events: flume::Sender<GameEvent>,
     ) -> Self {
         Self {
@@ -291,7 +291,7 @@ impl MapInstance {
                         // we don't want to modify the entities here, this is purely synchronizing the server
                         // and db with the engine
                         player_entity.stats.clone().increment_db(
-                            self.db.clone(),
+                            &self.db,
                             &AbilityExpRecord {
                                 player_id: player_entity.player_id.clone(),
                                 amount,
@@ -305,7 +305,7 @@ impl MapInstance {
                     }
                 }
                 GameEvent::PlayerHealth(player_id, new_health) => {
-                    PlayerRecord::set_health(self.db.clone(), &player_id, new_health)?;
+                    PlayerRecord::set_health(&self.db, &player_id, new_health)?;
                 }
             }
         }

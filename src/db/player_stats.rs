@@ -1,4 +1,3 @@
-use std::cell::LazyCell;
 /// Handles loading all ability experience, worn items, etc. and consolidating it
 /// Buffs will not be stored at this level
 /// TODO: figure out how to handle relogging to drop debuffs (debuffs probably won't be a thing for a while)
@@ -11,7 +10,7 @@ use strum::IntoEnumIterator;
 use crate::db::Ability;
 use crate::db::AbilityExpRecord;
 
-use super::ability_exp_record::ABILITY_EXP_TREE;
+use super::ability_exp_record::ABILITY_EXP_TABLE;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct PlayerStats {
@@ -111,7 +110,11 @@ mod server_only {
     use anyhow::Result;
 
     impl PlayerStats {
-        pub fn increment_db(&mut self, db: sled::Db, new_exp: &AbilityExpRecord) -> Result<()> {
+        pub fn increment_db(
+            &mut self,
+            db: &redb::Database,
+            new_exp: &AbilityExpRecord,
+        ) -> Result<()> {
             let new_exp = AbilityExpRecord::increment(db, new_exp)?;
             // if our local ability_exp doesn't match we need to panic or overwrite
             if new_exp != *self.ability_exp.get(&new_exp.ability).unwrap() {
@@ -125,16 +128,17 @@ mod server_only {
             Ok(())
         }
 
-        pub fn by_id(db: sled::Db, player_id: &str) -> Result<Self> {
+        pub fn by_id(db: &redb::Database, player_id: &str) -> Result<Self> {
             let mut out = Self::default();
-            let tree = db.open_tree(ABILITY_EXP_TREE)?;
+            let read = db.begin_read()?;
+            let ability_exp_table = read.open_table(ABILITY_EXP_TABLE)?;
             for ability in Ability::iter() {
-                let key = AbilityExpRecord::key(player_id.to_string(), &ability)?;
-                if let Some(bytes) = tree.get(key)? {
-                    let ability_exp = bincode::deserialize(bytes.as_ref())?;
-                    out.ability_exp.insert(ability.clone(), ability_exp);
-                } else {
-                    // no experience for given ability, noop
+                let key = AbilityExpRecord::key(player_id, &ability)?;
+                match ability_exp_table.get(key)? {
+                    Some(ability_exp) => {
+                        out.ability_exp.insert(ability.clone(), ability_exp.value());
+                    }
+                    None => {}
                 }
             }
             Ok(out)

@@ -1,14 +1,15 @@
-use std::cell::LazyCell;
-use std::collections::BTreeMap;
-
 /// Experience will be received and applied upon dealing damage to a mob
 /// Experience is applied to the stat that was used to deal the damage
 ///
+use std::cell::LazyCell;
+use std::collections::BTreeMap;
+
+use redb::TableDefinition;
 use serde::Deserialize;
 use serde::Serialize;
 use strum::EnumIter;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Hash, Eq, EnumIter)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Hash, Eq, EnumIter, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum Ability {
     Health = 0,
@@ -23,7 +24,8 @@ impl Default for Ability {
     }
 }
 
-pub const ABILITY_EXP_TREE: &str = "player_ability_exp";
+pub const ABILITY_EXP_TABLE: redb::TableDefinition<(Ability, String), AbilityExpRecord> =
+    TableDefinition::new("player_ability_exp");
 
 const EXP_LEVEL_PRECALC: LazyCell<BTreeMap<u64, u64>> = LazyCell::new(|| {
     let mut out = BTreeMap::default();
@@ -34,7 +36,7 @@ const EXP_LEVEL_PRECALC: LazyCell<BTreeMap<u64, u64>> = LazyCell::new(|| {
     out
 });
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, PartialOrd)]
 pub struct AbilityExpRecord {
     pub player_id: String,
     pub ability: Ability,
@@ -83,58 +85,96 @@ mod server_only {
     use super::*;
 
     use anyhow::Result;
-    use sled::IVec;
-
-    impl Into<IVec> for AbilityExpRecord {
-        fn into(self) -> IVec {
-            let bytes = bincode::serialize(&self).unwrap();
-            IVec::from(bytes)
-        }
-    }
-
-    impl From<&[u8]> for AbilityExpRecord {
-        fn from(value: &[u8]) -> Self {
-            bincode::deserialize(value.as_ref()).unwrap()
-        }
-    }
-
-    impl From<IVec> for AbilityExpRecord {
-        fn from(value: IVec) -> Self {
-            bincode::deserialize(value.as_ref()).unwrap()
-        }
-    }
+    use redb::ReadableTable;
 
     impl AbilityExpRecord {
-        pub fn key(player_id: String, ability: &Ability) -> Result<Vec<u8>> {
-            let mut ability_bytes = bincode::serialize(ability)?;
-            let mut player_id_bytes = player_id.as_bytes().to_vec();
-            //
-            // these keys are serialized to little endian sled uses big endian for ordering
-            // so by default iteration will happen in reverse
-            //
-            let mut key_bytes = vec![];
-            key_bytes.append(&mut ability_bytes);
-            key_bytes.append(&mut player_id_bytes);
-            Ok(key_bytes)
+        pub fn init(db: &redb::Database) -> Result<()> {
+            let write = db.begin_write()?;
+            write.open_table(ABILITY_EXP_TABLE)?;
+            write.commit()?;
+            Ok(())
+        }
+
+        pub fn key(player_id: &str, ability: &Ability) -> Result<(Ability, String)> {
+            Ok((ability.clone(), player_id.to_string()))
         }
 
         /// Register some new experience
-        pub fn increment(db: sled::Db, new_exp: &AbilityExpRecord) -> Result<Self> {
-            let key = Self::key(new_exp.player_id.clone(), &new_exp.ability)?;
-            let ability_exp_tree = db.open_tree(ABILITY_EXP_TREE)?;
-            if let Some(old_bytes) =
-                ability_exp_tree.fetch_and_update(key, |old_value| match old_value {
-                    Some(bytes) => {
-                        let current_record = Self::from(bytes);
-                        Some(current_record.combine(new_exp))
-                    }
-                    None => Some(new_exp.clone()),
-                })?
-            {
-                Ok(Self::from(old_bytes).combine(new_exp))
-            } else {
-                Ok(new_exp.clone())
-            }
+        pub fn increment(db: &redb::Database, new_exp: &AbilityExpRecord) -> Result<Self> {
+            let write = db.begin_write()?;
+            let mut ability_exp_table = write.open_table(ABILITY_EXP_TABLE)?;
+            let key = Self::key(&new_exp.player_id, &new_exp.ability)?;
+            let new_record = match ability_exp_table.get(&key)? {
+                Some(old_record) => {
+                    let old_record = old_record.value();
+                    old_record.combine(new_exp)
+                }
+                None => new_exp.clone(),
+            };
+            ability_exp_table.insert(key, new_record.clone())?;
+            drop(ability_exp_table);
+            write.commit()?;
+            Ok(new_record)
+        }
+    }
+
+    impl redb::Value for AbilityExpRecord {
+        type SelfType<'a> = AbilityExpRecord;
+        type AsBytes<'a> = Vec<u8>;
+
+        fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+        where
+            Self: 'b,
+        {
+            bincode::serialize(value).unwrap()
+        }
+
+        fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+        where
+            Self: 'a,
+        {
+            bincode::deserialize(data).unwrap()
+        }
+        fn type_name() -> redb::TypeName {
+            redb::TypeName::new("AbilityExpRecord")
+        }
+
+        fn fixed_width() -> Option<usize> {
+            None
+        }
+    }
+
+    impl redb::Key for Ability {
+        fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+            let ability1: Ability = bincode::deserialize(data1).unwrap();
+            let ability2: Ability = bincode::deserialize(data2).unwrap();
+            ability1.cmp(&ability2)
+        }
+    }
+
+    impl redb::Value for Ability {
+        type SelfType<'a> = Ability;
+        type AsBytes<'a> = Vec<u8>;
+
+        fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+        where
+            Self: 'b,
+        {
+            bincode::serialize(value).unwrap()
+        }
+
+        fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+        where
+            Self: 'a,
+        {
+            bincode::deserialize(data).unwrap()
+        }
+        fn type_name() -> redb::TypeName {
+            redb::TypeName::new("Ability")
+        }
+
+        fn fixed_width() -> Option<usize> {
+            Some(1)
         }
     }
 }

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use dashmap::DashMap;
+use game_test::db::AbilityExpRecord;
 use game_test::db::DEFAULT_MAP;
 use game_test::db::PlayerStats;
 use tokio::sync::RwLock;
@@ -32,7 +33,7 @@ pub struct RemoteEngineEvent {
 
 #[derive(Clone)]
 pub struct Game {
-    pub db: sled::Db,
+    pub db: Arc<redb::Database>,
     pub network_server: Arc<network::Server>,
     // name keyed to instance
     pub map_instances: HashMap<String, Arc<RwLock<MapInstance>>>,
@@ -44,7 +45,11 @@ pub struct Game {
 
 impl Game {
     pub async fn new() -> anyhow::Result<Self> {
-        let db = sled::open("./game_data")?;
+        let db = Arc::new(redb::Database::create("./game_data.redb")?);
+        // init the database collections
+        AbilityExpRecord::init(&db)?;
+        PlayerRecord::init(&db)?;
+
         let network_server = Arc::new(network::Server::new().await?);
         let game_events = flume::unbounded();
 
@@ -129,13 +134,9 @@ impl Game {
                             let mut to_instance = to_instance.write().await;
                             // write change to db
                             // transaction ???
-                            let record = PlayerRecord::change_map(
-                                self.db.clone(),
-                                &player_id,
-                                &from_map,
-                                &to_map,
-                            )?;
-                            let stats = PlayerStats::by_id(self.db.clone(), &record.id)?;
+                            let record =
+                                PlayerRecord::change_map(&self.db, &player_id, &from_map, &to_map)?;
+                            let stats = PlayerStats::by_id(&self.db, &record.id)?;
                             let socket_id =
                                 self.network_server.socket_by_player_id(&player_id).await;
                             if socket_id.is_none() {
@@ -230,13 +231,12 @@ impl Game {
                 panic!("not in use");
             }
             Action::LoginPlayer(name) => {
-                let player =
-                    if let Some(player) = PlayerRecord::player_by_name(self.db.clone(), &name)? {
-                        player
-                    } else {
-                        PlayerRecord::create(self.db.clone(), name)?
-                    };
-                let stats = PlayerStats::by_id(self.db.clone(), &player.id)?;
+                let player = if let Some(player) = PlayerRecord::player_by_name(&self.db, &name)? {
+                    player
+                } else {
+                    PlayerRecord::create(&self.db, name)?
+                };
+                let stats = PlayerStats::by_id(&self.db, &player.id)?;
                 if let Err(e) = self.login_player(&socket_id, &player, &stats).await {
                     self.network_server
                         .send(&socket_id, Response::LoginError(e.to_string()))
