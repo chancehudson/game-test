@@ -668,7 +668,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b8369c16b7c017437021341521f8b4a0d98e1c70113fb358c3258ae7d661d79"
 dependencies = [
  "bevy_internal",
- "tracing",
 ]
 
 [[package]]
@@ -736,7 +735,6 @@ dependencies = [
  "downcast-rs 2.0.1",
  "log",
  "thiserror 2.0.12",
- "tracing",
  "variadics_please",
  "wasm-bindgen",
  "web-sys",
@@ -912,7 +910,6 @@ dependencies = [
  "serde",
  "smallvec",
  "thiserror 2.0.12",
- "tracing",
  "variadics_please",
 ]
 
@@ -1180,11 +1177,9 @@ dependencies = [
  "bevy_ecs",
  "bevy_utils",
  "tracing",
- "tracing-error",
  "tracing-log",
  "tracing-oslog",
  "tracing-subscriber",
- "tracing-tracy",
  "tracing-wasm",
 ]
 
@@ -1419,13 +1414,11 @@ dependencies = [
  "naga_oil",
  "nonmax",
  "offset-allocator",
- "profiling",
  "send_wrapper",
  "serde",
  "smallvec",
  "thiserror 2.0.12",
  "tracing",
- "tracy-client",
  "variadics_please",
  "wasm-bindgen",
  "web-sys",
@@ -2041,6 +2034,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy",
+ "bevy_egui",
+ "bevy_math",
+ "bevy_simple_text_input",
+ "bevy_web_asset",
+ "bincode",
+ "db",
+ "engine",
+ "flume",
+ "futures-util",
+ "game_common",
+ "getrandom 0.3.3",
+ "gloo-timers",
+ "js-sys",
+ "json5",
+ "nanoid",
+ "once_cell",
+ "rand 0.9.1",
+ "serde",
+ "tokio",
+ "tokio-tungstenite",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
+ "ws_stream_wasm",
+]
+
+[[package]]
 name = "clipboard-win"
 version = "5.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2442,6 +2468,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a2330da5de22e8a3cb63252ce2abb30116bf5265e89c0e01bc17015ce30a476"
 
 [[package]]
+name = "db"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "blake3",
+ "nanoid",
+ "redb",
+ "serde",
+ "strum 0.27.1",
+]
+
+[[package]]
 name = "deadpool"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2639,6 +2678,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.102",
+]
+
+[[package]]
+name = "engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy_math",
+ "bincode",
+ "blake3",
+ "db",
+ "flume",
+ "json5",
+ "nanoid",
+ "once_cell",
+ "rand 0.9.1",
+ "rand_chacha 0.9.0",
+ "serde",
+ "strum 0.27.1",
+ "web-time",
 ]
 
 [[package]]
@@ -3032,54 +3091,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "game-test"
+name = "game_common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "bevy",
- "bevy_egui",
  "bevy_math",
- "bevy_simple_text_input",
- "bevy_web_asset",
  "bincode",
  "blake3",
- "dashmap 6.1.0",
- "flume",
+ "db",
+ "engine",
  "futures-util",
- "getrandom 0.3.3",
- "gloo-timers",
- "js-sys",
  "json5",
  "nanoid",
  "once_cell",
  "rand 0.9.1",
- "rand_chacha 0.9.0",
- "redb",
  "serde",
  "serde_json",
- "strum 0.27.1",
- "tokio",
- "tokio-tungstenite",
- "tracy-client",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
  "web-time",
- "ws_stream_wasm",
-]
-
-[[package]]
-name = "generator"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d18470a76cb7f8ff746cf1f7470914f900252ec36bbc40b569d74b1258446827"
-dependencies = [
- "cc",
- "cfg-if",
- "libc",
- "log",
- "rustversion",
- "windows 0.61.2",
 ]
 
 [[package]]
@@ -4027,19 +4056,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 dependencies = [
  "value-bag",
-]
-
-[[package]]
-name = "loom"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "419e0dc8046cb947daa77eb95ae174acfbddb7673b4151f56d1eed8e93fbfaca"
-dependencies = [
- "cfg-if",
- "generator",
- "scoped-tls",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -5182,7 +5198,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afbdc74edc00b6f6a218ca6a5364d6226a259d4b8ea1af4a0ea063f27e179f4d"
 dependencies = [
  "profiling-procmacros",
- "tracing",
 ]
 
 [[package]]
@@ -5878,6 +5893,30 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy_math",
+ "bincode",
+ "dashmap 6.1.0",
+ "db",
+ "engine",
+ "flume",
+ "futures-util",
+ "game_common",
+ "json5",
+ "nanoid",
+ "once_cell",
+ "rand 0.9.1",
+ "redb",
+ "serde",
+ "tokio",
+ "tokio-tungstenite",
+ "web-time",
 ]
 
 [[package]]
@@ -6630,16 +6669,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-error"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b1581020d7a273442f5b45074a6a57d5757ad0a47dac0e9f0bd57b81936f3db"
-dependencies = [
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "tracing-log"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6684,17 +6713,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-tracy"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0eaa1852afa96e0fe9e44caa53dc0bd2d9d05e0f2611ce09f97f8677af56e4ba"
-dependencies = [
- "tracing-core",
- "tracing-subscriber",
- "tracy-client",
-]
-
-[[package]]
 name = "tracing-wasm"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6703,27 +6721,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "tracy-client"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d90a2c01305b02b76fdd89ac8608bae27e173c829a35f7d76a345ab5d33836db"
-dependencies = [
- "loom",
- "once_cell",
- "tracy-client-sys",
-]
-
-[[package]]
-name = "tracy-client-sys"
-version = "0.24.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69fff37da548239c3bf9e64a12193d261e8b22b660991c6fd2df057c168f435f"
-dependencies = [
- "cc",
- "windows-targets 0.52.6",
 ]
 
 [[package]]
