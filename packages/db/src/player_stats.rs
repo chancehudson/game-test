@@ -5,7 +5,6 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 use serde::Serialize;
-use strum::IntoEnumIterator;
 
 use super::Ability;
 use super::AbilityExpRecord;
@@ -104,6 +103,8 @@ impl PlayerStats {
 #[cfg(feature = "server")]
 mod server_only {
     use super::*;
+
+    use strum::IntoEnumIterator;
 
     use crate::ability_exp_record::server_only::ABILITY_EXP_TABLE;
     use anyhow::Result;

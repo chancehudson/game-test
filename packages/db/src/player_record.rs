@@ -1,9 +1,5 @@
-use anyhow::Result;
-use nanoid::nanoid;
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::DEFAULT_MAP;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct PlayerRecord {
@@ -16,9 +12,12 @@ pub struct PlayerRecord {
 #[cfg(feature = "server")]
 mod server_only {
 
+    use anyhow::Result;
+    use nanoid::nanoid;
     use redb::ReadableTable;
     use redb::TableDefinition;
 
+    use crate::DEFAULT_MAP;
     use crate::PlayerStats;
 
     use super::*;

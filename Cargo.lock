@@ -2053,10 +2053,7 @@ dependencies = [
  "gloo-timers",
  "js-sys",
  "json5",
- "nanoid",
- "once_cell",
  "rand 0.9.1",
- "serde",
  "tokio",
  "tokio-tungstenite",
  "wasm-bindgen",
@@ -2473,7 +2470,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "blake3",
  "nanoid",
  "redb",
  "serde",
@@ -2690,8 +2686,6 @@ dependencies = [
  "blake3",
  "db",
  "flume",
- "json5",
- "nanoid",
  "once_cell",
  "rand 0.9.1",
  "rand_chacha 0.9.0",
@@ -3101,14 +3095,11 @@ dependencies = [
  "blake3",
  "db",
  "engine",
- "futures-util",
  "json5",
- "nanoid",
  "once_cell",
  "rand 0.9.1",
  "serde",
  "serde_json",
- "web-time",
 ]
 
 [[package]]
@@ -5916,7 +5907,6 @@ dependencies = [
  "serde",
  "tokio",
  "tokio-tungstenite",
- "web-time",
 ]
 
 [[package]]

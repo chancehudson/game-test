@@ -81,7 +81,7 @@ fn animation_system(
 
 fn damage_text_system(
     mut commands: Commands,
-    mut entity_query: Query<(&GameEntityComponent), With<PlayerComponent>>,
+    mut entity_query: Query<&GameEntityComponent, With<PlayerComponent>>,
     active_engine: Res<ActiveGameEngine>,
 ) {
     let engine = &active_engine.0;
