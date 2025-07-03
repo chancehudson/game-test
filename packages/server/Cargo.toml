@@ -1,0 +1,32 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2024"
+license-file = "LICENSE"
+
+[features]
+#trace = ["bevy/trace", "bevy/trace_tracy", "tracy-client"]
+
+[[bin]]
+name = "server"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+bevy_math = { workspace = true }
+bincode = { workspace = true }
+flume = { workspace = true }
+json5 = { workspace = true }
+nanoid = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+redb = { workspace = true }
+once_cell = { workspace = true }
+futures-util = { workspace = true }
+
+dashmap = "6.1.0"
+tokio-tungstenite = { version = "0.26.1", features = ["handshake", "native-tls"] }
+
+db = { path = "../db", features = ["server"] }
+game_common = { path = "../game_common" }
+engine = { path = "../engine" }
