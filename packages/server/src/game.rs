@@ -11,12 +11,12 @@ use db::DEFAULT_MAP;
 use db::PlayerStats;
 use tokio::sync::RwLock;
 
-use engine::STEPS_PER_SECOND;
-use engine::game_event::EngineEvent;
-use engine::game_event::GameEvent;
-use game_common::action::Action;
-use game_common::action::Response;
+use game_common::STEPS_PER_SECOND;
+use game_common::game_event::EngineEvent;
+use game_common::game_event::GameEvent;
 use game_common::map::MapData;
+use game_common::network::Action;
+use game_common::network::Response;
 
 use super::MapInstance;
 use super::network;
@@ -56,7 +56,7 @@ impl Game {
         let mut map_instances = HashMap::new();
         let mut engine_id_to_map_name = HashMap::new();
         println!("Loading maps...");
-        let maps_dir = std::fs::read_dir("../../assets/maps").unwrap();
+        let maps_dir = std::fs::read_dir("./assets/maps").unwrap();
         for entry in maps_dir {
             let entry = entry.unwrap();
             let path = entry.path();
@@ -104,6 +104,7 @@ impl Game {
     pub async fn handle_events(&self) -> anyhow::Result<()> {
         for game_event in self.game_events.1.drain() {
             match game_event {
+                GameEvent::Message(_, _) => {}
                 GameEvent::PlayerHealth(_, _) => {
                     // handled in map_instance
                     unreachable!()

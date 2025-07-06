@@ -14,7 +14,7 @@ use tokio_tungstenite::tungstenite;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::frame::CloseFrame;
 
-use game_common::action::Response;
+use game_common::network::Response;
 
 use super::Action;
 

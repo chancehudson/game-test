@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
-use engine::entity::EEntity;
-use engine::entity::mob::MobEntity;
-use engine::entity::player::PlayerEntity;
+use game_common::entity::EEntity;
+use game_common::entity::mob::MobEntity;
+use game_common::entity::player::PlayerEntity;
 
 use crate::plugins::engine::ActiveGameEngine;
 

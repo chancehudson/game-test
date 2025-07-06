@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use engine::entity::EEntity;
+use game_common::entity::EEntity;
 
 use crate::map;
 use crate::map_data_loader::MapDataAsset;

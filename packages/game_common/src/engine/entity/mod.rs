@@ -12,6 +12,7 @@ pub mod emoji;
 pub mod mob;
 pub mod mob_damage;
 pub mod mob_spawn;
+pub mod npc;
 pub mod platform;
 pub mod player;
 pub mod portal;

@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-use engine::GameEngine;
-use engine::entity::EEntity;
-use engine::entity::mob::MobEntity;
+use game_common::GameEngine;
 use game_common::STEP_DELAY;
+use game_common::entity::EEntity;
+use game_common::entity::mob::MobEntity;
 
 pub struct Interpolation {
     pub from_step: u64,

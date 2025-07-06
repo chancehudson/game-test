@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
-use engine::entity::EngineEntity;
-use engine::entity::mob::MobEntity;
+use game_common::entity::EngineEntity;
+use game_common::entity::mob::MobEntity;
 
 use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;

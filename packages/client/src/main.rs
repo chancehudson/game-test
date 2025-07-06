@@ -2,10 +2,10 @@ use bevy::prelude::*;
 
 use bevy_egui::EguiPlugin;
 
-use engine::GameEngine;
+use game_common::GameEngine;
 pub use game_common::MapData;
-pub use game_common::action::Action;
-pub use game_common::action::Response;
+pub use game_common::network::Action;
+pub use game_common::network::Response;
 
 mod components;
 mod interpolation;
