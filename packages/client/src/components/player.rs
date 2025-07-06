@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
-use engine::entity::EngineEntity;
-use engine::entity::EntityInput;
-use engine::game_event::EngineEvent;
-use game_common::action::Action;
+use game_common::entity::EngineEntity;
+use game_common::entity::EntityInput;
+use game_common::game_event::EngineEvent;
+use game_common::network::Action;
 
 use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;

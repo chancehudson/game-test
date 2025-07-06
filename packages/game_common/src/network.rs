@@ -5,8 +5,9 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use db::PlayerRecord;
-use engine::GameEngine;
-use engine::game_event::EngineEvent;
+
+use crate::GameEngine;
+use crate::game_event::EngineEvent;
 
 /// Types of messages that can be sent to the server
 #[derive(Debug, Clone, Serialize, Deserialize)]

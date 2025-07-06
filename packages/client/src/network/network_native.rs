@@ -4,8 +4,8 @@ use futures_util::StreamExt;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-use game_common::action::Action;
-use game_common::action::Response;
+use game_common::network::Action;
+use game_common::network::Response;
 
 pub struct NetworkConnection {
     url: String,

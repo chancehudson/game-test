@@ -7,19 +7,20 @@ use bevy_math::IVec2;
 use db::AbilityExpRecord;
 use db::PlayerRecord;
 use db::PlayerStats;
-use engine::EngineInit;
-use engine::STEPS_PER_SECOND;
-use engine::entity::EEntity;
-use engine::entity::EngineEntity;
-use engine::entity::player::PlayerEntity;
-use engine::game_event::EngineEvent;
-use engine::game_event::GameEvent;
-use engine::game_event::HasId;
-use engine::timestamp;
-use engine::{GameEngine, TRAILING_STATE_COUNT};
+use game_common::EngineInit;
+use game_common::GameEngine;
 use game_common::STEP_DELAY;
-use game_common::action::Response;
+use game_common::STEPS_PER_SECOND;
+use game_common::TRAILING_STATE_COUNT;
+use game_common::entity::EEntity;
+use game_common::entity::EngineEntity;
+use game_common::entity::player::PlayerEntity;
+use game_common::game_event::EngineEvent;
+use game_common::game_event::GameEvent;
+use game_common::game_event::HasId;
 use game_common::map::MapData;
+use game_common::network::Response;
+use game_common::timestamp;
 
 use crate::game::RemoteEngineEvent;
 use crate::network;
@@ -278,6 +279,7 @@ impl MapInstance {
         for game_event in game_events {
             // handle game events that occurred during a step
             match game_event {
+                GameEvent::Message(_, _) => {}
                 GameEvent::PlayerEnterPortal {
                     player_id: _,
                     entity_id: _,

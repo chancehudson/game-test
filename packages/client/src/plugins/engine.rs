@@ -4,12 +4,13 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use db::PlayerRecord;
-use engine::STEP_LEN_S;
-use engine::entity::EEntity;
-use engine::entity::EngineEntity;
-use engine::entity::mob::MobEntity;
-use engine::timestamp;
 use game_common::STEP_DELAY;
+use game_common::STEP_LEN_S;
+use game_common::entity::EEntity;
+use game_common::entity::EngineEntity;
+use game_common::entity::mob::MobEntity;
+use game_common::game_event::GameEvent;
+use game_common::timestamp;
 
 use crate::Action;
 use crate::GameEngine;
@@ -126,7 +127,14 @@ fn step_game_engine(
     } else {
         // local engine is ahead of server, skip a step
     };
-    engine.game_events.1.drain(); // drain here to avoid memory leaks
+    for event in engine.game_events.1.drain() {
+        match event {
+            GameEvent::Message(_, _) => {
+                // spawn a message in bevy
+            }
+            _ => {}
+        }
+    }
 }
 
 fn handle_exit_map(
@@ -204,11 +212,11 @@ fn handle_engine_stats(
             engine_sync.sync_distance = (engine.step_index as i64) - (*step_index as i64);
             if !engine_sync.requested_resync {
                 if let Ok(local_engine_hash) = engine.step_hash(&hash_step_index) {
-                    if &local_engine_hash != server_engine_hash {
+                    if local_engine_hash != *server_engine_hash {
                         println!("WARNING: desync detected");
                         println!(
                             "local engine state: {:?}",
-                            active_engine_state.0.entities_by_step.get(hash_step_index)
+                            active_engine_state.0.entities_by_step.get(&hash_step_index)
                         );
                         action_events_writer.write(NetworkAction(Action::RequestEngineReload(
                             engine.id,

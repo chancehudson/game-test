@@ -29,4 +29,3 @@ tokio-tungstenite = { version = "0.26.1", features = ["handshake", "native-tls"]
 
 db = { path = "../db", features = ["server"] }
 game_common = { path = "../game_common" }
-engine = { path = "../engine" }

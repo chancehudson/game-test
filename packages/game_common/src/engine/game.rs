@@ -43,5 +43,6 @@ pub fn default_handler(engine: &mut GameEngine, game_event: &GameEvent) {
             }
         }
         GameEvent::PlayerHealth(_, _) => {}
+        GameEvent::Message(_, _) => {}
     }
 }

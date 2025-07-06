@@ -1,16 +1,18 @@
 use bevy::prelude::*;
-use bevy_egui::egui::{Color32, RichText};
+use bevy_egui::egui::Color32;
+use bevy_egui::egui::RichText;
 use bevy_egui::{EguiContextPass, EguiContexts, egui};
 use web_time::Instant;
 
-use engine::entity::EngineEntity;
-use engine::entity::mob_spawn::MobSpawnEntity;
-use engine::entity::platform::PlatformEntity;
-use engine::game_event::EngineEvent;
-use engine::{EngineInit, GameEngine};
+use game_common::EngineInit;
+use game_common::GameEngine;
 use game_common::MapData;
-use game_common::action::Action;
-use game_common::action::Response;
+use game_common::entity::EngineEntity;
+use game_common::entity::mob_spawn::MobSpawnEntity;
+use game_common::entity::platform::PlatformEntity;
+use game_common::game_event::EngineEvent;
+use game_common::network::Action;
+use game_common::network::Response;
 
 use crate::network::{NetworkConnectionMaybe, NetworkMessage};
 

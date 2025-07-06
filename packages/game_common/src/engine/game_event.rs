@@ -1,3 +1,9 @@
+/// Engine events are events shared between engines to keep
+/// the state in sync. Game events are things that occur in the game
+/// that need to be displayed to the user or recorded in the db
+///
+/// engine event = engine changes, game event = state information
+///
 use bevy_math::IVec2;
 use serde::Deserialize;
 use serde::Serialize;
@@ -21,6 +27,7 @@ pub enum GameEvent {
     // player entity id, ability
     PlayerAbilityExp(u128, Ability, u64),
     PlayerHealth(String, u64), // player health has changed through damage or healing
+    Message(u128, String),     // message sent by an entity (npc or player)
 }
 
 #[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Clone, Debug)]
