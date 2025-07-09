@@ -9,6 +9,7 @@ use serde::Serialize;
 use super::GameEngine;
 
 pub mod emoji;
+pub mod item;
 pub mod mob;
 pub mod mob_damage;
 pub mod mob_spawn;
@@ -41,7 +42,6 @@ pub trait EEntity {
         let p = self.position();
         Vec2::new(p.x as f32, p.y as f32)
     }
-    fn position_mut(&mut self) -> &mut IVec2;
     fn size(&self) -> IVec2;
     fn size_f32(&self) -> Vec2 {
         let s = self.size();
@@ -78,7 +78,7 @@ pub trait EEntity {
     fn equal(&self, other: &Self) -> bool {
         self.position() == other.position()
             && self.velocity() == other.velocity()
-            && self.size() == other.velocity()
+            && self.size() == other.size()
     }
 }
 
@@ -179,10 +179,10 @@ macro_rules! engine_entity_enum {
                 }
             }
 
-            fn position_mut(&mut self) -> &mut IVec2 {
+            fn position_f32(&self) -> Vec2 {
                 match self {
                     $(
-                        $enum_name::$variant(entity) => entity.position_mut(),
+                        $enum_name::$variant(entity) => entity.position_f32(),
                     )*
                 }
             }
@@ -217,7 +217,7 @@ engine_entity_enum! {
         Portal(portal::PortalEntity),
         Emoji(emoji::EmojiEntity),
         Text(text::TextEntity),
-        // Item(ItemEntity),  // Uncomment when ready
+        Item(item::ItemEntity),
     }
 }
 
@@ -285,10 +285,6 @@ macro_rules! entity_struct {
 
             fn position(&self) -> bevy_math::IVec2 {
                 self.position
-            }
-
-            fn position_mut(&mut self) -> &mut bevy_math::IVec2 {
-                &mut self.position
             }
 
             fn size(&self) -> bevy_math::IVec2 {
