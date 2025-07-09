@@ -9,6 +9,7 @@ use db::PlayerRecord;
 use db::PlayerStats;
 use game_common::EngineInit;
 use game_common::GameEngine;
+use game_common::MapData;
 use game_common::STEP_DELAY;
 use game_common::STEPS_PER_SECOND;
 use game_common::TRAILING_STATE_COUNT;
@@ -18,7 +19,6 @@ use game_common::entity::player::PlayerEntity;
 use game_common::game_event::EngineEvent;
 use game_common::game_event::GameEvent;
 use game_common::game_event::HasId;
-use game_common::map::MapData;
 use game_common::network::Response;
 use game_common::timestamp;
 

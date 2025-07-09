@@ -9,8 +9,41 @@ use bevy::prelude::*;
 use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
 
-use game_common::mob::SPRITE_MANIFEST;
-use game_common::mob::SpriteAnimationData;
+use game_common::data::mob::SPRITE_MANIFEST;
+use game_common::data::mob::SpriteAnimationData;
+
+fn build_sprite_textures(
+    animation_data: &SpriteAnimationData,
+) -> Vec<(String, bevy::image::TextureAtlasLayout)> {
+    vec![
+        (
+            animation_data.standing.sprite_sheet.clone(),
+            bevy::image::TextureAtlasLayout::from_grid(
+                bevy_math::UVec2::new(
+                    animation_data.standing.width as u32,
+                    animation_data.size.y as u32,
+                ),
+                animation_data.standing.frame_count as u32,
+                1,
+                None,
+                None,
+            ),
+        ),
+        (
+            animation_data.walking.sprite_sheet.clone(),
+            bevy::image::TextureAtlasLayout::from_grid(
+                bevy_math::UVec2::new(
+                    animation_data.walking.width as u32,
+                    animation_data.size.y as u32,
+                ),
+                animation_data.walking.frame_count as u32,
+                1,
+                None,
+                None,
+            ),
+        ),
+    ]
+}
 
 #[derive(Resource, Default)]
 pub struct SpriteManager {
@@ -26,7 +59,7 @@ pub struct SpriteManager {
 impl SpriteManager {
     pub fn is_loaded(&self, id: &u64, sprite_data: &Res<Assets<SpriteDataAsset>>) -> bool {
         if let Some(data) = self.sprite_data_maybe(id, sprite_data) {
-            for (name, _atlas) in data.sprite_sheets() {
+            for (name, _atlas) in build_sprite_textures(&data) {
                 if self.sprite_texture_atlas_map.contains_key(&name)
                     && self.sprite_image_handle_map.contains_key(&name)
                 {
@@ -103,7 +136,7 @@ impl SpriteManager {
         for (id, handle) in loading_sprites {
             if let Some(data) = sprite_data.get(handle) {
                 let mut sprite_id_images = HashSet::new();
-                for (name, atlas) in data.0.sprite_sheets() {
+                for (name, atlas) in build_sprite_textures(&data.0) {
                     let atlas_handle = texture_atlas_layouts.add(atlas);
                     self.sprite_texture_atlas_map
                         .insert(name.clone(), atlas_handle);

@@ -3,6 +3,8 @@
 /// storage implementation.
 ///
 mod ability_exp_record;
+mod inventory;
+mod item_record;
 mod player_record;
 mod player_stats;
 

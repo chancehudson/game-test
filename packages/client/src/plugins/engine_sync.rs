@@ -61,6 +61,7 @@ fn display_hud(
                 ui.label(format!("engine step: {}", engine.step_index));
                 ui.label(format!("server step: {}", hud_info.server_step));
                 ui.label(format!("sync distance: {}", hud_info.sync_distance));
+                ui.label(format!("entity count: {}", engine.entities.len()));
                 if hud_info.requested_resync {
                     ui.label(RichText::new("requested resync!").color(Color32::RED));
                 }
