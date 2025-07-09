@@ -2,9 +2,9 @@ use bevy_math::IVec2;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::deserialize_vec2;
 use super::npc::NpcData;
 use crate::GameEngine;
+use crate::deserialize_vec2;
 use crate::entity::EngineEntity;
 use crate::entity::mob_spawn::MobSpawnEntity;
 use crate::entity::platform::PlatformEntity;

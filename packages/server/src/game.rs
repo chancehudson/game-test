@@ -11,10 +11,10 @@ use db::DEFAULT_MAP;
 use db::PlayerStats;
 use tokio::sync::RwLock;
 
+use game_common::MapData;
 use game_common::STEPS_PER_SECOND;
 use game_common::game_event::EngineEvent;
 use game_common::game_event::GameEvent;
-use game_common::map::MapData;
 use game_common::network::Action;
 use game_common::network::Response;
 

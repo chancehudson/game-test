@@ -5,9 +5,9 @@ use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::AnimationData;
+use crate::AnimationData;
 
-const MOB_MANIFEST_STR: &'static str = include_str!("../assets/mob_manifest.json5");
+const MOB_MANIFEST_STR: &'static str = include_str!("../../assets/mob_manifest.json5");
 
 // sprite id keyed to data path
 pub static SPRITE_MANIFEST: Lazy<HashMap<u64, String>> = Lazy::new(|| {
@@ -47,34 +47,6 @@ pub struct SpriteAnimationData {
     pub size: Vec2,
     pub standing: AnimationData,
     pub walking: AnimationData,
-}
-
-#[cfg(feature = "client")]
-impl SpriteAnimationData {
-    pub fn sprite_sheets(&self) -> Vec<(String, bevy::image::TextureAtlasLayout)> {
-        vec![
-            (
-                self.standing.sprite_sheet.clone(),
-                bevy::image::TextureAtlasLayout::from_grid(
-                    bevy_math::UVec2::new(self.standing.width as u32, self.size.y as u32),
-                    self.standing.frame_count as u32,
-                    1,
-                    None,
-                    None,
-                ),
-            ),
-            (
-                self.walking.sprite_sheet.clone(),
-                bevy::image::TextureAtlasLayout::from_grid(
-                    bevy_math::UVec2::new(self.walking.width as u32, self.size.y as u32),
-                    self.walking.frame_count as u32,
-                    1,
-                    None,
-                    None,
-                ),
-            ),
-        ]
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2,7 +2,7 @@ use bevy_math::IVec2;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::deserialize_vec2;
+use crate::deserialize_vec2;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct NpcData {
