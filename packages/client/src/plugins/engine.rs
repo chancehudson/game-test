@@ -121,10 +121,12 @@ fn step_game_engine(
         } else if steps >= 10 {
             engine.step();
             engine.step();
+            println!("double step");
         } else {
             engine.step();
         }
     } else {
+        println!("skipped step");
         // local engine is ahead of server, skip a step
     };
     for event in engine.game_events.1.drain() {
@@ -488,6 +490,22 @@ pub fn spawn_bevy_entity(
                     ..default()
                 },
                 TextColor(Color::srgb(p.color.x, p.color.y, p.color.z)),
+            ));
+        }
+        EngineEntity::Item(p) => {
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(20.0)),
+                MapEntity,
+                Sprite {
+                    custom_size: Some(p.size_f32()),
+                    anchor: bevy::sprite::Anchor::BottomLeft,
+                    color: Color::srgb(1.0, 0.0, 0.0),
+                    ..default()
+                },
             ));
         }
         EngineEntity::MobDamage(_) => {}
