@@ -10,6 +10,8 @@ use dashmap::DashMap;
 use db::DEFAULT_MAP;
 use db::PlayerInventory;
 use db::PlayerStats;
+use game_common::EngineInit;
+use game_common::MapData;
 use game_common::data::GameData;
 use tokio::sync::RwLock;
 
@@ -47,38 +49,32 @@ pub struct Game {
 
 impl Game {
     pub async fn new() -> anyhow::Result<Self> {
-        let db = db::init(redb::Database::create("./game_data.redb")?)?;
-
-        let network_server = Arc::new(network::Server::new().await?);
-        let game_events = flume::unbounded();
-
-        let game_data = GameData::load(Path::new("./assets"))?;
-
-        let mut map_instances = HashMap::new();
-        let mut engine_id_to_map_name = HashMap::new();
-        for (_id, map_data) in &game_data.maps {
-            let map_instance = MapInstance::new(
-                map_data.clone(),
-                network_server.clone(),
-                db.clone(),
-                game_events.0.clone(),
-            )?;
-            engine_id_to_map_name.insert(map_instance.engine.id, map_data.name.clone());
-            map_instances.insert(
-                map_data.name.to_string(),
-                Arc::new(RwLock::new(map_instance)),
-            );
-        }
-
-        println!("Done initializing");
         Ok(Game {
-            db: db.clone(),
-            network_server: network_server.clone(),
-            game_data,
-            map_instances,
+            db: db::init(redb::Database::create("./game_data.redb")?)?,
+            network_server: Arc::new(network::Server::new().await?),
+            game_data: GameData::load(Path::new("./assets"))?,
+            map_instances: HashMap::default(),
             instance_for_player_id: Arc::new(DashMap::new()),
-            game_events,
+            game_events: flume::unbounded(),
         })
+    }
+
+    /// Initialize a map instance as needed
+    pub async fn create_instance(&mut self, map_data: &MapData) -> anyhow::Result<()> {
+        #[cfg(debug_assertions)]
+        assert!(!self.map_instances.contains_key(&map_data.name));
+
+        let map_instance = MapInstance::new(
+            map_data.clone(),
+            self.network_server.clone(),
+            self.db.clone(),
+            self.game_events.0.clone(),
+        )?;
+        self.map_instances.insert(
+            map_data.name.to_string(),
+            Arc::new(RwLock::new(map_instance)),
+        );
+        Ok(())
     }
 
     pub async fn handle_events(&self) -> anyhow::Result<()> {
