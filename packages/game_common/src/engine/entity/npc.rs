@@ -1,11 +1,7 @@
 /// In the entity we'll handle movement and announcements
 /// Dialogue will be handled in non-universal engine events
-use bevy_math::IVec2;
-use rand::Rng;
-
 use crate::entity::EEntity;
 use crate::entity::SEEntity;
-use crate::entity::mob::MobEntity;
 use crate::entity_struct;
 
 entity_struct!(

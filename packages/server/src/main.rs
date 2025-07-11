@@ -35,7 +35,10 @@ async fn main() -> anyhow::Result<()> {
         tx.send(()).unwrap();
     });
 
-    let game = game::Game::new().await?;
+    let mut game = game::Game::new().await?;
+    for (_id, map_data) in game.game_data.maps.clone() {
+        game.create_instance(&map_data).await?;
+    }
 
     // WebSocket core loop
     // start the websocket server loop in it's own thread
