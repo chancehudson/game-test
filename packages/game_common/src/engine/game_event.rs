@@ -28,6 +28,10 @@ pub enum GameEvent {
     PlayerAbilityExp(u128, Ability, u64),
     PlayerHealth(String, u64), // player health has changed through damage or healing
     Message(u128, String),     // message sent by an entity (npc or player)
+    // player entity id
+    PlayerPickUpRequest(u128),
+    // player entity id, item type, count
+    PlayerPickUp(String, u64, u32),
 }
 
 #[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Clone, Debug)]

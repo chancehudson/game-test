@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use game_common::AnimationData;
 use game_common::entity::EngineEntity;
 use game_common::entity::EntityInput;
 use game_common::game_event::EngineEvent;
@@ -10,6 +11,7 @@ use crate::plugins::animated_sprite::AnimatedSprite;
 use crate::plugins::engine::ActiveGameEngine;
 use crate::plugins::engine::ActivePlayerEntityId;
 use crate::plugins::engine::GameEntityComponent;
+use crate::plugins::player_inventory::PlayerInventoryState;
 use crate::sprite_data_loader::SpriteManager;
 
 use crate::GameState;
@@ -21,12 +23,21 @@ pub struct PlayerPlugin;
 pub struct PlayerComponent;
 
 impl PlayerComponent {
+    pub fn default_animation() -> AnimationData {
+        AnimationData {
+            frame_count: 2,
+            fps: 2,
+            sprite_sheet: "sprites/banana/standing.png".to_string(),
+            width: 52,
+            height: 52,
+        }
+    }
+
     pub fn default_sprite(
         sprite_manager: &SpriteManager,
     ) -> (PlayerComponent, AnimatedSprite, Sprite) {
-        let (handle, atlas) = sprite_manager
-            .sprite("sprites/banana/standing.png")
-            .unwrap();
+        let animation = Self::default_animation();
+        let (handle, atlas) = sprite_manager.atlas(&animation.sprite_sheet).unwrap();
 
         (
             PlayerComponent,
@@ -128,6 +139,8 @@ fn iframe_blink_system(
 
 /// hello i'm storing keybindings complexity here
 fn input_system(
+    mut next_state: ResMut<NextState<PlayerInventoryState>>,
+    state: ResMut<State<PlayerInventoryState>>,
     active_player_entity_id: Res<ActivePlayerEntityId>,
     mut active_game_engine: ResMut<ActiveGameEngine>,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -143,6 +156,13 @@ fn input_system(
         return;
     }
 
+    if keyboard.just_pressed(KeyCode::KeyI) {
+        match state.get() {
+            PlayerInventoryState::Visible => next_state.set(PlayerInventoryState::Hidden),
+            PlayerInventoryState::Hidden => next_state.set(PlayerInventoryState::Visible),
+        }
+    }
+
     // allow general input if spawned
     if let Some(entity_id) = active_player_entity_id.0 {
         // input currently being received
@@ -156,6 +176,7 @@ fn input_system(
             admin_enable_debug_markers: keyboard.just_pressed(KeyCode::Digit9),
             show_emoji: keyboard.just_pressed(KeyCode::KeyQ),
             respawn: keyboard.just_pressed(KeyCode::KeyR),
+            pick_up: keyboard.just_pressed(KeyCode::KeyZ),
         };
         let (_latest_input_step, latest_input) = engine.latest_input(&entity_id);
         if latest_input == input {

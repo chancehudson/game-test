@@ -13,6 +13,7 @@ use crate::entity::platform::PlatformEntity;
 pub struct ItemEntity {
     #[serde(default)]
     pub id: u128,
+    pub item_type: u64,
     #[serde(default)]
     pub position: bevy_math::IVec2,
     #[serde(default)]
@@ -24,19 +25,27 @@ pub struct ItemEntity {
     pub disappears_at_step: u64,
     // pub becomes_public_at_step: u64, // when non-player creator players may pick it up
     pub position_offset_y: i32,
+    pub is_picked_up: bool,
 }
 
 impl ItemEntity {
-    pub fn new_item(id: u128, position: IVec2, player_creator_id: u128, current_step: u64) -> Self {
+    pub fn new_item(
+        id: u128,
+        position: IVec2,
+        item_type: u64,
+        player_creator_id: u128,
+        current_step: u64,
+    ) -> Self {
         Self {
             id,
+            item_type,
             position,
             size: IVec2 { x: 25, y: 25 },
             velocity: IVec2 { x: 0, y: 350 },
             player_creator_id: Some(player_creator_id),
             disappears_at_step: current_step + 7200,
             // becomes_public_at_step: current_step + 3600,
-            position_offset_y: 0,
+            ..Default::default()
         }
     }
 }

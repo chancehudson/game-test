@@ -3,15 +3,17 @@
 /// between maps.
 ///
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 
 use dashmap::DashMap;
 use db::AbilityExpRecord;
 use db::DEFAULT_MAP;
+use db::PlayerInventory;
 use db::PlayerStats;
+use game_common::data::GameData;
 use tokio::sync::RwLock;
 
-use game_common::MapData;
 use game_common::STEPS_PER_SECOND;
 use game_common::game_event::EngineEvent;
 use game_common::game_event::GameEvent;
@@ -35,6 +37,7 @@ pub struct RemoteEngineEvent {
 pub struct Game {
     pub db: Arc<redb::Database>,
     pub network_server: Arc<network::Server>,
+    pub game_data: GameData,
     // name keyed to instance
     pub map_instances: HashMap<String, Arc<RwLock<MapInstance>>>,
     pub instance_for_player_id:
@@ -45,56 +48,34 @@ pub struct Game {
 
 impl Game {
     pub async fn new() -> anyhow::Result<Self> {
-        let db = Arc::new(redb::Database::create("./game_data.redb")?);
-        // init the database collections
-        AbilityExpRecord::init(&db)?;
-        PlayerRecord::init(&db)?;
+        let db = db::init(redb::Database::create("./game_data.redb")?)?;
 
         let network_server = Arc::new(network::Server::new().await?);
         let game_events = flume::unbounded();
 
+        let game_data = GameData::load(Path::new("./assets"))?;
+
         let mut map_instances = HashMap::new();
         let mut engine_id_to_map_name = HashMap::new();
-        println!("Loading maps...");
-        let maps_dir = std::fs::read_dir("./assets/maps").unwrap();
-        for entry in maps_dir {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            let path_str = path.to_str().unwrap();
-
-            if let Some(extension) = path.extension() {
-                if extension != "json5" {
-                    continue;
-                }
-                let name = path
-                    .file_stem()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .replace(".map", "");
-                if let Some(file_name) = entry.file_name().to_str() {
-                    // fucking apple
-                    if file_name.starts_with("._") {
-                        continue;
-                    }
-                    let data_str = std::fs::read_to_string(path_str).unwrap();
-                    let data = json5::from_str::<MapData>(&data_str).unwrap();
-                    let map_instance = MapInstance::new(
-                        data.clone(),
-                        network_server.clone(),
-                        db.clone(),
-                        game_events.0.clone(),
-                    )?;
-                    engine_id_to_map_name.insert(map_instance.engine.id, data.name.clone());
-                    map_instances.insert(name.to_string(), Arc::new(RwLock::new(map_instance)));
-                }
-            }
+        for (_id, map_data) in &game_data.maps {
+            let map_instance = MapInstance::new(
+                map_data.clone(),
+                network_server.clone(),
+                db.clone(),
+                game_events.0.clone(),
+            )?;
+            engine_id_to_map_name.insert(map_instance.engine.id, map_data.name.clone());
+            map_instances.insert(
+                map_data.name.to_string(),
+                Arc::new(RwLock::new(map_instance)),
+            );
         }
-        println!("Done loading maps!");
 
+        println!("Done initializing");
         Ok(Game {
             db: db.clone(),
             network_server: network_server.clone(),
+            game_data,
             map_instances,
             instance_for_player_id: Arc::new(DashMap::new()),
             game_events,
@@ -104,15 +85,6 @@ impl Game {
     pub async fn handle_events(&self) -> anyhow::Result<()> {
         for game_event in self.game_events.1.drain() {
             match game_event {
-                GameEvent::Message(_, _) => {}
-                GameEvent::PlayerHealth(_, _) => {
-                    // handled in map_instance
-                    unreachable!()
-                }
-                GameEvent::PlayerAbilityExp(_, _, _) => {
-                    // handled in map_instance
-                    unreachable!()
-                }
                 GameEvent::PlayerEnterPortal {
                     player_id,
                     entity_id: _,
@@ -165,6 +137,7 @@ impl Game {
                         }
                     }
                 }
+                _ => unreachable!(),
             }
         }
         Ok(())
@@ -218,6 +191,15 @@ impl Game {
         self.network_server
             .send_to_player(&record.id, Response::PlayerState(record.clone()))
             .await;
+        let inventory = db::PlayerInventory::load(&self.db, &record.id)?;
+        for (slot_index, entry) in inventory.items {
+            self.network_server
+                .send_to_player(
+                    &record.id,
+                    Response::PlayerInventoryRecord(slot_index, entry),
+                )
+                .await;
+        }
 
         Ok(())
     }

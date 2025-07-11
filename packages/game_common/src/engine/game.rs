@@ -2,6 +2,9 @@
 /// Things like experience, map changes, position changes, etc
 use db::AbilityExpRecord;
 
+use crate::entity::EEntity;
+use crate::entity::item::ItemEntity;
+
 use super::GameEngine;
 use super::entity::player::PlayerEntity;
 use super::game_event::EngineEvent;
@@ -42,6 +45,35 @@ pub fn default_handler(engine: &mut GameEngine, game_event: &GameEvent) {
                 println!("WARNING: player entity does not exist in engine for ability exp!");
             }
         }
+        GameEvent::PlayerPickUpRequest(player_entity_id) => {
+            let player_entity = engine.entities.get(player_entity_id).unwrap().clone();
+            let game_events_sender = engine.game_events.0.clone();
+            for item in engine
+                .entities_by_type::<ItemEntity>()
+                .cloned()
+                .collect::<Vec<_>>()
+            {
+                if item.rect().intersect(player_entity.rect()).is_empty() {
+                    continue;
+                }
+                // otherwise pick up the item
+                engine.remove_entity(item.id, false);
+                // mark user as having object
+                game_events_sender
+                    .send(GameEvent::PlayerPickUp(
+                        player_entity
+                            .extract_ref::<PlayerEntity>()
+                            .unwrap()
+                            .player_id
+                            .clone(),
+                        item.item_type,
+                        1,
+                    ))
+                    .unwrap();
+                return;
+            }
+        }
+        GameEvent::PlayerPickUp(_, _, _) => {}
         GameEvent::PlayerHealth(_, _) => {}
         GameEvent::Message(_, _) => {}
     }

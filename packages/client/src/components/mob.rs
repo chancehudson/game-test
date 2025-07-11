@@ -7,7 +7,7 @@ use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;
 use crate::plugins::engine::ActiveGameEngine;
 use crate::plugins::engine::GameEntityComponent;
-use crate::sprite_data_loader::SpriteDataAsset;
+use crate::plugins::game_data_loader::GameDataResource;
 use crate::sprite_data_loader::SpriteManager;
 
 pub struct MobPlugin;
@@ -77,9 +77,9 @@ fn animate_mobs(
         &mut Sprite,
     )>,
     active_game_engine: Res<ActiveGameEngine>,
-    sprite_data: Res<Assets<SpriteDataAsset>>,
-    sprite_manager: Res<SpriteManager>,
+    game_data: Res<GameDataResource>,
 ) {
+    let game_data = &game_data.0;
     for (e, mob, mut animated_sprite, mut sprite) in &mut query {
         let entity = active_game_engine.0.entities.get(&e.entity_id);
         if entity.is_none() {
@@ -87,9 +87,7 @@ fn animate_mobs(
         }
         let entity = entity.unwrap();
         if let EngineEntity::Mob(mob_data) = &entity {
-            let data = sprite_manager
-                .sprite_data_maybe(&mob_data.mob_type, &sprite_data)
-                .unwrap();
+            let data = game_data.mobs.get(&mob_data.mob_type).unwrap();
             if mob_data.velocity.x.abs() < 1 {
                 if sprite.image != mob.standing_texture {
                     sprite.image = mob.standing_texture.clone();
@@ -97,8 +95,8 @@ fn animate_mobs(
                         layout: mob.standing_texture_atlas_layout.clone(),
                         index: 0,
                     });
-                    animated_sprite.fps = data.standing.fps as u8;
-                    animated_sprite.frame_count = data.standing.frame_count as u8;
+                    animated_sprite.fps = data.standing_animation.fps as u8;
+                    animated_sprite.frame_count = data.standing_animation.frame_count as u8;
                 }
             } else {
                 if sprite.image != mob.walking_texture {
@@ -107,8 +105,8 @@ fn animate_mobs(
                         layout: mob.walking_texture_atlas_layout.clone(),
                         index: 0,
                     });
-                    animated_sprite.fps = data.walking.fps as u8;
-                    animated_sprite.frame_count = data.walking.frame_count as u8;
+                    animated_sprite.fps = data.walking_animation.fps as u8;
+                    animated_sprite.frame_count = data.walking_animation.frame_count as u8;
                 }
             }
         } else {
@@ -129,16 +127,17 @@ pub struct MobComponent {
 impl MobComponent {
     pub fn new(
         mob: MobEntity,
-        sprite_data: &Res<Assets<SpriteDataAsset>>,
         sprite_manager: &SpriteManager,
+        game_data: &Res<GameDataResource>,
     ) -> (Self, AnimatedSprite, Sprite) {
-        let data = sprite_manager
-            .sprite_data_maybe(&mob.mob_type, sprite_data)
+        let game_data = &game_data.0;
+        let data = game_data.mobs.get(&mob.mob_type).unwrap();
+        let (walking_handle, walking_atlas) = sprite_manager
+            .atlas(&data.walking_animation.sprite_sheet)
             .unwrap();
-        let (walking_handle, walking_atlas) =
-            sprite_manager.sprite(&data.walking.sprite_sheet).unwrap();
-        let (standing_handle, standing_atlas) =
-            sprite_manager.sprite(&data.standing.sprite_sheet).unwrap();
+        let (standing_handle, standing_atlas) = sprite_manager
+            .atlas(&data.standing_animation.sprite_sheet)
+            .unwrap();
         (
             MobComponent {
                 standing_texture: standing_handle.clone(),
@@ -147,8 +146,8 @@ impl MobComponent {
                 walking_texture_atlas_layout: walking_atlas.clone(),
             },
             AnimatedSprite {
-                frame_count: data.standing.frame_count as u8,
-                fps: data.standing.fps as u8,
+                frame_count: data.standing_animation.frame_count as u8,
+                fps: data.standing_animation.fps as u8,
                 time: 0.0,
             },
             Sprite {

@@ -8,7 +8,7 @@
 game_data
 profile.json
 
-assets/mob_manifest.json5
+assets/game_data.json5
 
 .wrangler/
 node_modules/

@@ -244,6 +244,7 @@ impl SEEntity for MobEntity {
                         EngineEntity::Item(ItemEntity::new_item(
                             rng.random(),
                             self.center(),
+                            1, // gold coin
                             player_entity_id,
                             engine.step_index,
                         )),

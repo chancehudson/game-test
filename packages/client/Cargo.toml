@@ -15,6 +15,7 @@ flume = { workspace = true }
 json5 = { workspace = true }
 rand = { workspace = true }
 web-time = { workspace = true }
+redb = { workspace = true }
 
 futures-util = "0.3.31"
 bevy = { version = "0.16.0", features = ["web", "jpeg"] }

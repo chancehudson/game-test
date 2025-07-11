@@ -1,7 +1,10 @@
 pub mod animated_sprite;
+pub mod database;
 pub mod engine;
 pub mod engine_sync;
+pub mod game_data_loader;
 pub mod gui;
 pub mod loading_screen;
 pub mod login_gui;
+pub mod player_inventory;
 pub mod smooth_camera;
