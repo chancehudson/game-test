@@ -245,6 +245,7 @@ impl SEEntity for MobEntity {
                             rng.random(),
                             self.center(),
                             1, // gold coin
+                            1, // amount
                             player_entity_id,
                             engine.step_index,
                         )),

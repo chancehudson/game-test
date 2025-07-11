@@ -16,6 +16,7 @@ use game_common::STEPS_PER_SECOND;
 use game_common::TRAILING_STATE_COUNT;
 use game_common::entity::EEntity;
 use game_common::entity::EngineEntity;
+use game_common::entity::item::ItemEntity;
 use game_common::entity::player::PlayerEntity;
 use game_common::game_event::EngineEvent;
 use game_common::game_event::GameEvent;
@@ -86,6 +87,32 @@ impl MapInstance {
             game_events,
             latest_processed_game_events: 0,
         })
+    }
+
+    pub async fn spawn_item(&mut self, player_id: &str, item: (u64, u32)) -> anyhow::Result<()> {
+        if let Some(player_engine) = self.player_engines.get(player_id) {
+            if let Some(entity) = self.engine.entities.get(&player_engine.entity_id).cloned() {
+                let new_entity_id = self.engine.generate_id();
+                let event = EngineEvent::SpawnEntity {
+                    id: rand::random(),
+                    entity: EngineEntity::Item(ItemEntity::new_item(
+                        new_entity_id,
+                        entity.center(),
+                        item.0,
+                        item.1,
+                        entity.id(),
+                        self.engine.step_index,
+                    )),
+                    universal: true,
+                };
+                self.pending_events
+                    .0
+                    .send((self.engine.step_index, event.clone()))?;
+                self.engine
+                    .register_event(Some(self.engine.step_index), event);
+            }
+        }
+        Ok(())
     }
 
     /// insert our new player into the map and send the current state

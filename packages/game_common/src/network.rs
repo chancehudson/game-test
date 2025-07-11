@@ -21,6 +21,9 @@ pub enum Action {
     RemoteEngineEvent(u128, EngineEvent, u64),
     // engine id, divergent step index
     RequestEngineReload(u128, u64),
+    PlayerInventorySwap((u8, u8)),
+    // slot index, count to drop
+    PlayerInventoryDrop(u8, u32),
     Ping,
 }
 

@@ -67,7 +67,7 @@ pub fn default_handler(engine: &mut GameEngine, game_event: &GameEvent) {
                             .player_id
                             .clone(),
                         item.item_type,
-                        1,
+                        item.count,
                     ))
                     .unwrap();
                 return;
