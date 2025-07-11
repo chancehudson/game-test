@@ -2,11 +2,6 @@ use bevy::prelude::*;
 
 use bevy_egui::EguiPlugin;
 
-use game_common::GameEngine;
-pub use game_common::MapData;
-pub use game_common::network::Action;
-pub use game_common::network::Response;
-
 mod components;
 mod interpolation;
 mod map;
@@ -17,7 +12,6 @@ mod sprite_data_loader;
 
 use network::NetworkMessage;
 
-use crate::sprite_data_loader::SpriteDataAsset;
 use crate::sprite_data_loader::SpriteManager;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
@@ -53,6 +47,9 @@ fn main() {
         .add_plugins(plugins::animated_sprite::AnimatedSpritePlugin)
         .add_plugins(plugins::login_gui::LoginGuiPlugin)
         .add_plugins(plugins::gui::GuiPlugin)
+        .add_plugins(plugins::game_data_loader::GameDataLoaderPlugin)
+        .add_plugins(plugins::player_inventory::PlayerInventoryPlugin)
+        .add_plugins(plugins::database::DatabasePlugin)
         // components
         .add_plugins(components::player::PlayerPlugin)
         .add_plugins(components::mob::MobPlugin)
@@ -60,17 +57,22 @@ fn main() {
         // nonsene
         .add_plugins(map::MapPlugin)
         .add_plugins(map_data_loader::MapDataLoaderPlugin)
-        .add_plugins(sprite_data_loader::SpriteDataLoaderPlugin)
         .add_plugins(network::NetworkPlugin)
-        .add_systems(FixedUpdate, load_sprite_manager)
+        .add_systems(FixedUpdate, build_sprite_atlases)
         .run();
 }
 
-fn load_sprite_manager(
+fn build_sprite_atlases(
     mut sprite_manager: ResMut<SpriteManager>,
     asset_server: Res<AssetServer>,
-    sprite_data: Res<Assets<SpriteDataAsset>>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    mut contexts: bevy_egui::EguiContexts,
+    images: Res<Assets<Image>>,
 ) {
-    sprite_manager.continue_loading(&asset_server, &sprite_data, &mut texture_atlas_layouts);
+    sprite_manager.build_atlases(
+        &asset_server,
+        &mut texture_atlas_layouts,
+        &mut contexts,
+        images,
+    );
 }

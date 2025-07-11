@@ -2053,6 +2053,7 @@ dependencies = [
  "js-sys",
  "json5",
  "rand 0.9.1",
+ "redb",
  "tokio",
  "tokio-tungstenite",
  "wasm-bindgen",

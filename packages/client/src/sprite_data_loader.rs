@@ -1,196 +1,112 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 
-use bevy::asset::AssetLoader;
-use bevy::asset::AsyncReadExt;
-use bevy::asset::LoadContext;
-use bevy::asset::io::Reader;
 use bevy::prelude::*;
-use bevy::reflect::TypePath;
-use bevy::tasks::ConditionalSendFuture;
+use bevy_egui::EguiContexts;
+use bevy_egui::egui;
+use bevy_egui::egui::TextureHandle;
 
-use game_common::data::mob::SPRITE_MANIFEST;
-use game_common::data::mob::SpriteAnimationData;
+use game_common::AnimationData;
 
-fn build_sprite_textures(
-    animation_data: &SpriteAnimationData,
-) -> Vec<(String, bevy::image::TextureAtlasLayout)> {
-    vec![
-        (
-            animation_data.standing.sprite_sheet.clone(),
-            bevy::image::TextureAtlasLayout::from_grid(
-                bevy_math::UVec2::new(
-                    animation_data.standing.width as u32,
-                    animation_data.size.y as u32,
-                ),
-                animation_data.standing.frame_count as u32,
-                1,
-                None,
-                None,
-            ),
-        ),
-        (
-            animation_data.walking.sprite_sheet.clone(),
-            bevy::image::TextureAtlasLayout::from_grid(
-                bevy_math::UVec2::new(
-                    animation_data.walking.width as u32,
-                    animation_data.size.y as u32,
-                ),
-                animation_data.walking.frame_count as u32,
-                1,
-                None,
-                None,
-            ),
-        ),
-    ]
+fn build_sprite_textures(animation_data: &AnimationData) -> bevy::image::TextureAtlasLayout {
+    bevy::image::TextureAtlasLayout::from_grid(
+        bevy_math::UVec2::new(animation_data.width as u32, animation_data.height as u32),
+        animation_data.frame_count as u32,
+        1,
+        None,
+        None,
+    )
 }
 
 #[derive(Resource, Default)]
 pub struct SpriteManager {
-    // first load the sprite data handle
-    // then load the images specified in the data file
-    sprite_data_handle_map: HashMap<u64, Handle<SpriteDataAsset>>,
     // filepath keyed to handle
+    pending_animations: HashMap<String, ()>,
+    animation_data: HashMap<String, AnimationData>,
+
     sprite_image_handle_map: HashMap<String, Handle<Image>>,
     sprite_texture_atlas_map: HashMap<String, Handle<TextureAtlasLayout>>,
-    sprite_id_to_images: HashMap<u64, HashSet<String>>,
+
+    egui_image_handle_map: HashMap<String, TextureHandle>,
 }
 
 impl SpriteManager {
-    pub fn is_loaded(&self, id: &u64, sprite_data: &Res<Assets<SpriteDataAsset>>) -> bool {
-        if let Some(data) = self.sprite_data_maybe(id, sprite_data) {
-            for (name, _atlas) in build_sprite_textures(&data) {
-                if self.sprite_texture_atlas_map.contains_key(&name)
-                    && self.sprite_image_handle_map.contains_key(&name)
-                {
-                    return true;
+    pub fn is_animation_loaded(
+        &self,
+        animation_data: &AnimationData,
+        asset_server: &Res<AssetServer>,
+    ) -> bool {
+        if let Some(handle) = self
+            .sprite_image_handle_map
+            .get(&animation_data.sprite_sheet)
+        {
+            return asset_server.is_loaded(handle.id())
+                && self
+                    .sprite_texture_atlas_map
+                    .contains_key(&animation_data.sprite_sheet);
+        }
+        false
+    }
+
+    pub fn load_animation(&mut self, data: &AnimationData) {
+        self.animation_data
+            .insert(data.sprite_sheet.clone(), data.clone());
+        self.pending_animations
+            .insert(data.sprite_sheet.clone(), ());
+    }
+
+    pub fn build_atlases(
+        &mut self,
+        asset_server: &Res<AssetServer>,
+        texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
+        contexts: &mut EguiContexts,
+        images: Res<Assets<Image>>,
+    ) {
+        let pending_animations = self.pending_animations.drain().collect::<HashMap<_, _>>();
+        for (name, _) in pending_animations {
+            let animation_data = self.animation_data.get(&name).unwrap();
+            if let Some(handle) = self.sprite_image_handle_map.get(&name) {
+                if asset_server.is_loaded(handle) {
+                    let atlas_handle =
+                        texture_atlas_layouts.add(build_sprite_textures(&animation_data));
+                    self.sprite_texture_atlas_map
+                        .insert(name.clone(), atlas_handle);
+                    // TODO: animation support
+                    if animation_data.is_static() {
+                        let bevy_image = images.get(handle).unwrap();
+                        let egui_image = egui::ColorImage::from_rgba_unmultiplied(
+                            [bevy_image.width() as usize, bevy_image.height() as usize],
+                            bevy_image.data.as_ref().unwrap(),
+                        );
+                        let egui_texture_handle = contexts.ctx_mut().load_texture(
+                            animation_data.sprite_sheet.clone(),
+                            egui_image,
+                            egui::TextureOptions::default(),
+                        );
+                        self.egui_image_handle_map.insert(name, egui_texture_handle);
+                    }
+                } else {
+                    // continue loading
+                    self.pending_animations.insert(name, ());
                 }
+            } else {
+                // start loading
+                self.pending_animations.insert(name.clone(), ());
+                let handle = asset_server.load(&name);
+                self.sprite_image_handle_map.insert(name, handle);
             }
         }
-        false
     }
 
-    pub fn image_handle(&self, image_path: &str) -> Handle<Image> {
-        self.sprite_image_handle_map
-            .get(image_path)
-            .unwrap()
-            .clone()
+    pub fn egui_handle(&self, name: &str) -> Option<&egui::TextureHandle> {
+        self.egui_image_handle_map.get(name)
     }
 
-    pub fn is_image_loaded(&self, image_path: &str, asset_server: &Res<AssetServer>) -> bool {
-        if let Some(handle) = self.sprite_image_handle_map.get(image_path) {
-            if asset_server.is_loaded(handle.id()) {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn load_image(&mut self, image_path: String, asset_server: &Res<AssetServer>) {
-        self.sprite_image_handle_map
-            .insert(image_path.clone(), asset_server.load(image_path));
-    }
-
-    pub fn load(&mut self, id: u64, asset_server: &Res<AssetServer>) {
-        if let Some(_) = self.sprite_data_handle_map.get(&id) {
-            return;
-        }
-        if let Some(filepath) = SPRITE_MANIFEST.get(&id) {
-            let handle = asset_server.load(filepath);
-            self.sprite_data_handle_map.insert(id, handle);
-        }
-    }
-
-    pub fn sprite(&self, name: &str) -> Option<(&Handle<Image>, &Handle<TextureAtlasLayout>)> {
+    pub fn atlas(&self, name: &str) -> Option<(&Handle<Image>, &Handle<TextureAtlasLayout>)> {
         if let Some(handle) = self.sprite_image_handle_map.get(name) {
             if let Some(atlas) = self.sprite_texture_atlas_map.get(name) {
                 return Some((handle, atlas));
             }
         }
         None
-    }
-
-    pub fn sprite_data_maybe(
-        &self,
-        id: &u64,
-        sprite_data: &Res<Assets<SpriteDataAsset>>,
-    ) -> Option<SpriteAnimationData> {
-        if let Some(handle) = self.sprite_data_handle_map.get(id) {
-            sprite_data.get(handle).and_then(|v| Some(v.0.clone()))
-        } else {
-            None
-        }
-    }
-
-    pub fn continue_loading(
-        &mut self,
-        asset_server: &Res<AssetServer>,
-        sprite_data: &Res<Assets<SpriteDataAsset>>,
-        texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
-    ) {
-        let loading_sprites = self
-            .sprite_data_handle_map
-            .iter()
-            .filter(|(id, _handle)| !self.sprite_id_to_images.contains_key(id))
-            .collect::<Vec<_>>();
-        for (id, handle) in loading_sprites {
-            if let Some(data) = sprite_data.get(handle) {
-                let mut sprite_id_images = HashSet::new();
-                for (name, atlas) in build_sprite_textures(&data.0) {
-                    let atlas_handle = texture_atlas_layouts.add(atlas);
-                    self.sprite_texture_atlas_map
-                        .insert(name.clone(), atlas_handle);
-                    self.sprite_image_handle_map
-                        .insert(name.clone(), asset_server.load(&name));
-                    sprite_id_images.insert(name.clone());
-                }
-                self.sprite_id_to_images.insert(*id, sprite_id_images);
-            }
-        }
-    }
-}
-
-// Custom asset to hold the config
-#[derive(Asset, TypePath, Debug)]
-pub struct SpriteDataAsset(pub SpriteAnimationData);
-
-// Asset loader for JSON files
-#[derive(Default)]
-struct SpriteDataLoader;
-
-// Implement asset loader
-impl AssetLoader for SpriteDataLoader {
-    type Asset = SpriteDataAsset;
-    type Settings = ();
-    type Error = anyhow::Error;
-
-    fn load<'a>(
-        &self,
-        reader: &'a mut dyn Reader,
-        _settings: &Self::Settings,
-        _load_context: &mut LoadContext,
-    ) -> impl ConditionalSendFuture
-    + futures_util::Future<
-        Output = Result<<Self as AssetLoader>::Asset, <Self as AssetLoader>::Error>,
-    > {
-        async move {
-            let mut data_str = String::new();
-            reader.read_to_string(&mut data_str).await?;
-            let data = json5::from_str(&data_str)?;
-            Ok(SpriteDataAsset(data))
-        }
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["sprite.json5"]
-    }
-}
-
-pub struct SpriteDataLoaderPlugin;
-
-impl Plugin for SpriteDataLoaderPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_asset::<SpriteDataAsset>()
-            .init_asset_loader::<SpriteDataLoader>();
     }
 }

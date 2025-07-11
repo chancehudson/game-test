@@ -1,7 +1,9 @@
 use bevy::prelude::*;
+use bevy_egui::EguiContextPass;
+use bevy_egui::EguiContexts;
+use bevy_egui::egui;
 use bevy_egui::egui::Color32;
 use bevy_egui::egui::RichText;
-use bevy_egui::{EguiContextPass, EguiContexts, egui};
 use web_time::Instant;
 
 use game_common::EngineInit;

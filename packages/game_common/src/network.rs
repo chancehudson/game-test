@@ -35,6 +35,10 @@ pub enum Response {
     // engine id, game events <step_index, <event_id, event>>, server step
     RemoteEngineEvents(u128, BTreeMap<u64, HashMap<u128, EngineEvent>>, u64),
     PlayerState(PlayerRecord),
+    // when a record in the inventory table changes
+    // the provided value _replaces_ the old value
+    // inventory slot, (item type, count)
+    PlayerInventoryRecord(u8, (u64, u32)),
     // from_map
     PlayerExitMap(String),
     LoginError(String),

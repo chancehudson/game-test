@@ -1,17 +1,26 @@
 {
-    sprite_type: 1,
+    id: 1,
     name: "blue duck",
     size: [37, 62],
-    standing: {
+    drop_table: [
+        {
+            item_id: 1,
+            odds: 1.0,
+            range: [1,10],
+        },
+    ],
+    standing_animation: {
         fps: 3,
         frame_count: 3,
         sprite_sheet: "sprites/duck_blue/standing.png",
         width: 37,
+        height: 62,
     },
-    walking: {
+    walking_animation: {
         fps: 5,
         frame_count: 4,
         sprite_sheet: "sprites/duck_blue/walk.png",
         width: 39,
+        height: 62,
     },
 }

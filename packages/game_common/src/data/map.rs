@@ -22,6 +22,7 @@ impl Platform {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct MapData {
+    pub id: u64,
     pub name: String,
     #[serde(deserialize_with = "deserialize_vec2")]
     pub spawn_location: IVec2,

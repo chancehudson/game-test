@@ -198,6 +198,12 @@ impl SEEntity for PlayerEntity {
                 }
             }
         }
+        if input.pick_up {
+            let game_events_channel = engine.game_events.0.clone();
+            game_events_channel
+                .send(GameEvent::PlayerPickUpRequest(self.id))
+                .unwrap();
+        }
         if let Some(weightless_until) = self.weightless_until {
             if step_index >= weightless_until {
                 next_self.weightless_until = None;

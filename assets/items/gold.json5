@@ -1,0 +1,14 @@
+{
+    id: 1,
+    name: "gold",
+    is_stackable: true,
+    is_droppable: true,
+    is_tradeable: true,
+    icon_animation: {
+        fps: 1,
+        frame_count: 1,
+        sprite_sheet: "sprites/gold_icon.png",
+        width: 50,
+        height: 50,
+    },
+}

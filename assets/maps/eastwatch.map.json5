@@ -1,4 +1,5 @@
 {
+    id: 2,
     name: "eastwatch",
     size: [3000, 1500],
     spawn_location: [200, 100],
@@ -13,7 +14,7 @@
             asset: "flower.png",
             name: "welcome_flower",
             position: [700, 0],
-            size: [50, 50],
+            size: [100, 100],
             announcements: ["Hello! Welcome to [redacted]! Have a nice day!"]
         }
     ],

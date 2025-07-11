@@ -1,0 +1,6 @@
+{
+  id: 1,
+  asset: "flower.png",
+  announcements: ["Hello! Welcome to [redacted]! Have a nice day!"],
+  size: [100,100],
+}

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use bevy_math::IVec2;
 
 use db::AbilityExpRecord;
+use db::PlayerInventory;
 use db::PlayerRecord;
 use db::PlayerStats;
 use game_common::EngineInit;
@@ -280,6 +281,24 @@ impl MapInstance {
             // handle game events that occurred during a step
             match game_event {
                 GameEvent::Message(_, _) => {}
+                GameEvent::PlayerPickUpRequest(_) => {}
+                GameEvent::PlayerPickUp(player_id, item_type, count) => {
+                    let mut inventory = PlayerInventory::new(player_id.to_string());
+                    match inventory.player_picked_up(self.db.clone(), item_type, count)? {
+                        Some((slot_index, new_record)) => {
+                            println!("{:?} {:?}", slot_index, new_record);
+                            self.network_server
+                                .send_to_player(
+                                    &player_id,
+                                    Response::PlayerInventoryRecord(slot_index, new_record),
+                                )
+                                .await;
+                        }
+                        None => {
+                            println!("WARNING: player inventory is full. TODO: notify player");
+                        }
+                    }
+                }
                 GameEvent::PlayerEnterPortal {
                     player_id: _,
                     entity_id: _,

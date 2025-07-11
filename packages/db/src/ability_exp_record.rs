@@ -4,9 +4,15 @@
 use std::cell::LazyCell;
 use std::collections::BTreeMap;
 
+use anyhow::Result;
+use redb::ReadableTable;
+use redb::TableDefinition;
 use serde::Deserialize;
 use serde::Serialize;
 use strum::EnumIter;
+
+pub const ABILITY_EXP_TABLE: redb::TableDefinition<(Ability, String), AbilityExpRecord> =
+    TableDefinition::new("player_ability_exp");
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Hash, Eq, EnumIter, PartialOrd, Ord)]
 #[repr(u8)]
@@ -76,106 +82,94 @@ impl AbilityExpRecord {
     }
 }
 
-#[cfg(feature = "server")]
-pub mod server_only {
-    use super::*;
-
-    use anyhow::Result;
-    use redb::ReadableTable;
-    use redb::TableDefinition;
-
-    pub const ABILITY_EXP_TABLE: redb::TableDefinition<(Ability, String), AbilityExpRecord> =
-        TableDefinition::new("player_ability_exp");
-
-    impl AbilityExpRecord {
-        pub fn init(db: &redb::Database) -> Result<()> {
-            let write = db.begin_write()?;
-            write.open_table(ABILITY_EXP_TABLE)?;
-            write.commit()?;
-            Ok(())
-        }
-
-        pub fn key(player_id: &str, ability: &Ability) -> Result<(Ability, String)> {
-            Ok((ability.clone(), player_id.to_string()))
-        }
-
-        /// Register some new experience
-        pub fn increment(db: &redb::Database, new_exp: &AbilityExpRecord) -> Result<Self> {
-            let write = db.begin_write()?;
-            let mut ability_exp_table = write.open_table(ABILITY_EXP_TABLE)?;
-            let key = Self::key(&new_exp.player_id, &new_exp.ability)?;
-            let new_record = match ability_exp_table.get(&key)? {
-                Some(old_record) => {
-                    let old_record = old_record.value();
-                    old_record.combine(new_exp)
-                }
-                None => new_exp.clone(),
-            };
-            ability_exp_table.insert(key, new_record.clone())?;
-            drop(ability_exp_table);
-            write.commit()?;
-            Ok(new_record)
-        }
+impl AbilityExpRecord {
+    pub fn init(db: &redb::Database) -> Result<()> {
+        let write = db.begin_write()?;
+        write.open_table(ABILITY_EXP_TABLE)?;
+        write.commit()?;
+        Ok(())
     }
 
-    impl redb::Value for AbilityExpRecord {
-        type SelfType<'a> = AbilityExpRecord;
-        type AsBytes<'a> = Vec<u8>;
-
-        fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
-        where
-            Self: 'b,
-        {
-            bincode::serialize(value).unwrap()
-        }
-
-        fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
-        where
-            Self: 'a,
-        {
-            bincode::deserialize(data).unwrap()
-        }
-        fn type_name() -> redb::TypeName {
-            redb::TypeName::new("AbilityExpRecord")
-        }
-
-        fn fixed_width() -> Option<usize> {
-            None
-        }
+    pub fn key(player_id: &str, ability: &Ability) -> Result<(Ability, String)> {
+        Ok((ability.clone(), player_id.to_string()))
     }
 
-    impl redb::Key for Ability {
-        fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
-            let ability1: Ability = bincode::deserialize(data1).unwrap();
-            let ability2: Ability = bincode::deserialize(data2).unwrap();
-            ability1.cmp(&ability2)
-        }
+    /// Register some new experience
+    pub fn increment(db: &redb::Database, new_exp: &AbilityExpRecord) -> Result<Self> {
+        let write = db.begin_write()?;
+        let mut ability_exp_table = write.open_table(ABILITY_EXP_TABLE)?;
+        let key = Self::key(&new_exp.player_id, &new_exp.ability)?;
+        let new_record = match ability_exp_table.get(&key)? {
+            Some(old_record) => {
+                let old_record = old_record.value();
+                old_record.combine(new_exp)
+            }
+            None => new_exp.clone(),
+        };
+        ability_exp_table.insert(key, new_record.clone())?;
+        drop(ability_exp_table);
+        write.commit()?;
+        Ok(new_record)
+    }
+}
+
+impl redb::Value for AbilityExpRecord {
+    type SelfType<'a> = AbilityExpRecord;
+    type AsBytes<'a> = Vec<u8>;
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+    where
+        Self: 'b,
+    {
+        bincode::serialize(value).unwrap()
     }
 
-    impl redb::Value for Ability {
-        type SelfType<'a> = Ability;
-        type AsBytes<'a> = Vec<u8>;
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        bincode::deserialize(data).unwrap()
+    }
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new("AbilityExpRecord")
+    }
 
-        fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
-        where
-            Self: 'b,
-        {
-            bincode::serialize(value).unwrap()
-        }
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+}
 
-        fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
-        where
-            Self: 'a,
-        {
-            bincode::deserialize(data).unwrap()
-        }
-        fn type_name() -> redb::TypeName {
-            redb::TypeName::new("Ability")
-        }
+impl redb::Key for Ability {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        let ability1: Ability = bincode::deserialize(data1).unwrap();
+        let ability2: Ability = bincode::deserialize(data2).unwrap();
+        ability1.cmp(&ability2)
+    }
+}
 
-        fn fixed_width() -> Option<usize> {
-            Some(1)
-        }
+impl redb::Value for Ability {
+    type SelfType<'a> = Ability;
+    type AsBytes<'a> = Vec<u8>;
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+    where
+        Self: 'b,
+    {
+        bincode::serialize(value).unwrap()
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        bincode::deserialize(data).unwrap()
+    }
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new("Ability")
+    }
+
+    fn fixed_width() -> Option<usize> {
+        Some(1)
     }
 }
 

@@ -3,11 +3,14 @@
 /// TODO: figure out how to handle relogging to drop debuffs (debuffs probably won't be a thing for a while)
 use std::collections::HashMap;
 
+use anyhow::Result;
 use serde::Deserialize;
 use serde::Serialize;
+use strum::IntoEnumIterator;
 
 use super::Ability;
 use super::AbilityExpRecord;
+use crate::ability_exp_record::ABILITY_EXP_TABLE;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct PlayerStats {
@@ -100,48 +103,34 @@ impl PlayerStats {
     }
 }
 
-#[cfg(feature = "server")]
-mod server_only {
-    use super::*;
-
-    use strum::IntoEnumIterator;
-
-    use crate::ability_exp_record::server_only::ABILITY_EXP_TABLE;
-    use anyhow::Result;
-
-    impl PlayerStats {
-        pub fn increment_db(
-            &mut self,
-            db: &redb::Database,
-            new_exp: &AbilityExpRecord,
-        ) -> Result<()> {
-            let new_exp = AbilityExpRecord::increment(db, new_exp)?;
-            // if our local ability_exp doesn't match we need to panic or overwrite
-            if new_exp != *self.ability_exp.get(&new_exp.ability).unwrap() {
-                println!("WARNING: mismatch between db exp and in memory exp");
-                println!(
-                    "    expected: {:?} actual: {:?}",
-                    new_exp,
-                    self.ability_exp.get(&new_exp.ability)
-                );
-            }
-            Ok(())
+impl PlayerStats {
+    pub fn increment_db(&mut self, db: &redb::Database, new_exp: &AbilityExpRecord) -> Result<()> {
+        let new_exp = AbilityExpRecord::increment(db, new_exp)?;
+        // if our local ability_exp doesn't match we need to panic or overwrite
+        if new_exp != *self.ability_exp.get(&new_exp.ability).unwrap() {
+            println!("WARNING: mismatch between db exp and in memory exp");
+            println!(
+                "    expected: {:?} actual: {:?}",
+                new_exp,
+                self.ability_exp.get(&new_exp.ability)
+            );
         }
+        Ok(())
+    }
 
-        pub fn by_id(db: &redb::Database, player_id: &str) -> Result<Self> {
-            let mut out = Self::default();
-            let read = db.begin_read()?;
-            let ability_exp_table = read.open_table(ABILITY_EXP_TABLE)?;
-            for ability in Ability::iter() {
-                let key = AbilityExpRecord::key(player_id, &ability)?;
-                match ability_exp_table.get(key)? {
-                    Some(ability_exp) => {
-                        out.ability_exp.insert(ability.clone(), ability_exp.value());
-                    }
-                    None => {}
+    pub fn by_id(db: &redb::Database, player_id: &str) -> Result<Self> {
+        let mut out = Self::default();
+        let read = db.begin_read()?;
+        let ability_exp_table = read.open_table(ABILITY_EXP_TABLE)?;
+        for ability in Ability::iter() {
+            let key = AbilityExpRecord::key(player_id, &ability)?;
+            match ability_exp_table.get(key)? {
+                Some(ability_exp) => {
+                    out.ability_exp.insert(ability.clone(), ability_exp.value());
                 }
+                None => {}
             }
-            Ok(out)
         }
+        Ok(out)
     }
 }

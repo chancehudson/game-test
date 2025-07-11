@@ -32,6 +32,7 @@ pub struct EntityInput {
     pub admin_enable_debug_markers: bool,
     pub show_emoji: bool,
     pub respawn: bool,
+    pub pick_up: bool,
 }
 
 /// An entity that exists inside the engine.

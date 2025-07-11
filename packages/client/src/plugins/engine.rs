@@ -4,20 +4,20 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use db::PlayerRecord;
+use game_common::AnimationData;
 use game_common::STEP_DELAY;
 use game_common::STEP_LEN_S;
+use game_common::engine::GameEngine;
 use game_common::entity::EEntity;
 use game_common::entity::EngineEntity;
 use game_common::entity::mob::MobEntity;
 use game_common::game_event::GameEvent;
+use game_common::network::Action;
+use game_common::network::Response;
 use game_common::timestamp;
 
-use crate::Action;
-use crate::GameEngine;
 use crate::GameState;
 use crate::NetworkMessage;
-use crate::Response;
-use crate::SpriteDataAsset;
 use crate::SpriteManager;
 use crate::components::mob::MobComponent;
 use crate::components::player::PlayerComponent;
@@ -26,7 +26,9 @@ use crate::interpolation::Interpolation;
 use crate::interpolation::interpolate_mobs;
 use crate::map::MapEntity;
 use crate::network::NetworkAction;
+use crate::plugins::animated_sprite::AnimatedSprite;
 use crate::plugins::engine_sync::EngineSyncInfo;
+use crate::plugins::game_data_loader::GameDataResource;
 
 /// Engine tracking resources/components
 ///
@@ -121,7 +123,6 @@ fn step_game_engine(
         } else if steps >= 10 {
             engine.step();
             engine.step();
-            println!("double step");
         } else {
             engine.step();
         }
@@ -133,6 +134,9 @@ fn step_game_engine(
         match event {
             GameEvent::Message(_, _) => {
                 // spawn a message in bevy
+            }
+            GameEvent::PlayerPickUp(_, _, _) => {
+                // TODO: optimistically make update
             }
             _ => {}
         }
@@ -271,9 +275,9 @@ pub fn sync_engine_components(
     mut entity_query: Query<(Entity, &mut GameEntityComponent, &mut Transform)>,
     asset_server: Res<AssetServer>,
     mut sprite_manager: ResMut<SpriteManager>,
-    sprite_data: Res<Assets<SpriteDataAsset>>,
     active_player_entity_id: Res<ActivePlayerEntityId>,
     mut interpolating_entities: ResMut<InterpolatingEntities>,
+    game_data: Res<GameDataResource>,
 ) {
     let player_entity_id = active_player_entity_id.0.unwrap_or_default();
     let engine = &active_engine_state.0;
@@ -353,27 +357,27 @@ pub fn sync_engine_components(
     // we're left with game entities we need to spawn
     for (_id, engine_entity) in current_entities {
         spawn_bevy_entity(
+            &game_data,
             engine_entity,
             &mut commands,
             &asset_server,
             &mut sprite_manager,
-            &sprite_data,
         );
     }
 }
 
 pub fn spawn_bevy_entity(
+    game_data: &Res<GameDataResource>,
     engine_entity: &EngineEntity,
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     sprite_manager: &mut ResMut<SpriteManager>,
-    sprite_data: &Res<Assets<SpriteDataAsset>>,
 ) {
     match engine_entity {
         EngineEntity::Player(p) => {
-            println!("spawning player {:?}", p);
-            if !sprite_manager.is_loaded(&0, &sprite_data) {
-                sprite_manager.load(0, &asset_server);
+            let default_animation = PlayerComponent::default_animation();
+            if !sprite_manager.is_animation_loaded(&default_animation, asset_server) {
+                sprite_manager.load_animation(&default_animation);
                 return;
             }
             commands.spawn((
@@ -388,9 +392,20 @@ pub fn spawn_bevy_entity(
         }
         EngineEntity::MobSpawner(_) => {}
         EngineEntity::Mob(p) => {
-            if !sprite_manager.is_loaded(&p.mob_type, &sprite_data) {
-                sprite_manager.load(p.mob_type, &asset_server);
+            let mob_data = if let Some(mob_data) = game_data.0.mobs.get(&p.mob_type) {
+                mob_data
+            } else {
+                println!(
+                    "WARNING: unable to find mob data for mob type: {}",
+                    p.mob_type
+                );
                 return;
+            };
+            for animation_data in vec![&mob_data.walking_animation, &mob_data.standing_animation] {
+                if !sprite_manager.is_animation_loaded(&animation_data, asset_server) {
+                    sprite_manager.load_animation(&animation_data);
+                    return;
+                }
             }
             commands.spawn((
                 GameEntityComponent {
@@ -403,7 +418,7 @@ pub fn spawn_bevy_entity(
                 //     font_size: 8.0,
                 //     ..default()
                 // },
-                MobComponent::new(p.clone(), &sprite_data, sprite_manager.as_ref()),
+                MobComponent::new(p.clone(), sprite_manager, game_data),
                 MapEntity,
             ));
         }
@@ -456,9 +471,10 @@ pub fn spawn_bevy_entity(
             ));
         }
         EngineEntity::Emoji(p) => {
-            let asset_name = "reactions/eqib.jpg".to_string();
-            if !sprite_manager.is_image_loaded(&asset_name, &asset_server) {
-                sprite_manager.load_image(asset_name.clone(), &asset_server);
+            let animation =
+                AnimationData::static_data("reactions/eqib.jpg", UVec2 { x: 25, y: 25 });
+            if !sprite_manager.is_animation_loaded(&animation, &asset_server) {
+                sprite_manager.load_animation(&animation);
                 return;
             }
             commands.spawn((
@@ -469,7 +485,11 @@ pub fn spawn_bevy_entity(
                 Transform::from_translation(p.position_f32().extend(20.0)),
                 MapEntity,
                 Sprite {
-                    image: sprite_manager.image_handle(&asset_name),
+                    image: sprite_manager
+                        .atlas(&animation.sprite_sheet)
+                        .unwrap()
+                        .0
+                        .clone(),
                     custom_size: Some(p.size_f32()),
                     anchor: bevy::sprite::Anchor::BottomLeft,
                     ..default()
@@ -493,6 +513,23 @@ pub fn spawn_bevy_entity(
             ));
         }
         EngineEntity::Item(p) => {
+            let item_data = if let Some(item_data) = game_data.0.items.get(&p.item_type) {
+                item_data
+            } else {
+                println!(
+                    "WARNING: unable to find item data for item type: {}",
+                    p.item_type
+                );
+                return;
+            };
+            if !sprite_manager.is_animation_loaded(&item_data.icon_animation, &asset_server) {
+                sprite_manager.load_animation(&item_data.icon_animation);
+                return;
+            }
+            let (handle, atlas) = sprite_manager
+                .atlas(&item_data.icon_animation.sprite_sheet)
+                .unwrap();
+
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
@@ -500,10 +537,20 @@ pub fn spawn_bevy_entity(
                 },
                 Transform::from_translation(p.position_f32().extend(20.0)),
                 MapEntity,
+                AnimatedSprite {
+                    frame_count: item_data.icon_animation.frame_count as u8,
+                    fps: item_data.icon_animation.fps as u8,
+                    time: 0.0,
+                },
                 Sprite {
+                    image: handle.clone(),
+                    texture_atlas: Some(TextureAtlas {
+                        layout: atlas.clone(),
+                        index: 0,
+                    }),
                     custom_size: Some(p.size_f32()),
                     anchor: bevy::sprite::Anchor::BottomLeft,
-                    color: Color::srgb(1.0, 0.0, 0.0),
+                    // color: Color::srgb(1.0, 0.0, 0.0),
                     ..default()
                 },
             ));

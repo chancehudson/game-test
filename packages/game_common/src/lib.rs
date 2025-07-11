@@ -17,6 +17,23 @@ pub struct AnimationData {
     pub fps: usize,
     pub sprite_sheet: String,
     pub width: usize,
+    pub height: usize,
+}
+
+impl AnimationData {
+    pub fn static_data(sprite_sheet: &str, size: bevy_math::UVec2) -> Self {
+        Self {
+            frame_count: 1,
+            fps: 1,
+            sprite_sheet: sprite_sheet.to_string(),
+            width: size.x as usize,
+            height: size.y as usize,
+        }
+    }
+
+    pub fn is_static(&self) -> bool {
+        self.frame_count == 1
+    }
 }
 
 // how many steps each client is behind the server
