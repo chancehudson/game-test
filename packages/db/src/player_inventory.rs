@@ -52,6 +52,80 @@ impl PlayerInventory {
         Ok(out)
     }
 
+    pub fn drop(
+        &mut self,
+        db: Arc<redb::Database>,
+        slot_index: u8,
+        count: u32,
+    ) -> Result<Option<(u64, u32)>> {
+        #[cfg(debug_assertions)]
+        assert_ne!(count, 0);
+        let write = db.begin_write()?;
+        let drop = {
+            let mut inventory_table = write.open_table(PLAYER_INVENTORY_TABLE)?;
+            let key = (self.player_id.as_str(), slot_index);
+            let item_maybe = inventory_table.get(key)?.map(|v| v.value());
+            match item_maybe {
+                Some(item) => {
+                    let drop_count = item.1.min(count);
+                    #[cfg(debug_assertions)]
+                    assert_ne!(drop_count, 0);
+                    let mut item = item.clone();
+                    item.1 -= drop_count;
+                    if item.1 == 0 {
+                        inventory_table.remove(key)?;
+                        self.items.remove(&slot_index);
+                    } else {
+                        inventory_table.insert(key, item)?;
+                        self.items.insert(slot_index, item);
+                    }
+                    Some((item.0, drop_count))
+                }
+                None => {
+                    #[cfg(debug_assertions)]
+                    assert!(false);
+                    None
+                }
+            }
+        };
+        write.commit()?;
+        Ok(drop)
+    }
+
+    pub fn swap(&mut self, db: Arc<redb::Database>, indices: (u8, u8)) -> Result<()> {
+        #[cfg(debug_assertions)]
+        assert_ne!(indices.0, indices.1);
+        let write = db.begin_write()?;
+        {
+            let mut inventory_table = write.open_table(PLAYER_INVENTORY_TABLE)?;
+            let item_0 = inventory_table
+                .remove((self.player_id.as_str(), indices.0))?
+                .map(|v| v.value());
+            let item_1 = inventory_table
+                .remove((self.player_id.as_str(), indices.1))?
+                .map(|v| v.value());
+            match item_0 {
+                Some(entry) => {
+                    inventory_table.insert((self.player_id.as_str(), indices.1), entry)?;
+                    self.items.insert(indices.1, entry);
+                }
+                None => {
+                    self.items.remove(&indices.1);
+                }
+            }
+            match item_1 {
+                Some(entry) => {
+                    inventory_table.insert((self.player_id.as_str(), indices.0), entry)?;
+                }
+                None => {
+                    self.items.remove(&indices.0);
+                }
+            }
+        }
+        write.commit()?;
+        Ok(())
+    }
+
     pub fn insert(
         &mut self,
         db: Arc<redb::Database>,

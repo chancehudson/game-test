@@ -3,17 +3,19 @@ use bevy_egui::EguiContexts;
 use bevy_egui::egui;
 use bevy_egui::egui::Align2;
 use bevy_egui::egui::Color32;
-use bevy_egui::egui::CornerRadius;
 use bevy_egui::egui::FontId;
+use bevy_egui::egui::Id;
 use bevy_egui::egui::Pos2;
 use bevy_egui::egui::Rect;
 use bevy_egui::egui::ScrollArea;
 
 use db::PlayerInventory;
 use game_common::data::GameData;
+use game_common::network::Action;
 use game_common::network::Response;
 
 use crate::GameState;
+use crate::network::NetworkAction;
 use crate::network::NetworkMessage;
 use crate::plugins::database::Database;
 use crate::plugins::game_data_loader::GameDataResource;
@@ -35,14 +37,6 @@ pub struct PlayerInventoryGuiData {
     position: Pos2,
     dragging_index: u8,
     is_dragging: bool,
-    drag_start_pos: Pos2,
-    drag_current_pos: Pos2,
-}
-
-impl PlayerInventoryGuiData {
-    pub fn offset(&self) -> Pos2 {
-        self.position + (self.drag_current_pos - self.drag_start_pos)
-    }
 }
 
 pub struct PlayerInventoryPlugin;
@@ -92,16 +86,10 @@ fn draw_drag_window(
     if !inventory_gui_data.is_dragging {
         return;
     }
-    egui::Window::new("item_drag")
-        .fixed_rect(rect)
-        .title_bar(false)
-        .collapsible(false)
+    egui::Area::new(Id::new("item_drag"))
         .interactable(false)
-        .frame(egui::Frame {
-            fill: egui::Color32::TRANSPARENT, // Transparent background
-            corner_radius: CornerRadius::ZERO,
-            ..Default::default()
-        })
+        .fixed_pos(rect.min)
+        .order(egui::Order::Foreground)
         .show(contexts.ctx_mut(), |ui| {
             ui.allocate_exact_size(rect.size(), egui::Sense::empty());
             #[cfg(debug_assertions)]
@@ -134,16 +122,19 @@ fn draw_drag_window(
 
 fn show_inventory_gui(
     mut contexts: EguiContexts,
-    player_inventory: Res<PlayerInventoryRes>,
+    mut player_inventory: ResMut<PlayerInventoryRes>,
+    database: Res<Database>,
     game_data: Res<GameDataResource>,
     mut sprite_manager: ResMut<SpriteManager>,
     asset_server: Res<AssetServer>,
     mut inventory_gui_data: ResMut<PlayerInventoryGuiData>,
+    mut action_events: EventWriter<NetworkAction>,
 ) {
     let game_data = &game_data.0;
     let item_size = egui::Vec2::new(50.0, 50.0);
+    let pointer_pos = contexts.ctx_mut().pointer_latest_pos().unwrap_or_default();
     draw_drag_window(
-        Rect::from_min_size(inventory_gui_data.offset(), item_size),
+        Rect::from_min_size(pointer_pos + egui::Vec2::splat(3.), item_size),
         &mut contexts,
         &game_data,
         &mut sprite_manager,
@@ -159,7 +150,27 @@ fn show_inventory_gui(
             ScrollArea::vertical()
                 .auto_shrink([false, true])
                 .show_viewport(ui, |ui, _viewport| {
-                    let items_per_row = 8usize;
+                    let is_dragging_last_frame = inventory_gui_data.is_dragging;
+                    if inventory_gui_data.is_dragging && !ui.input(|i| i.pointer.primary_down()) {
+                        inventory_gui_data.is_dragging = false;
+                        let mouse_pos = ui.input(|i| i.pointer.interact_pos()).unwrap_or_default();
+                        if !ui.clip_rect().contains(mouse_pos) {
+                            // it's a drop
+                            player_inventory
+                                .0
+                                .drop(
+                                    database.0.clone(),
+                                    inventory_gui_data.dragging_entry.0,
+                                    inventory_gui_data.dragging_entry.1.1,
+                                )
+                                .unwrap();
+                            action_events.write(NetworkAction(Action::PlayerInventoryDrop(
+                                inventory_gui_data.dragging_entry.0,
+                                inventory_gui_data.dragging_entry.1.1,
+                            )));
+                        }
+                    }
+                    let items_per_row = 5usize;
 
                     for row in 0..=(u8::MAX as usize / items_per_row) {
                         ui.horizontal(|ui| {
@@ -179,31 +190,47 @@ fn show_inventory_gui(
                                     egui::epaint::StrokeKind::Inside, // or Inside, Center
                                 );
 
-                                if player_inventory.0.items.get(&i).is_none() {
-                                    // disallow interaction if slot is empty
-                                    continue;
-                                }
-                                let (item_type, count) = player_inventory.0.items.get(&i).unwrap();
-                                if response.drag_started() {
-                                    inventory_gui_data.dragging_entry = (i, (*item_type, *count));
+                                let entry_maybe =
+                                    player_inventory.0.items.get(&i).map(|v| v.clone());
+                                if response.drag_started()
+                                    && let Some(entry) = entry_maybe
+                                {
+                                    inventory_gui_data.dragging_entry = (i, entry);
                                     inventory_gui_data.position = rect.min;
                                     inventory_gui_data.is_dragging = true;
                                     inventory_gui_data.dragging_index = i;
-                                    inventory_gui_data.drag_start_pos =
-                                        response.interact_pointer_pos().unwrap_or_default();
                                 }
-                                if inventory_gui_data.is_dragging {
-                                    // Use global input instead of response.dragged()
-                                    if let Some(pointer_pos) = ui.ctx().pointer_latest_pos() {
-                                        inventory_gui_data.drag_current_pos = pointer_pos;
-                                    }
 
-                                    // Stop dragging when mouse released
-                                    if !ui.input(|i| i.pointer.primary_down()) {
-                                        inventory_gui_data.is_dragging = false;
+                                // Stop dragging when mouse released
+                                if is_dragging_last_frame && !ui.input(|i| i.pointer.primary_down())
+                                {
+                                    let mouse_pos =
+                                        ui.input(|i| i.pointer.interact_pos()).unwrap_or_default();
+                                    if rect.contains(mouse_pos)
+                                        && inventory_gui_data.dragging_entry.0 != i
+                                    {
+                                        // atomic swap slot contents
+                                        player_inventory
+                                            .0
+                                            .swap(
+                                                database.0.clone(),
+                                                (inventory_gui_data.dragging_entry.0, i),
+                                            )
+                                            .unwrap();
+                                        action_events.write(NetworkAction(
+                                            Action::PlayerInventorySwap((
+                                                inventory_gui_data.dragging_entry.0,
+                                                i,
+                                            )),
+                                        ));
                                     }
                                 }
-                                if let Some(item) = game_data.items.get(item_type) {
+                                // render icon, only if not being dragged
+                                if let Some((item_type, count)) = entry_maybe
+                                    && let Some(item) = game_data.items.get(&item_type)
+                                    && (!is_dragging_last_frame
+                                        || inventory_gui_data.dragging_entry.0 != i)
+                                {
                                     if !sprite_manager
                                         .is_animation_loaded(&item.icon_animation, &asset_server)
                                     {
@@ -226,12 +253,6 @@ fn show_inventory_gui(
                                             Color32::WHITE,
                                         );
                                     }
-                                } else {
-                                    println!(
-                                        "Item with unknown id: {} {:?}",
-                                        item_type, game_data.items
-                                    );
-                                    unreachable!();
                                 }
                             }
                         });

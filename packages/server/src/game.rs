@@ -7,7 +7,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use db::AbilityExpRecord;
 use db::DEFAULT_MAP;
 use db::PlayerInventory;
 use db::PlayerStats;
@@ -225,6 +224,35 @@ impl Game {
                         .send(&socket_id, Response::LoginError(e.to_string()))
                         .await?;
                 }
+            }
+            Action::PlayerInventoryDrop(slot_index, count) => {
+                let player_id = self.network_server.player_by_socket_id(&socket_id).await;
+                if player_id.is_none() {
+                    println!("No player id for socket {} !", socket_id);
+                    return Ok(());
+                }
+                let player_id = player_id.unwrap();
+                let mut inventory = PlayerInventory::new(player_id);
+                if let Some(dropped) = inventory.drop(self.db.clone(), slot_index, count)? {
+                    if let Some(instance) = self.instance_for_player_id.get(&inventory.player_id) {
+                        instance
+                            .1
+                            .write()
+                            .await
+                            .spawn_item(&inventory.player_id, dropped)
+                            .await?;
+                    }
+                }
+            }
+            Action::PlayerInventorySwap(slots) => {
+                let player_id = self.network_server.player_by_socket_id(&socket_id).await;
+                if player_id.is_none() {
+                    println!("No player id for socket {} !", socket_id);
+                    return Ok(());
+                }
+                let player_id = player_id.unwrap();
+                let mut inventory = PlayerInventory::new(player_id);
+                inventory.swap(self.db.clone(), slots)?;
             }
             Action::RemoteEngineEvent(engine_id, event, step_index) => {
                 let player_id = self.network_server.player_by_socket_id(&socket_id).await;

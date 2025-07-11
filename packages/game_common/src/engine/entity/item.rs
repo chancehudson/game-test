@@ -14,6 +14,7 @@ pub struct ItemEntity {
     #[serde(default)]
     pub id: u128,
     pub item_type: u64,
+    pub count: u32,
     #[serde(default)]
     pub position: bevy_math::IVec2,
     #[serde(default)]
@@ -33,12 +34,14 @@ impl ItemEntity {
         id: u128,
         position: IVec2,
         item_type: u64,
+        count: u32,
         player_creator_id: u128,
         current_step: u64,
     ) -> Self {
         Self {
             id,
             item_type,
+            count,
             position,
             size: IVec2 { x: 25, y: 25 },
             velocity: IVec2 { x: 0, y: 350 },
