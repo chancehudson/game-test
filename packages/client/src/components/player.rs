@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use game_common::AnimationData;
 use game_common::entity::EngineEntity;
 use game_common::entity::EntityInput;
+use game_common::entity::player::PlayerEntity;
 use game_common::game_event::EngineEvent;
 use game_common::network::Action;
 
@@ -187,13 +188,24 @@ fn input_system(
             show_emoji: keyboard.just_pressed(KeyCode::KeyQ),
             respawn: keyboard.just_pressed(KeyCode::KeyR),
             pick_up: keyboard.just_pressed(KeyCode::KeyZ),
+            message: if keyboard.pressed(KeyCode::KeyM) {
+                Some("hello world".to_string())
+            } else {
+                None
+            },
         };
-        let (_latest_input_step, latest_input) = engine.latest_input(&entity_id);
-        if latest_input == input {
+        let (_, latest_input) =
+            if let Some(player_entity) = engine.entity_by_id::<PlayerEntity>(&entity_id, None) {
+                &player_entity.input_system.latest_input
+            } else {
+                println!("WARNING: player entity not found for input");
+                return;
+            };
+
+        if latest_input == &input {
             return;
         }
         let input_event = EngineEvent::Input {
-            id: rand::random(), // generate a random value, will receive actual value in future ?
             input: input.clone(),
             entity_id,
             universal: true,

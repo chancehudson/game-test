@@ -37,10 +37,10 @@ pub mod damage_calc;
 pub mod entity;
 pub mod game;
 pub mod game_event;
+pub mod system;
 
 use entity::EEntity;
 use entity::EngineEntity;
-use entity::EntityInput;
 use entity::SEEntity;
 use game_event::*;
 
@@ -75,8 +75,9 @@ pub struct GameEngine {
     pub entities_by_step: BTreeMap<u64, BTreeMap<u128, EngineEntity>>,
 
     // engine events may be scheduled for the future, game events may not
-    pub events_by_type: HashMap<EngineEventType, BTreeMap<u64, BTreeMap<u128, EngineEvent>>>,
-
+    // pub events_by_type: HashMap<EngineEventType, BTreeMap<u64, BTreeMap<u128, EngineEvent>>>,
+    pub engine_events_by_step: BTreeMap<u64, Vec<EngineEvent>>,
+    // pub engine_event_id_counter: u64,
     #[serde(skip)]
     pub game_events_by_step: BTreeMap<u64, Vec<GameEvent>>,
 
@@ -118,7 +119,8 @@ impl GameEngine {
             rng: default_rng(),
             entities: BTreeMap::new(),
             entities_by_step: BTreeMap::new(),
-            events_by_type: HashMap::new(),
+            engine_events_by_step: BTreeMap::new(),
+            // engine_event_id_counter: 0u64,
             game_events: default_game_events(),
             grouped_entities: (0, HashMap::new()),
             enable_debug_markers: false,
@@ -130,12 +132,7 @@ impl GameEngine {
     pub fn step_hash(&self, step_index: &u64) -> anyhow::Result<blake3::Hash> {
         // we'll do just hash of all entities
         if let Some(entities) = self.entities_by_step.get(step_index) {
-            let serialized = bincode::serialize(
-                &entities
-                    .iter()
-                    // .filter(|(_, entity)| !entity.pure())
-                    .collect::<BTreeMap<_, _>>(),
-            )?;
+            let serialized = bincode::serialize(&entities.iter().collect::<BTreeMap<_, _>>())?;
             // print!(
             //     "{:?}",
             //     &entities
@@ -184,19 +181,21 @@ impl GameEngine {
             let mut out = Self::default();
             out.id = self.id;
             // get all events in the past
-            // and universal events in the future?
-            out.events_by_type = self.events_by_type.clone();
-            // out.events_by_step = self.events_by_step.clone();
-            for (_, events_by_step) in out.events_by_type.iter_mut() {
-                for (step_index, events) in events_by_step.iter_mut() {
-                    // keep all events in past
-                    if step_index < target_step_index {
-                        continue;
-                    }
-                    // keep only universal events and inputs in the future
-                    events.retain(|_event_id, event| event.is_universal());
-                }
-            }
+            // and universal events in the future, as well
+            // as events that have been scheduled in the future, from the past
+            out.engine_events_by_step = self.engine_events_by_step.clone();
+            // out.events_by_type = self.events_by_type.clone();
+            // // out.events_by_step = self.events_by_step.clone();
+            // for (_, events_by_step) in out.events_by_type.iter_mut() {
+            //     for (step_index, events) in events_by_step.iter_mut() {
+            //         // keep all events in past
+            //         if step_index < target_step_index {
+            //             continue;
+            //         }
+            //         // keep only universal events and inputs in the future
+            //         // events.retain(|_event_id, event| event.is_universal());
+            //     }
+            // }
 
             out.game_events_by_step = self
                 .game_events_by_step
@@ -242,12 +241,10 @@ impl GameEngine {
             );
         }
         let target_step_index = step_index.unwrap_or(self.step_index);
-        let id: u128 = self.rng().random();
         if target_step_index >= self.step_index {
             self.register_event(
                 Some(target_step_index),
                 EngineEvent::SpawnEntity {
-                    id,
                     entity,
                     universal: is_universal,
                 },
@@ -256,7 +253,6 @@ impl GameEngine {
             self.integrate_event(
                 target_step_index,
                 EngineEvent::SpawnEntity {
-                    id,
                     entity,
                     universal: is_universal,
                 },
@@ -265,11 +261,9 @@ impl GameEngine {
     }
 
     pub fn remove_entity(&mut self, entity_id: u128, universal: bool) {
-        let id = self.rng().random();
         self.register_event(
             None,
             EngineEvent::RemoveEntity {
-                id,
                 entity_id,
                 universal,
             },
@@ -277,22 +271,19 @@ impl GameEngine {
     }
 
     pub fn integrate_event(&mut self, step_index: u64, event: EngineEvent) {
-        let mut btree: BTreeMap<u64, HashMap<u128, EngineEvent>> = BTreeMap::new();
-        btree
-            .entry(step_index)
-            .or_default()
-            .insert(self.generate_id(), event);
+        let mut btree: BTreeMap<u64, Vec<EngineEvent>> = BTreeMap::new();
+        btree.entry(step_index).or_default().push(event);
         self.integrate_events(btree);
     }
 
-    pub fn integrate_events(&mut self, events: BTreeMap<u64, HashMap<u128, EngineEvent>>) {
+    pub fn integrate_events(&mut self, events: BTreeMap<u64, Vec<EngineEvent>>) {
         if events.is_empty() {
             return;
         }
         let from_step_index = *events.first_key_value().unwrap().0 - 1;
         if from_step_index >= self.step_index {
             for (step_index, events) in events {
-                for (_event_id, event) in events {
+                for event in events {
                     self.register_event(Some(step_index), event);
                 }
             }
@@ -330,7 +321,7 @@ impl GameEngine {
                 self.game_events_by_step = past_engine.game_events_by_step;
                 self.entities = past_engine.entities;
                 self.entities_by_step = past_engine.entities_by_step;
-                self.events_by_type = past_engine.events_by_type;
+                self.engine_events_by_step = past_engine.engine_events_by_step;
                 self.grouped_entities = (0, HashMap::new());
             } else {
                 panic!("failed to generate past engine");
@@ -340,35 +331,10 @@ impl GameEngine {
 
     pub fn register_event(&mut self, step_index: Option<u64>, event: EngineEvent) {
         let step_index = step_index.unwrap_or(self.step_index);
-        // if the step is in the past we insert and replay
-        // engine will replay all over events that ocurred as well
-        if let Some(event) = self
-            .events_by_type
-            .entry(EngineEventType::from(&event))
-            .or_default()
+        self.engine_events_by_step
             .entry(step_index)
             .or_default()
-            .insert(event.id(), event)
-        {
-            println!("overwriting event: {:?}", event);
-        }
-    }
-
-    pub fn latest_input(&mut self, id: &u128) -> (u64, EntityInput) {
-        self.events_by_type
-            .entry(EngineEventType::Input)
-            .or_default()
-            .range(..=self.step_index)
-            .rev()
-            .find_map(|(step_index, events)| {
-                events.values().find_map(|event| match event {
-                    EngineEvent::Input {
-                        entity_id, input, ..
-                    } if entity_id == id => Some((*step_index, input.clone())),
-                    _ => None,
-                })
-            })
-            .unwrap_or((0, EntityInput::default()))
+            .push(event)
     }
 
     /// Return an entity by id at a certain step index, if possible. Extracts the underlying
@@ -493,16 +459,13 @@ impl GameEngine {
         self.entities = stepped_entities;
 
         // Execute the creation phase of the step
-        for (_event_id, event) in self
-            .events_by_type
-            .entry(EngineEventType::SpawnEntity)
-            .or_default()
+        for event in self
+            .engine_events_by_step
             .entry(self.step_index)
             .or_default()
         {
             match event {
                 EngineEvent::SpawnEntity {
-                    id: _,
                     entity,
                     universal: _,
                 } => {
@@ -519,16 +482,13 @@ impl GameEngine {
         }
 
         // Execute the removal phase of the step
-        for (_event_id, event) in self
-            .events_by_type
-            .entry(EngineEventType::RemoveEntity)
-            .or_default()
+        for event in self
+            .engine_events_by_step
             .entry(self.step_index)
             .or_default()
         {
             match event {
                 EngineEvent::RemoveEntity {
-                    id: _,
                     entity_id,
                     universal: _,
                 } => {
@@ -542,9 +502,7 @@ impl GameEngine {
         if self.step_index >= TRAILING_STATE_COUNT {
             let step_to_remove = self.step_index - TRAILING_STATE_COUNT;
             self.entities_by_step.remove(&step_to_remove);
-            for (_, events_by_step) in self.events_by_type.iter_mut() {
-                events_by_step.remove(&step_to_remove);
-            }
+            self.engine_events_by_step.remove(&step_to_remove);
             self.game_events_by_step.remove(&step_to_remove);
         }
 

@@ -10,18 +10,14 @@
         { position: [1200, 0], to: "playtest0" },
     ],
     npc: [
-        {
-            asset: "flower.png",
-            name: "welcome_flower",
-            position: [700, 0],
-            size: [100, 100],
-            announcements: ["Hello! Welcome to [redacted]! Have a nice day!"]
-        }
+        { npc_id: 1, position: [750, 150] }
     ],
     mob_spawns: [
         { position: [0, 230], size: [1000, 10], mob_type: 1, max_count: 10 },
     ],
     platforms: [
+        // the platform for the flower npc
+        { position: [700, 125], size: [200, 25] },
         // floor platform
         { position: [0, -25], size: [3000, 25] },
 

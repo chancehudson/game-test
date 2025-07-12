@@ -41,48 +41,21 @@ pub enum EngineEventType {
     Input,
 }
 
-impl From<&EngineEvent> for EngineEventType {
-    fn from(event: &EngineEvent) -> Self {
-        match event {
-            EngineEvent::RemoveEntity { .. } => EngineEventType::RemoveEntity,
-            EngineEvent::SpawnEntity { .. } => EngineEventType::SpawnEntity,
-            EngineEvent::Input { .. } => EngineEventType::Input,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum EngineEvent {
     RemoveEntity {
-        id: u128,
         entity_id: u128,
         universal: bool,
     },
     SpawnEntity {
-        id: u128,
         entity: EngineEntity,
         universal: bool,
     },
     Input {
-        id: u128,
         input: EntityInput,
         entity_id: u128,
         universal: bool,
     },
-}
-
-pub trait HasId {
-    fn id(&self) -> u128;
-}
-
-impl HasId for EngineEvent {
-    fn id(&self) -> u128 {
-        match self {
-            EngineEvent::RemoveEntity { id, .. } => *id,
-            EngineEvent::SpawnEntity { id, .. } => *id,
-            EngineEvent::Input { id, .. } => *id,
-        }
-    }
 }
 
 pub trait HasUniversal {

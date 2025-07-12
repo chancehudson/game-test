@@ -95,7 +95,6 @@ fn show_home_engine(mut active_engine_state: ResMut<ActiveGameEngine>) {
     engine.register_event(
         None,
         EngineEvent::SpawnEntity {
-            id: rand::random(),
             entity: EngineEntity::Platform(platform),
             universal: true,
         },
@@ -103,7 +102,6 @@ fn show_home_engine(mut active_engine_state: ResMut<ActiveGameEngine>) {
     engine.register_event(
         None,
         EngineEvent::SpawnEntity {
-            id: rand::random(),
             entity: EngineEntity::MobSpawner(mob_spawner),
             universal: true,
         },

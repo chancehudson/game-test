@@ -9,6 +9,7 @@ use crate::data::GameData;
 use crate::deserialize_vec2;
 use crate::entity::EngineEntity;
 use crate::entity::mob_spawn::MobSpawnEntity;
+use crate::entity::npc::NpcEntity;
 use crate::entity::platform::PlatformEntity;
 use crate::entity::portal::PortalEntity;
 
@@ -48,6 +49,14 @@ impl DropTableData {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapNpcData {
+    pub npc_id: u64,
+    pub position: IVec2,
+    #[serde(default)]
+    pub announcements: Vec<String>, // overrides at the map level
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct MapData {
     pub id: u64,
@@ -58,7 +67,7 @@ pub struct MapData {
     #[serde(deserialize_with = "deserialize_vec2")]
     pub size: IVec2,
     pub portals: Vec<PortalEntity>,
-    pub npc: Vec<NpcData>,
+    pub npc: Vec<MapNpcData>,
     pub platforms: Vec<Platform>,
     #[serde(default)]
     pub mob_spawns: Vec<MobSpawnData>,
@@ -99,6 +108,22 @@ impl crate::EngineInit for MapData {
             portal_clone.id = id;
             portal_clone.from = self.name.clone();
             engine.spawn_entity(EngineEntity::Portal(portal_clone), None, true);
+        }
+
+        for map_npc_data in &self.npc {
+            let mut npc = game_data
+                .npc
+                .get(&map_npc_data.npc_id)
+                .expect("Invalid npc_id in MapNpcData")
+                .clone();
+            npc.announcements
+                .append(&mut map_npc_data.announcements.clone());
+            let id = engine.generate_id();
+            engine.spawn_entity(
+                EngineEntity::Npc(NpcEntity::new_data(id, map_npc_data.position, npc)),
+                None,
+                true,
+            );
         }
         Ok(())
     }
