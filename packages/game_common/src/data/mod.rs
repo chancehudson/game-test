@@ -16,6 +16,7 @@ use map::MapData;
 use mob::MobData;
 
 use crate::data::map::DropTableData;
+use crate::data::npc::NpcData;
 
 /// Handles loading all game ascii data.
 ///
@@ -48,6 +49,7 @@ pub struct GameData {
     pub maps: HashMap<u64, MapData>,
     pub items: HashMap<u64, ItemData>,
     pub mobs: HashMap<u64, MobData>,
+    pub npc: HashMap<u64, NpcData>,
 }
 
 /// Write the code to parse and insert into hashmaps
@@ -72,6 +74,7 @@ impl GameData {
         convert_string_keys!(data, out, "maps", maps);
         convert_string_keys!(data, out, "items", items);
         convert_string_keys!(data, out, "mobs", mobs);
+        convert_string_keys!(data, out, "npc", npc);
         Ok(out)
     }
 

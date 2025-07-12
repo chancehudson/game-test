@@ -24,6 +24,7 @@ use crate::entity::player::PlayerEntity;
 use crate::entity_struct;
 use crate::game_event::EngineEvent;
 use crate::game_event::GameEvent;
+use crate::system::input::InputSystem;
 
 use super::EntityInput;
 
@@ -44,6 +45,7 @@ entity_struct!(
         pub knockback_until: Option<(i32, u64)>,
         pub current_health: u64,
         pub is_dead: bool,
+        input_system: InputSystem,
     }
 );
 
@@ -68,7 +70,6 @@ impl MobEntity {
                 engine.register_event(
                     None,
                     EngineEvent::Input {
-                        id: rng.random(),
                         input: new_input,
                         entity_id: self.id,
                         universal: false,
@@ -85,7 +86,6 @@ impl MobEntity {
                 engine.register_event(
                     None,
                     EngineEvent::Input {
-                        id: rng.random(),
                         input: EntityInput::default(),
                         entity_id: self.id,
                         universal: false,
@@ -108,28 +108,12 @@ impl MobEntity {
                     engine.register_event(
                         None,
                         EngineEvent::Input {
-                            id: rng.random(),
                             input: new_input,
                             entity_id: self.id,
                             universal: false,
                         },
                     );
                     self.moving_sign = self.moving_sign * -1;
-                } else {
-                    // do this so if we move for more than
-                    // TRAILING_STATE_COUNT steps we can still replay
-                    let (step_index, latest_input) = engine.latest_input(&self.id);
-                    if engine.step_index > step_index && engine.step_index - step_index > 60 {
-                        engine.register_event(
-                            None,
-                            EngineEvent::Input {
-                                id: rng.random(),
-                                input: latest_input,
-                                entity_id: self.id,
-                                universal: false,
-                            },
-                        );
-                    }
                 }
             }
         } else if rng.random_ratio(1, 300) {
@@ -145,7 +129,6 @@ impl MobEntity {
             engine.register_event(
                 None,
                 EngineEvent::Input {
-                    id: rng.random(),
                     input: new_input,
                     entity_id: self.id,
                     universal: false,
@@ -167,7 +150,6 @@ impl SEEntity for MobEntity {
             engine.register_event(
                 None,
                 EngineEvent::RemoveEntity {
-                    id: rand::random(),
                     entity_id: self.id,
                     universal: false,
                 },
@@ -182,7 +164,8 @@ impl SEEntity for MobEntity {
         let body = self.rect();
         let mut velocity = last_velocity.clone();
         let can_jump = on_platform(body, engine);
-        let (_, input) = engine.latest_input(&self.id);
+        next_self.input_system.step(self, engine);
+        let (_, input) = &next_self.input_system.latest_input;
 
         let step_index = engine.step_index;
         let game_events_sender = engine.game_events.0.clone();

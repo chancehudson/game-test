@@ -76,9 +76,6 @@ impl MapLoader {
             if let Some(asset) = map_assets.get(map_data_handle) {
                 let map_data = asset.data.clone();
                 pending_handles.push(asset_server.load_untyped(&map_data.background));
-                for npc in &map_data.npc {
-                    pending_handles.push(asset_server.load_untyped(&npc.asset));
-                }
             } else {
                 panic!("unexpected load state");
             }
@@ -113,7 +110,6 @@ fn update_map_loading(
     if loader.is_loaded() {
         let map_data = loader.map_data(&map_assets).unwrap();
         spawn_background(&mut commands, &asset_server, &map_data);
-        spawn_npcs(&mut commands, &asset_server, &map_data);
         next_state.set(GameState::OnMap);
     }
 }
@@ -160,21 +156,21 @@ pub fn spawn_background(commands: &mut Commands, asset_server: &AssetServer, map
     ));
 }
 
-pub fn spawn_npcs(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {
-    for npc in &map_data.npc {
-        commands.spawn((
-            MapEntity,
-            Transform::from_translation(Vec3::new(
-                npc.position.x as f32,
-                npc.position.y as f32,
-                0.0,
-            )),
-            Sprite {
-                image: asset_server.load(&npc.asset),
-                custom_size: Some(Vec2::new(npc.size.x as f32, npc.size.y as f32)),
-                anchor: bevy::sprite::Anchor::BottomLeft,
-                ..default()
-            },
-        ));
-    }
-}
+// pub fn spawn_npcs(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {
+//     for npc in &map_data.npc {
+//         commands.spawn((
+//             MapEntity,
+//             Transform::from_translation(Vec3::new(
+//                 npc.position.x as f32,
+//                 npc.position.y as f32,
+//                 0.0,
+//             )),
+//             Sprite {
+//                 image: asset_server.load(&npc.asset),
+//                 custom_size: Some(Vec2::new(npc.size.x as f32, npc.size.y as f32)),
+//                 anchor: bevy::sprite::Anchor::BottomLeft,
+//                 ..default()
+//             },
+//         ));
+//     }
+// }

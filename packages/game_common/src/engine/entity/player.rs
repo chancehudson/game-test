@@ -17,11 +17,13 @@ use crate::actor::on_platform;
 use crate::damage_calc::compute_damage;
 use crate::entity::EngineEntity;
 use crate::entity::SEEntity;
+use crate::entity::message::MessageEntity;
 use crate::entity::mob::MobEntity;
 use crate::entity::mob_damage::MobDamageEntity;
 use crate::entity::platform::PlatformEntity;
 use crate::entity_struct;
 use crate::game_event::GameEvent;
+use crate::system::input::InputSystem;
 
 const DAMAGE_IFRAME_STEPS: u64 = 120;
 const KNOCKBACK_STEPS: u64 = 10;
@@ -39,6 +41,7 @@ entity_struct!(
         pub receiving_damage_until: Option<u64>,
         // direction, until
         pub knockback_until: Option<(i32, u64)>,
+        pub input_system: InputSystem,
     }
 );
 
@@ -66,8 +69,9 @@ impl SEEntity for PlayerEntity {
         let step_index = engine.step_index;
         let mut rng = self.rng(&step_index);
         let mut next_self = self.clone();
+        next_self.input_system.step(self, engine);
+        let (input_step_index, input) = &next_self.input_system.latest_input;
         next_self.received_damage_this_step = (false, 0);
-        let (input_step_index, input) = engine.latest_input(&self.id);
         if self.is_dead() {
             next_self.receiving_damage_until = None;
             if input.respawn {
@@ -85,7 +89,7 @@ impl SEEntity for PlayerEntity {
         let last_velocity = self.velocity.clone();
         let body = self.rect();
         let can_jump = on_platform(body, engine);
-        if input.admin_enable_debug_markers && input_step_index == step_index {
+        if input.admin_enable_debug_markers && input_step_index == &step_index {
             engine.enable_debug_markers = !engine.enable_debug_markers;
         }
 
@@ -203,6 +207,18 @@ impl SEEntity for PlayerEntity {
             game_events_channel
                 .send(GameEvent::PlayerPickUpRequest(self.id))
                 .unwrap();
+        }
+        if let Some(text) = &input.message {
+            let id = rng.random();
+            engine.spawn_entity(
+                EngineEntity::Message(MessageEntity::new_text(
+                    id,
+                    IVec2::new(self.center().x, self.center().y + self.size.y / 2),
+                    text.clone(),
+                )),
+                None,
+                true,
+            );
         }
         if let Some(weightless_until) = self.weightless_until {
             if step_index >= weightless_until {

@@ -2,9 +2,10 @@
 
 A multiplayer 2d platformer.
 
-## Install
+## Install Dependencies
 
-`cargo install wasm-server-runner`: if you want to preview wasm
+- `apt install pkg-config libssl-dev libasound2-dev libudev-dev`: on Debian
+- `cargo install wasm-server-runner`: if you want to preview wasm
 
 ## Run
 

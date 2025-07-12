@@ -11,7 +11,7 @@ pub use data::item::ItemData;
 pub use data::map::MapData;
 pub use data::mob::MobData;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AnimationData {
     pub frame_count: usize,
     pub fps: usize,

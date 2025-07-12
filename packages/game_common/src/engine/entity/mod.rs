@@ -10,6 +10,7 @@ use super::GameEngine;
 
 pub mod emoji;
 pub mod item;
+pub mod message;
 pub mod mob;
 pub mod mob_damage;
 pub mod mob_spawn;
@@ -33,6 +34,7 @@ pub struct EntityInput {
     pub show_emoji: bool,
     pub respawn: bool,
     pub pick_up: bool,
+    pub message: Option<String>,
 }
 
 /// An entity that exists inside the engine.
@@ -219,6 +221,8 @@ engine_entity_enum! {
         Emoji(emoji::EmojiEntity),
         Text(text::TextEntity),
         Item(item::ItemEntity),
+        Npc(npc::NpcEntity),
+        Message(message::MessageEntity),
     }
 }
 

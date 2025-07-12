@@ -8,7 +8,6 @@ use db::AbilityExpRecord;
 use db::PlayerInventory;
 use db::PlayerRecord;
 use db::PlayerStats;
-use game_common::EngineInit;
 use game_common::GameEngine;
 use game_common::MapData;
 use game_common::STEP_DELAY;
@@ -20,7 +19,6 @@ use game_common::entity::item::ItemEntity;
 use game_common::entity::player::PlayerEntity;
 use game_common::game_event::EngineEvent;
 use game_common::game_event::GameEvent;
-use game_common::game_event::HasId;
 use game_common::network::Response;
 use game_common::timestamp;
 
@@ -92,7 +90,6 @@ impl MapInstance {
             if let Some(entity) = self.engine.entities.get(&player_engine.entity_id).cloned() {
                 let new_entity_id = self.engine.generate_id();
                 let event = EngineEvent::SpawnEntity {
-                    id: rand::random(),
                     entity: EngineEntity::Item(ItemEntity::new_item(
                         new_entity_id,
                         entity.center(),
@@ -138,7 +135,6 @@ impl MapInstance {
         if let Some(last_engine) = self.player_engines.insert(player_record.id.clone(), player) {
             // cleanup previous engine connection
             let remove = EngineEvent::RemoveEntity {
-                id: rand::random(),
                 entity_id: last_engine.entity_id,
                 universal: true,
             };
@@ -148,7 +144,6 @@ impl MapInstance {
                 .send((self.engine.step_index, remove))?;
         }
         let add_event = EngineEvent::SpawnEntity {
-            id: rand::random(),
             entity,
             universal: true,
         };
@@ -162,7 +157,6 @@ impl MapInstance {
     pub async fn remove_player(&mut self, player_id: &str) -> anyhow::Result<()> {
         if let Some(player) = self.player_engines.remove(player_id) {
             let event = EngineEvent::RemoveEntity {
-                id: rand::random(),
                 entity_id: player.entity_id,
                 universal: true,
             };
@@ -222,12 +216,10 @@ impl MapInstance {
                 EngineEvent::SpawnEntity {
                     universal: _, // player should not set this
                     entity: _,
-                    id: _, // we'll generate the id from our engine seeded rng
                 } => {}
                 EngineEvent::Input {
                     universal: _,
                     input: _,
-                    id: _,
                     entity_id,
                 } => {
                     if entity_id != &player.entity_id {
@@ -238,7 +230,6 @@ impl MapInstance {
                     return Ok(Some((*step_index, event.clone())));
                 }
                 EngineEvent::RemoveEntity {
-                    id: _,
                     entity_id: _,
                     universal: _,
                 } => {}
@@ -253,20 +244,14 @@ impl MapInstance {
     pub async fn process_remote_events(
         &mut self,
         remote_events: Vec<RemoteEngineEvent>,
-    ) -> anyhow::Result<BTreeMap<u64, HashMap<u128, EngineEvent>>> {
-        let mut events: BTreeMap<u64, HashMap<_, _>> = BTreeMap::new();
+    ) -> anyhow::Result<BTreeMap<u64, Vec<EngineEvent>>> {
+        let mut events: BTreeMap<u64, Vec<_>> = BTreeMap::new();
 
         for remote_event in remote_events {
             if let Some((step_index, engine_event)) =
                 self.process_remote_event(&remote_event).await?
             {
-                if let Some(_) = events
-                    .entry(step_index)
-                    .or_default()
-                    .insert(engine_event.id(), engine_event.clone())
-                {
-                    println!("WARNING: duplicate action/event detected!");
-                }
+                events.entry(step_index).or_default().push(engine_event);
             } else {
                 println!("Error processing remote engine event: {:?}", remote_event);
             }
@@ -285,9 +270,7 @@ impl MapInstance {
             BTreeMap::new()
         };
         for (si, event) in pending_events {
-            if let Some(_) = new_events.entry(si).or_default().insert(event.id(), event) {
-                println!("WARNING: overwriting existing event");
-            }
+            new_events.entry(si).or_default().push(event);
         }
         if has_events {
             self.engine.integrate_events(new_events.clone());
@@ -385,7 +368,6 @@ impl MapInstance {
             };
             if player_disconnected {
                 let removal_event = EngineEvent::RemoveEntity {
-                    id: rand::random(),
                     entity_id: player.entity_id,
                     universal: true,
                 };
@@ -441,7 +423,6 @@ impl MapInstance {
             removal_events.push((
                 entity.player_id.clone(),
                 EngineEvent::RemoveEntity {
-                    id: rand::random(),
                     entity_id: entity.id,
                     universal: true,
                 },

@@ -393,6 +393,50 @@ pub fn spawn_bevy_entity(
     sprite_manager: &mut ResMut<SpriteManager>,
 ) {
     match engine_entity {
+        EngineEntity::Npc(p) => {
+            let standing_animation = &p.data.standing_animation;
+            if !sprite_manager.is_animation_loaded(standing_animation, asset_server) {
+                sprite_manager.load_animation(standing_animation);
+                return;
+            }
+            let (handle, atlas) = sprite_manager
+                .atlas(&standing_animation.sprite_sheet)
+                .unwrap();
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(10.0)),
+                AnimatedSprite {
+                    frame_count: standing_animation.frame_count as u8,
+                    fps: standing_animation.fps as u8,
+                    time: 0.0,
+                },
+                Sprite {
+                    image: handle.clone(),
+                    texture_atlas: Some(TextureAtlas {
+                        layout: atlas.clone(),
+                        index: 0,
+                    }),
+                    custom_size: Some(p.size_f32()),
+                    anchor: bevy::sprite::Anchor::BottomLeft,
+                    ..default()
+                },
+                MapEntity,
+            ));
+        }
+        EngineEntity::Message(p) => {
+            commands.spawn((
+                GameEntityComponent {
+                    entity_id: engine_entity.id(),
+                    entity: Some(engine_entity.clone()),
+                },
+                Transform::from_translation(p.position_f32().extend(100.0)),
+                MapEntity,
+                Text2d::new(&p.text),
+            ));
+        }
         EngineEntity::Player(p) => {
             let default_animation = PlayerComponent::default_animation();
             if !sprite_manager.is_animation_loaded(&default_animation, asset_server) {

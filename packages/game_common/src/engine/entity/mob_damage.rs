@@ -41,7 +41,6 @@ impl SEEntity for MobDamageEntity {
             engine.register_event(
                 None,
                 EngineEvent::RemoveEntity {
-                    id: rand::random(),
                     entity_id: self.id,
                     universal: false,
                 },
@@ -73,7 +72,6 @@ impl SEEntity for MobDamageEntity {
                 engine.register_event(
                     None,
                     EngineEvent::RemoveEntity {
-                        id: rand::random(),
                         entity_id: self.attached_to,
                         universal: false,
                     },
