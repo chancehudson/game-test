@@ -14,7 +14,19 @@ use strum::EnumIter;
 pub const ABILITY_EXP_TABLE: redb::TableDefinition<(Ability, String), AbilityExpRecord> =
     TableDefinition::new("player_ability_exp");
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Hash, Eq, EnumIter, PartialOrd, Ord)]
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    PartialEq,
+    Hash,
+    Eq,
+    EnumIter,
+    PartialOrd,
+    Ord,
+    strum::IntoStaticStr,
+)]
 #[repr(u8)]
 pub enum Ability {
     Health = 0,

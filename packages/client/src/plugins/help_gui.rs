@@ -37,5 +37,6 @@ fn show_help_gui(mut contexts: EguiContexts) {
             ui.label("Attack with a");
             ui.label("Respawn with r");
             ui.label("Resync engine with p");
+            ui.label("Pick up item with z");
         });
 }

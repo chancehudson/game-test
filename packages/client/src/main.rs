@@ -52,6 +52,7 @@ fn main() {
         .add_plugins(plugins::player_inventory::PlayerInventoryPlugin)
         .add_plugins(plugins::database::DatabasePlugin)
         .add_plugins(plugins::help_gui::HelpGuiPlugin)
+        .add_plugins(plugins::info_text::InfoTextPlugin)
         // components
         .add_plugins(components::player::PlayerPlugin)
         .add_plugins(components::mob::MobPlugin)

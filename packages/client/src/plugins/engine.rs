@@ -29,6 +29,7 @@ use crate::network::NetworkAction;
 use crate::plugins::animated_sprite::AnimatedSprite;
 use crate::plugins::engine_sync::EngineSyncInfo;
 use crate::plugins::game_data_loader::GameDataResource;
+use crate::plugins::info_text::InfoMessage;
 
 /// Engine tracking resources/components
 ///
@@ -111,32 +112,50 @@ fn handle_player_state(
 fn step_game_engine(
     mut active_game_engine: ResMut<ActiveGameEngine>,
     sync_info: Res<EngineSyncInfo>,
+    mut info_event_writer: EventWriter<InfoMessage>,
+    game_data: Res<GameDataResource>,
+    active_player_entity_id: Res<ActivePlayerEntityId>,
 ) {
+    let game_data = &game_data.0;
     let engine = &mut active_game_engine.0;
     let target_step = sync_info.server_step
         + (((timestamp() - sync_info.server_step_timestamp) / STEP_LEN_S).ceil() as u64);
-    if target_step > engine.step_index {
+    let game_events = if target_step > engine.step_index {
         let steps = target_step - engine.step_index;
         if steps >= 30 {
             println!("skipping forward {} steps", steps / 2);
-            engine.step_to(&(engine.step_index + (steps / 2)));
+            engine.step_to(&(engine.step_index + (steps / 2)))
         } else if steps >= 10 {
-            engine.step();
-            engine.step();
+            let mut out = engine.step();
+            out.append(&mut engine.step());
+            out
         } else {
-            engine.step();
+            engine.step()
         }
     } else {
         println!("skipped step");
+        vec![]
         // local engine is ahead of server, skip a step
     };
-    for event in engine.game_events.1.drain() {
+    for event in game_events {
         match event {
             GameEvent::Message(_, _) => {
                 // spawn a message in bevy
             }
-            GameEvent::PlayerPickUp(_, _, _) => {
+            GameEvent::PlayerPickUp(_, item_type, count) => {
+                if let Some(item) = game_data.items.get(&item_type) {
+                    info_event_writer.write(InfoMessage(format!("+ {count} {}", item.name)));
+                }
                 // TODO: optimistically make update
+            }
+            GameEvent::PlayerAbilityExp(entity_id, ability, amount) => {
+                if let Some(player_entity_id) = active_player_entity_id.0
+                    && player_entity_id == entity_id
+                {
+                    let ability_str: &'static str = ability.into();
+                    info_event_writer
+                        .write(InfoMessage(format!("+ {} {} exp", amount, ability_str)));
+                }
             }
             _ => {}
         }
