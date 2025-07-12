@@ -23,7 +23,7 @@ bevy_simple_text_input = { version = "0.11.0" }
 bevy_egui = { version = "0.34.1" }
 
 db = { path = "../db" }
-game_common = { path = "../game_common", features = ["client"] }
+game_common = { path = "../game_common" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { workspace = true, features = ["full"] }
