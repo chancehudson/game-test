@@ -48,6 +48,9 @@ pub fn default_handler(engine: &mut GameEngine, game_event: &GameEvent) {
                     .cloned()
                     .collect::<Vec<_>>()
                 {
+                    if !engine.entities.contains_key(&item.id) {
+                        continue;
+                    }
                     if item.rect().intersect(player_entity.rect()).is_empty() {
                         continue;
                     }
