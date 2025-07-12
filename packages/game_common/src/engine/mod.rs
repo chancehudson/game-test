@@ -44,6 +44,8 @@ use entity::EntityInput;
 use entity::SEEntity;
 use game_event::*;
 
+use crate::data::GameData;
+
 pub const STEP_LEN_S: f64 = 1. / 60.;
 pub const STEP_LEN_S_F32: f32 = 1. / 60.;
 pub const STEPS_PER_SECOND: u64 = (1.0 / STEP_LEN_S_F32) as u64;
@@ -53,7 +55,7 @@ pub const TRAILING_STATE_COUNT: u64 = 360;
 // initializable for the map instance
 // the npcs are moving platforms are intializable too
 pub trait EngineInit {
-    fn init(&self, engine: &mut GameEngine) -> anyhow::Result<()>;
+    fn init(&self, game_data: &GameData, engine: &mut GameEngine) -> anyhow::Result<()>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +74,7 @@ pub struct GameEngine {
     // step index keyed to entity id to struct
     pub entities_by_step: BTreeMap<u64, BTreeMap<u128, EngineEntity>>,
 
+    // engine events may be scheduled for the future, game events may not
     pub events_by_type: HashMap<EngineEventType, BTreeMap<u64, BTreeMap<u128, EngineEvent>>>,
 
     #[serde(skip)]
@@ -549,14 +552,12 @@ impl GameEngine {
         self.game_events_by_step
             .insert(self.step_index, game_events.clone());
 
-        // Officially move to the next step
-        self.step_index += 1;
-
-        // process these events in the next step so that events are registered
-        // correctly using None
         for game_event in &game_events {
             game::default_handler(self, game_event);
         }
+
+        // Officially move to the next step
+        self.step_index += 1;
 
         game_events
     }

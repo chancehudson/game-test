@@ -60,21 +60,24 @@ impl Game {
     }
 
     /// Initialize a map instance as needed
-    pub async fn create_instance(&mut self, map_data: &MapData) -> anyhow::Result<()> {
+    pub async fn create_instance(
+        &mut self,
+        map_data: &MapData,
+    ) -> anyhow::Result<Arc<RwLock<MapInstance>>> {
         #[cfg(debug_assertions)]
         assert!(!self.map_instances.contains_key(&map_data.name));
 
-        let map_instance = MapInstance::new(
+        let mut map_instance = MapInstance::new(
             map_data.clone(),
             self.network_server.clone(),
             self.db.clone(),
             self.game_events.0.clone(),
         )?;
-        self.map_instances.insert(
-            map_data.name.to_string(),
-            Arc::new(RwLock::new(map_instance)),
-        );
-        Ok(())
+        map_data.init(&self.game_data, &mut map_instance.engine)?;
+        let map_instance = Arc::new(RwLock::new(map_instance));
+        self.map_instances
+            .insert(map_data.name.to_string(), map_instance.clone());
+        Ok(map_instance)
     }
 
     pub async fn handle_events(&self) -> anyhow::Result<()> {

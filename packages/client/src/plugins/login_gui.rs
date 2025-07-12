@@ -4,6 +4,7 @@ use bevy_egui::EguiContexts;
 use bevy_egui::egui;
 use bevy_egui::egui::Color32;
 use bevy_egui::egui::RichText;
+use game_common::data::GameData;
 use web_time::Instant;
 
 use game_common::EngineInit;
@@ -79,7 +80,7 @@ fn show_home_engine(mut active_engine_state: ResMut<ActiveGameEngine>) {
     let mut home_map = MapData::default();
     home_map.size = IVec2::splat(1000);
     let mut engine = GameEngine::new(home_map.size);
-    home_map.init(&mut engine).unwrap();
+    home_map.init(&GameData::default(), &mut engine).unwrap();
     active_engine_state.0 = engine;
     let engine = &mut active_engine_state.0;
 
@@ -89,8 +90,8 @@ fn show_home_engine(mut active_engine_state: ResMut<ActiveGameEngine>) {
         platform.position + IVec2::new(0, platform.size.y + 20),
         IVec2::new(200, 1),
     );
-    mob_spawner.max_count = 2;
-    mob_spawner.mob_type = 1;
+    mob_spawner.spawn_data.max_count = 2;
+    mob_spawner.spawn_data.mob_type = 1;
     engine.register_event(
         None,
         EngineEvent::SpawnEntity {
