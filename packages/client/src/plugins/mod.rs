@@ -4,6 +4,7 @@ pub mod engine;
 pub mod engine_sync;
 pub mod game_data_loader;
 pub mod gui;
+pub mod help_gui;
 pub mod loading_screen;
 pub mod login_gui;
 pub mod player_inventory;

@@ -2,7 +2,7 @@
 
 set -e
 
-cargo build --target wasm32-unknown-unknown --bin=client --no-default-features --features=client --release
+cargo build --target wasm32-unknown-unknown --bin=client --release
 wasm-bindgen --out-dir web --web target/wasm32-unknown-unknown/release/client.wasm
 
 BUCKET_NAME="game"

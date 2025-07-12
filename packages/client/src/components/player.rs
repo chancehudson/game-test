@@ -11,6 +11,7 @@ use crate::plugins::animated_sprite::AnimatedSprite;
 use crate::plugins::engine::ActiveGameEngine;
 use crate::plugins::engine::ActivePlayerEntityId;
 use crate::plugins::engine::GameEntityComponent;
+use crate::plugins::help_gui::HelpGuiState;
 use crate::plugins::player_inventory::PlayerInventoryState;
 use crate::sprite_data_loader::SpriteManager;
 
@@ -139,8 +140,10 @@ fn iframe_blink_system(
 
 /// hello i'm storing keybindings complexity here
 fn input_system(
-    mut next_state: ResMut<NextState<PlayerInventoryState>>,
-    state: ResMut<State<PlayerInventoryState>>,
+    mut inventory_next_state: ResMut<NextState<PlayerInventoryState>>,
+    inventory_state: ResMut<State<PlayerInventoryState>>,
+    mut help_next_state: ResMut<NextState<HelpGuiState>>,
+    help_state: ResMut<State<HelpGuiState>>,
     active_player_entity_id: Res<ActivePlayerEntityId>,
     mut active_game_engine: ResMut<ActiveGameEngine>,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -156,10 +159,17 @@ fn input_system(
         return;
     }
 
+    if keyboard.just_pressed(KeyCode::Slash) && keyboard.pressed(KeyCode::ShiftLeft) {
+        match help_state.get() {
+            HelpGuiState::Visible => help_next_state.set(HelpGuiState::Hidden),
+            HelpGuiState::Hidden => help_next_state.set(HelpGuiState::Visible),
+        }
+    }
+
     if keyboard.just_pressed(KeyCode::KeyI) {
-        match state.get() {
-            PlayerInventoryState::Visible => next_state.set(PlayerInventoryState::Hidden),
-            PlayerInventoryState::Hidden => next_state.set(PlayerInventoryState::Visible),
+        match inventory_state.get() {
+            PlayerInventoryState::Visible => inventory_next_state.set(PlayerInventoryState::Hidden),
+            PlayerInventoryState::Hidden => inventory_next_state.set(PlayerInventoryState::Visible),
         }
     }
 

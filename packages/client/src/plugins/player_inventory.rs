@@ -5,7 +5,6 @@ use bevy_egui::egui::Align2;
 use bevy_egui::egui::Color32;
 use bevy_egui::egui::FontId;
 use bevy_egui::egui::Id;
-use bevy_egui::egui::Pos2;
 use bevy_egui::egui::Rect;
 use bevy_egui::egui::ScrollArea;
 
@@ -145,6 +144,7 @@ fn show_inventory_gui(
         .min_width(150.)
         .max_width(150.)
         .default_pos([300., 100.])
+        .collapsible(false)
         .show(contexts.ctx_mut(), |ui| {
             ScrollArea::vertical()
                 .auto_shrink([false, true])

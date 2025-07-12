@@ -21,6 +21,7 @@ use crate::GameState;
 use crate::plugins::engine::ActiveGameEngine;
 use crate::plugins::engine::ActivePlayerEntityId;
 use crate::plugins::engine::ActivePlayerState;
+use crate::plugins::help_gui::HelpGuiState;
 use crate::plugins::player_inventory::PlayerInventoryState;
 use crate::ui::draw_root_button;
 
@@ -30,38 +31,61 @@ impl Plugin for GuiPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (show_bottom_info_bar, show_bottom_buttons)
+            (show_bottom_info_bar, show_bottom_buttons_bar)
                 .run_if(in_state(GameState::OnMap).or(in_state(GameState::LoadingMap))),
         );
     }
 }
 
-fn show_bottom_buttons(
+fn show_bottom_buttons_bar(
     mut contexts: EguiContexts,
-    mut next_state: ResMut<NextState<PlayerInventoryState>>,
-    state: Res<State<PlayerInventoryState>>,
+    mut help_next_state: ResMut<NextState<HelpGuiState>>,
+    help_state: Res<State<HelpGuiState>>,
+    mut inventory_next_state: ResMut<NextState<PlayerInventoryState>>,
+    inventory_state: Res<State<PlayerInventoryState>>,
 ) {
     let screen_rect = contexts.ctx_mut().screen_rect();
     let size = Vec2::new(80., 50.);
     let min = screen_rect.min
         + Vec2::new(
-            screen_rect.max.x - 2.0 * size.x,
+            // manually adjusting relative to inventory button
+            screen_rect.max.x - 2.0 * size.x - (80.0 + 10.0),
             screen_rect.max.y - (5.0 + size.y),
         );
 
+    egui::Area::new(Id::new("help_bottom_button"))
+        .movable(false)
+        .show(contexts.ctx_mut(), |ui| {
+            let rect = Rect::from_min_size(min, size);
+            let is_help_gui_open = help_state.get() == &HelpGuiState::Visible;
+
+            let is_clicked = draw_root_button(ui, rect, "Help", Some("(?)"), is_help_gui_open);
+
+            if is_clicked {
+                help_next_state.set(if is_help_gui_open {
+                    HelpGuiState::Hidden
+                } else {
+                    HelpGuiState::Visible
+                });
+            }
+        });
+
+    let min = min - Vec2::new(size.x + 8., 0.);
     egui::Area::new(Id::new("inventory_bottom_button"))
         .movable(false)
         .show(contexts.ctx_mut(), |ui| {
             let rect = Rect::from_min_size(min, size);
-            let is_inventory_open = matches!(state.get(), PlayerInventoryState::Visible);
+            let is_inventory_open = inventory_state.get() == &PlayerInventoryState::Visible;
 
-            let response = draw_root_button(ui, rect, "Inventory", Some("(I)"), is_inventory_open);
+            let is_clicked =
+                draw_root_button(ui, rect, "Inventory", Some("(I)"), is_inventory_open);
 
-            if response.clicked() {
-                match state.get() {
-                    PlayerInventoryState::Visible => next_state.set(PlayerInventoryState::Hidden),
-                    PlayerInventoryState::Hidden => next_state.set(PlayerInventoryState::Visible),
-                }
+            if is_clicked {
+                inventory_next_state.set(if is_inventory_open {
+                    PlayerInventoryState::Hidden
+                } else {
+                    PlayerInventoryState::Visible
+                });
             }
         });
 }

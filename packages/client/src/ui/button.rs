@@ -16,10 +16,18 @@ pub fn draw_root_button(
     text: &str,
     hotkey: Option<&str>,
     is_active: bool,
-) -> egui::Response {
-    let mouse_pos = ui.input(|i| i.pointer.interact_pos()).unwrap_or_default();
-    let is_hovered = rect.contains(mouse_pos);
-    let is_pressed = is_hovered && ui.input(|i| i.pointer.primary_down());
+) -> bool {
+    // Get cursor position and mouse state
+    let cursor_pos = ui.input(|i| i.pointer.interact_pos()).unwrap_or(Pos2::ZERO);
+    let is_hovered = rect.contains(cursor_pos);
+    let mouse_down = ui.input(|i| i.pointer.primary_down());
+    let mouse_clicked = ui.input(|i| i.pointer.primary_clicked());
+
+    // Button was activated if it's hovered and mouse was clicked this frame
+    let button_activated = is_hovered && mouse_clicked;
+
+    // Visual state for rendering
+    let is_pressed = is_hovered && mouse_down;
 
     // Button colors based on state
     let (bg_color_top, bg_color_bottom, border_color) = if is_active {
@@ -135,8 +143,8 @@ pub fn draw_root_button(
         );
     }
 
-    // Return response for interaction handling
-    ui.allocate_rect(rect, egui::Sense::click())
+    // Return whether the button was activated this frame
+    button_activated
 }
 
 // Helper function to draw gradient background
