@@ -9,6 +9,7 @@ mod map_data_loader;
 mod network;
 mod plugins;
 mod sprite_data_loader;
+mod ui;
 
 use network::NetworkMessage;
 
