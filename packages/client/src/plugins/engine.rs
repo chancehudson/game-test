@@ -380,15 +380,23 @@ pub fn spawn_bevy_entity(
                 sprite_manager.load_animation(&default_animation);
                 return;
             }
-            commands.spawn((
-                GameEntityComponent {
-                    entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
-                },
-                Transform::from_translation(p.position_f32().extend(100.0)),
-                PlayerComponent::default_sprite(sprite_manager.as_ref()),
-                MapEntity,
-            ));
+            commands
+                .spawn((
+                    GameEntityComponent {
+                        entity_id: engine_entity.id(),
+                        entity: Some(engine_entity.clone()),
+                    },
+                    Transform::from_translation(p.position_f32().extend(100.0)),
+                    PlayerComponent::default_sprite(sprite_manager.as_ref()),
+                    MapEntity,
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Transform::from_translation(Vec3::new(p.size.x as f32 / 2., -10., 100.)),
+                        Text2d::new(p.record.username.clone()),
+                        TextFont::from_font_size(10.0),
+                    ));
+                });
         }
         EngineEntity::MobSpawner(_) => {}
         EngineEntity::Mob(p) => {
