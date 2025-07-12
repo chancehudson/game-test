@@ -1,9 +1,11 @@
 use bevy_math::IVec2;
+use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::npc::NpcData;
 use crate::GameEngine;
+use crate::data::GameData;
 use crate::deserialize_vec2;
 use crate::entity::EngineEntity;
 use crate::entity::mob_spawn::MobSpawnEntity;
@@ -20,6 +22,32 @@ pub struct Platform {
 
 impl Platform {}
 
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
+pub struct MobSpawnData {
+    pub position: IVec2,
+    pub size: IVec2,
+    pub mob_type: u64,
+    pub max_count: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
+pub struct DropTableData {
+    pub item_id: u64,
+    pub odds: f32,
+    pub count_range: (u32, u32),
+}
+
+impl DropTableData {
+    pub fn drop<R: Rng>(&self, rng: &mut R) -> Option<(u64, u32)> {
+        if rng.random_bool(self.odds as f64) {
+            let count = rng.random_range(self.count_range.0..=self.count_range.1);
+            Some((self.item_id, count))
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct MapData {
     pub id: u64,
@@ -33,11 +61,11 @@ pub struct MapData {
     pub npc: Vec<NpcData>,
     pub platforms: Vec<Platform>,
     #[serde(default)]
-    pub mob_spawns: Vec<MobSpawnEntity>,
+    pub mob_spawns: Vec<MobSpawnData>,
 }
 
 impl crate::EngineInit for MapData {
-    fn init(&self, engine: &mut GameEngine) -> anyhow::Result<()> {
+    fn init(&self, game_data: &GameData, engine: &mut GameEngine) -> anyhow::Result<()> {
         // spawn the map components as needed
         for platform in &self.platforms {
             let id = engine.generate_id();
@@ -53,9 +81,13 @@ impl crate::EngineInit for MapData {
         }
         // mob spawns
         for spawn in &self.mob_spawns {
-            let mut spawn_with_id = spawn.clone();
-            spawn_with_id.id = engine.generate_id();
-            engine.spawn_entity(EngineEntity::MobSpawner(spawn_with_id), None, true);
+            let drop_table = game_data.mob_drop_table(spawn.mob_type)?;
+            let id = engine.generate_id();
+            engine.spawn_entity(
+                EngineEntity::MobSpawner(MobSpawnEntity::new_data(id, spawn.clone(), drop_table)),
+                None,
+                true,
+            );
         }
         // portal spawns
         for portal in &self.portals {

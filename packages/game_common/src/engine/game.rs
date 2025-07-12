@@ -7,9 +7,9 @@ use crate::entity::item::ItemEntity;
 
 use super::GameEngine;
 use super::entity::player::PlayerEntity;
-use super::game_event::EngineEvent;
 use super::game_event::GameEvent;
 
+/// The default handler may mutate the engine without using engine events
 pub fn default_handler(engine: &mut GameEngine, game_event: &GameEvent) {
     // handle game events that occurred during a step
     match game_event {
@@ -20,15 +20,8 @@ pub fn default_handler(engine: &mut GameEngine, game_event: &GameEvent) {
             to_map: _,
             requested_spawn_pos: _,
         } => {
-            // player will be despawned ASAP step
-            engine.register_event(
-                None,
-                EngineEvent::RemoveEntity {
-                    id: rand::random(),
-                    entity_id: *entity_id,
-                    universal: false,
-                },
-            );
+            // player will be despawned immediately
+            engine.entities.remove(entity_id);
         }
         GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {
             // we'll just handle synchronizing the player entities stats here
@@ -46,31 +39,34 @@ pub fn default_handler(engine: &mut GameEngine, game_event: &GameEvent) {
             }
         }
         GameEvent::PlayerPickUpRequest(player_entity_id) => {
-            let player_entity = engine.entities.get(player_entity_id).unwrap().clone();
-            let game_events_sender = engine.game_events.0.clone();
-            for item in engine
-                .entities_by_type::<ItemEntity>()
-                .cloned()
-                .collect::<Vec<_>>()
-            {
-                if item.rect().intersect(player_entity.rect()).is_empty() {
-                    continue;
+            if let Some(player_entity) = engine.entities.get(player_entity_id).cloned() {
+                let game_events_sender = engine.game_events.0.clone();
+                // there are quirks with using entities_by_type in the default handler
+                // see GameEngine::step
+                for item in engine
+                    .entities_by_type::<ItemEntity>()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                {
+                    if item.rect().intersect(player_entity.rect()).is_empty() {
+                        continue;
+                    }
+                    // otherwise pick up the item
+                    engine.entities.remove(&item.id);
+                    // mark user as having object
+                    game_events_sender
+                        .send(GameEvent::PlayerPickUp(
+                            player_entity
+                                .extract_ref::<PlayerEntity>()
+                                .unwrap()
+                                .player_id
+                                .clone(),
+                            item.item_type,
+                            item.count,
+                        ))
+                        .unwrap();
+                    return;
                 }
-                // otherwise pick up the item
-                engine.remove_entity(item.id, false);
-                // mark user as having object
-                game_events_sender
-                    .send(GameEvent::PlayerPickUp(
-                        player_entity
-                            .extract_ref::<PlayerEntity>()
-                            .unwrap()
-                            .player_id
-                            .clone(),
-                        item.item_type,
-                        item.count,
-                    ))
-                    .unwrap();
-                return;
             }
         }
         GameEvent::PlayerPickUp(_, _, _) => {}

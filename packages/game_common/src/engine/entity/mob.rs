@@ -13,6 +13,7 @@ use crate::actor::move_x;
 use crate::actor::move_y;
 use crate::actor::on_platform;
 use crate::damage_calc::compute_damage;
+use crate::data::map::DropTableData;
 use crate::entity::EEntity;
 use crate::entity::EngineEntity;
 use crate::entity::SEEntity;
@@ -31,6 +32,7 @@ const KNOCKBACK_STEPS: u64 = 20;
 entity_struct!(
     pub struct MobEntity {
         pub mob_type: u64,
+        pub drop_table: Vec<DropTableData>,
         weightless_until: Option<u64>,
         pub moving_sign: i32,
         moving_until: Option<u64>,
@@ -239,19 +241,29 @@ impl SEEntity for MobEntity {
                 }
                 if next_self.current_health <= damage_amount {
                     next_self.is_dead = true;
-                    // drop an item
-                    engine.spawn_entity(
-                        EngineEntity::Item(ItemEntity::new_item(
-                            rng.random(),
-                            self.center(),
-                            1, // gold coin
-                            1, // amount
-                            player_entity_id,
-                            engine.step_index,
-                        )),
-                        None,
-                        false,
-                    );
+                    let mut x_offset = 0i32;
+                    for drop in self
+                        .drop_table
+                        .iter()
+                        .filter_map(|drop_data| drop_data.drop(&mut rng))
+                        .collect::<Vec<_>>()
+                    {
+                        // drop an item
+                        let id = engine.generate_id();
+                        engine.spawn_entity(
+                            EngineEntity::Item(ItemEntity::new_item(
+                                id,
+                                self.center() + IVec2::new(x_offset, 0),
+                                drop.0, // item type
+                                drop.1, // amount
+                                player_entity_id,
+                                engine.step_index,
+                            )),
+                            None,
+                            false,
+                        );
+                        x_offset += 10;
+                    }
                     break;
                 } else {
                     next_self.current_health -= damage_amount;

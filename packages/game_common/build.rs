@@ -35,13 +35,6 @@ fn main() -> anyhow::Result<()> {
                 }
                 let data_str = std::fs::read_to_string(&path).unwrap();
                 let data: HashMap<String, serde_json::Value> = json5::from_str(&data_str)?;
-                // let id = data
-                //     .get("id")
-                //     .unwrap()
-                //     .clone()
-                //     .as_u64()
-                //     .unwrap()
-                //     .to_string();
                 datas.push(data);
             }
         }

@@ -34,8 +34,7 @@ pub enum PlayerInventoryState {
 #[derive(Resource, Default)]
 pub struct PlayerInventoryGuiData {
     dragging_entry: (u8, (u64, u32)),
-    position: Pos2,
-    dragging_index: u8,
+    dragging_index: u8, // the inventory slot index
     is_dragging: bool,
 }
 
@@ -196,7 +195,6 @@ fn show_inventory_gui(
                                     && let Some(entry) = entry_maybe
                                 {
                                     inventory_gui_data.dragging_entry = (i, entry);
-                                    inventory_gui_data.position = rect.min;
                                     inventory_gui_data.is_dragging = true;
                                     inventory_gui_data.dragging_index = i;
                                 }

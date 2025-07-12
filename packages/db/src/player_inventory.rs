@@ -1,8 +1,4 @@
 use std::collections::HashMap;
-/// This is a unified collection for all inventories. This includes
-/// player inventories, npc inventories, shop inventories, etc. Trades between
-/// inventories can be accomplished using a single lock on this table
-///
 use std::sync::Arc;
 
 use anyhow::Result;

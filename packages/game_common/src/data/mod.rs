@@ -15,6 +15,8 @@ use item::ItemData;
 use map::MapData;
 use mob::MobData;
 
+use crate::data::map::DropTableData;
+
 /// Handles loading all game ascii data.
 ///
 pub enum DataType {
@@ -84,5 +86,12 @@ impl GameData {
         let data_str = std::fs::read_to_string(&assets_dir.join("game_data.json5"))?;
         let raw = json5::from_str(&data_str)?;
         Self::from_json(raw)
+    }
+
+    pub fn mob_drop_table(&self, mob_type: u64) -> Result<Vec<DropTableData>> {
+        match self.mobs.get(&mob_type) {
+            Some(data) => Ok(data.drop_table.clone()),
+            None => Ok(vec![]),
+        }
     }
 }

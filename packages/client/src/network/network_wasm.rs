@@ -7,8 +7,8 @@ use wasm_bindgen_futures::future_to_promise;
 use wasm_bindgen_futures::spawn_local;
 use ws_stream_wasm::*;
 
-use game_common::action::Action;
-use game_common::action::Response;
+use game_common::network::Action;
+use game_common::network::Response;
 
 #[derive(Component)]
 pub struct NetworkConnection {

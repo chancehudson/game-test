@@ -73,13 +73,11 @@ impl MapInstance {
         db: Arc<redb::Database>,
         game_events: flume::Sender<GameEvent>,
     ) -> anyhow::Result<Self> {
-        let mut engine = GameEngine::new(map.size);
-        map.init(&mut engine)?;
         Ok(Self {
             pending_actions: flume::unbounded(),
             pending_events: flume::unbounded(),
             player_engines: HashMap::new(),
-            engine,
+            engine: GameEngine::new(map.size),
             map,
             network_server,
             last_stats_broadcast: 0.,
