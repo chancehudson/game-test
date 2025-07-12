@@ -177,14 +177,14 @@ impl Game {
 
         map_instance.remove_player(&record.id).await?;
         map_instance
-            .add_player(socket_id.to_string(), &record, &stats, None)
+            .add_player(socket_id.to_string(), record, stats, None)
             .await?;
 
         self.network_server
             .register_player(socket_id.to_string(), record.id.clone())
             .await;
         self.network_server
-            .send(&socket_id, Response::PlayerLoggedIn(record.clone()))
+            .send(socket_id, Response::PlayerLoggedIn(record.clone()))
             .await?;
         self.network_server
             .send_to_player(&record.id, Response::PlayerState(record.clone()))
@@ -227,7 +227,7 @@ impl Game {
             Action::PlayerInventoryDrop(slot_index, count) => {
                 let player_id = self.network_server.player_by_socket_id(&socket_id).await;
                 if player_id.is_none() {
-                    println!("No player id for socket {} !", socket_id);
+                    println!("No player id for socket {socket_id} !");
                     return Ok(());
                 }
                 let player_id = player_id.unwrap();
@@ -246,7 +246,7 @@ impl Game {
             Action::PlayerInventorySwap(slots) => {
                 let player_id = self.network_server.player_by_socket_id(&socket_id).await;
                 if player_id.is_none() {
-                    println!("No player id for socket {} !", socket_id);
+                    println!("No player id for socket {socket_id} !");
                     return Ok(());
                 }
                 let player_id = player_id.unwrap();
@@ -256,7 +256,7 @@ impl Game {
             Action::RemoteEngineEvent(engine_id, event, step_index) => {
                 let player_id = self.network_server.player_by_socket_id(&socket_id).await;
                 if player_id.is_none() {
-                    println!("No player id for socket {} !", socket_id);
+                    println!("No player id for socket {socket_id} !");
                     return Ok(());
                 }
                 let player_id = player_id.unwrap();
@@ -282,7 +282,7 @@ impl Game {
                 // but linus said deep indentation bad
                 let player_id = self.network_server.player_by_socket_id(&socket_id).await;
                 if player_id.is_none() {
-                    println!("No player id for socket {} !", socket_id);
+                    println!("No player id for socket {socket_id} !");
                     return Ok(());
                 }
                 let player_id = player_id.unwrap();

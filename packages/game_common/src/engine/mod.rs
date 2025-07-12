@@ -372,10 +372,11 @@ impl GameEngine {
 
     /// Return an entity by id at a certain step index, if possible. Extracts the underlying
     /// entity type from the EngineEntity
-    pub fn entity_by_id<T: 'static>(&self, id: &u128, step_index: Option<u64>) -> Option<&T>
-    where
-        T: EEntity,
-    {
+    pub fn entity_by_id<T: 'static + EEntity>(
+        &self,
+        id: &u128,
+        step_index: Option<u64>,
+    ) -> Option<&T> {
         let step_index = step_index.unwrap_or(self.step_index);
         let entities = if step_index == self.step_index {
             Some(&self.entities)
@@ -394,14 +395,11 @@ impl GameEngine {
         None
     }
 
-    pub fn entity_by_id_mut<T: 'static>(
+    pub fn entity_by_id_mut<T: 'static + EEntity>(
         &mut self,
         id: &u128,
         step_index: Option<u64>,
-    ) -> Option<&mut T>
-    where
-        T: EEntity,
-    {
+    ) -> Option<&mut T> {
         let step_index = step_index.unwrap_or(self.step_index);
         let entities = if step_index == self.step_index {
             Some(&mut self.entities)
@@ -497,13 +495,15 @@ impl GameEngine {
             .entry(EngineEventType::SpawnEntity)
             .or_default()
             .entry(self.step_index)
-            .or_default().values_mut()
+            .or_default()
+            .values_mut()
         {
             if let EngineEvent::SpawnEntity {
-                    id: _,
-                    entity,
-                    universal: _,
-                } = event {
+                id: _,
+                entity,
+                universal: _,
+            } = event
+            {
                 if let Some(e) = self.entities.insert(entity.id(), entity.clone()) {
                     println!("WARNING: inserting entity that already existed! {e:?}");
                     if &e == entity {
@@ -520,13 +520,15 @@ impl GameEngine {
             .entry(EngineEventType::RemoveEntity)
             .or_default()
             .entry(self.step_index)
-            .or_default().values_mut()
+            .or_default()
+            .values_mut()
         {
             if let EngineEvent::RemoveEntity {
-                    id: _,
-                    entity_id,
-                    universal: _,
-                } = event {
+                id: _,
+                entity_id,
+                universal: _,
+            } = event
+            {
                 self.entities.remove(entity_id);
             }
         }

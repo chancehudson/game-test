@@ -8,7 +8,6 @@ use db::AbilityExpRecord;
 use db::PlayerInventory;
 use db::PlayerRecord;
 use db::PlayerStats;
-use game_common::EngineInit;
 use game_common::GameEngine;
 use game_common::MapData;
 use game_common::STEP_DELAY;
@@ -260,15 +259,15 @@ impl MapInstance {
             if let Some((step_index, engine_event)) =
                 self.process_remote_event(&remote_event).await?
             {
-                if let Some(_) = events
+                if events
                     .entry(step_index)
                     .or_default()
-                    .insert(engine_event.id(), engine_event.clone())
+                    .insert(engine_event.id(), engine_event.clone()).is_some()
                 {
                     println!("WARNING: duplicate action/event detected!");
                 }
             } else {
-                println!("Error processing remote engine event: {:?}", remote_event);
+                println!("Error processing remote engine event: {remote_event:?}");
             }
         }
         Ok(events)
@@ -279,13 +278,13 @@ impl MapInstance {
         let pending_actions = self.pending_actions.1.drain().collect::<Vec<_>>();
         let pending_events = self.pending_events.1.drain().collect::<Vec<_>>();
         let has_events = !pending_events.is_empty() || !pending_actions.is_empty();
-        let mut new_events = if pending_actions.len() > 0 {
+        let mut new_events = if !pending_actions.is_empty() {
             self.process_remote_events(pending_actions).await?
         } else {
             BTreeMap::new()
         };
         for (si, event) in pending_events {
-            if let Some(_) = new_events.entry(si).or_default().insert(event.id(), event) {
+            if new_events.entry(si).or_default().insert(event.id(), event).is_some() {
                 println!("WARNING: overwriting existing event");
             }
         }
@@ -311,7 +310,7 @@ impl MapInstance {
                     let mut inventory = PlayerInventory::new(player_id.to_string());
                     match inventory.player_picked_up(self.db.clone(), item_type, count)? {
                         Some((slot_index, new_record)) => {
-                            println!("{:?} {:?}", slot_index, new_record);
+                            println!("{slot_index:?} {new_record:?}");
                             self.network_server
                                 .send_to_player(
                                     &player_id,
@@ -399,7 +398,7 @@ impl MapInstance {
             // send engine stats
             if let Some(engine_hash) = engine_hash {
                 let id = id.to_string();
-                let engine_hash = engine_hash.clone();
+                let engine_hash = engine_hash;
                 self.network_server
                     .send_to_player(
                         &id,
@@ -421,7 +420,7 @@ impl MapInstance {
                     self.network_server.send_to_player(id, response).await;
                 }
             } else {
-                Self::init_remote_engine(self.network_server.clone(), &self.engine, &id, player)
+                Self::init_remote_engine(self.network_server.clone(), &self.engine, id, player)
                     .await;
             }
         }

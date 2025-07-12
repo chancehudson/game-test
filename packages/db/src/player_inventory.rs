@@ -79,7 +79,7 @@ impl PlayerInventory {
                 }
                 None => {
                     #[cfg(debug_assertions)]
-                    assert!(false);
+                    panic!();
                     None
                 }
             }
@@ -166,10 +166,9 @@ impl PlayerInventory {
             }
             if let Some(obj) = inventory_slot {
                 let (slot_item_type, _count) = obj.value();
-                if item_type_slot_maybe.is_none()
-                    && item_type == slot_item_type {
-                        item_type_slot_maybe = Some(i);
-                    }
+                if item_type_slot_maybe.is_none() && item_type == slot_item_type {
+                    item_type_slot_maybe = Some(i);
+                }
             }
         }
         // no space in inventory

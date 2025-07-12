@@ -77,8 +77,10 @@ impl Plugin for LoginGuiPlugin {
 }
 
 fn show_home_engine(mut active_engine_state: ResMut<ActiveGameEngine>) {
-    let mut home_map = MapData::default();
-    home_map.size = IVec2::splat(1000);
+    let home_map = MapData {
+        size: IVec2::splat(1000),
+        ..Default::default()
+    };
     let mut engine = GameEngine::new(home_map.size);
     home_map.init(&GameData::default(), &mut engine).unwrap();
     active_engine_state.0 = engine;

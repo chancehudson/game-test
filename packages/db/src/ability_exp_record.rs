@@ -3,6 +3,7 @@
 ///
 use std::cell::LazyCell;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use anyhow::Result;
 use redb::ReadableTable;
@@ -36,7 +37,6 @@ pub enum Ability {
     Dexterity = 2,
     Intelligence = 3,
 }
-
 
 const EXP_LEVEL_PRECALC: LazyCell<BTreeMap<u64, u64>> = LazyCell::new(|| {
     let mut out = BTreeMap::default();

@@ -65,7 +65,7 @@ impl NetworkConnection {
                         return; // thread ends
                     }
                     if let Ok((ws_stream, _)) = connection {
-                        if let Err(_) = connected_tx.send(Ok(())) {
+                        if connected_tx.send(Ok(())).is_err() {
                             println!("WARNING: No receivers for network connection attempt!");
                             println!("halting connection thread");
                             return; // thread ends

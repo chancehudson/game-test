@@ -51,19 +51,23 @@ pub fn can_move_left_right_without_falling(body: IRect, engine: &mut GameEngine)
         body.min.y - dist,
     );
     if engine.enable_debug_markers {
-        let mut debug_rect = RectEntity::default();
-        debug_rect.id = engine.generate_id();
-        debug_rect.disappears_at_step_index = Some(engine.step_index + 120);
-        debug_rect.color = bevy_math::Vec3::new(1.0, 0.0, 0.0);
-        debug_rect.position = left_check.min;
-        debug_rect.size = left_check.size();
+        let debug_rect = RectEntity {
+            id: engine.generate_id(),
+            disappears_at_step_index: Some(engine.step_index + 120),
+            color: bevy_math::Vec3::new(1.0, 0.0, 0.0),
+            position: left_check.min,
+            size: left_check.size(),
+            ..Default::default()
+        };
         engine.spawn_entity(EngineEntity::Rect(debug_rect), None, true);
-        let mut debug_rect = RectEntity::default();
-        debug_rect.id = engine.generate_id();
-        debug_rect.disappears_at_step_index = Some(engine.step_index + 120);
-        debug_rect.color = bevy_math::Vec3::new(1.0, 0.0, 0.0);
-        debug_rect.position = right_check.min;
-        debug_rect.size = right_check.size();
+        let debug_rect = RectEntity {
+            id: engine.generate_id(),
+            disappears_at_step_index: Some(engine.step_index + 120),
+            color: bevy_math::Vec3::new(1.0, 0.0, 0.0),
+            position: right_check.min,
+            size: right_check.size(),
+            ..Default::default()
+        };
         engine.spawn_entity(EngineEntity::Rect(debug_rect), None, true);
     }
 

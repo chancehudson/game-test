@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
             // handle inputs from the clients
             for (socket_id, action) in game_clone.network_server.pending_actions.1.drain() {
                 if let Err(e) = game_clone.handle_action(socket_id, action.clone()).await {
-                    println!("failed to handle action: {:?} {:?}", action, e);
+                    println!("failed to handle action: {action:?} {e:?}");
                 }
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -82,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
 
-                println!("server action_queue len: {}", network_action_queue_len);
+                println!("server action_queue len: {network_action_queue_len}");
                 println!(
                     "server socket_sender len: {}",
                     game_clone.network_server.socket_sender.len()
@@ -109,13 +109,13 @@ async fn main() -> anyhow::Result<()> {
                 let mut map_instance = map_instance.write().await;
                 if let Err(e) = map_instance.tick().await {
                     println!("WARNING: error stepping map_instance!");
-                    println!("{}", e);
+                    println!("{e}");
                 }
             });
         }
         join_set.join_all().await;
         if let Err(e) = game.handle_events().await {
-            println!("WARNING: error handling game events {:?}", e);
+            println!("WARNING: error handling game events {e:?}");
         }
         let tick_time = timestamp() - tick_start;
         if tick_time >= TICK_RATE_S {

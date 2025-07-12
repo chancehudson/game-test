@@ -53,7 +53,7 @@ impl PlayerRecord {
         let mut username_table = write.open_table(USERNAME_TABLE)?;
         let mut player_table = write.open_table(PLAYER_TABLE)?;
 
-        if let Some(_) = username_table.get(username.as_str())? {
+        if username_table.get(username.as_str())?.is_some() {
             anyhow::bail!("username already in use!");
         }
         username_table.insert(username.as_str(), player_id.as_str())?;

@@ -50,8 +50,8 @@ impl Server {
     pub async fn send_to_player(&self, player_id: &str, res: Response) {
         if let Some(socket_id) = self.socket_by_player_id(player_id).await {
             if let Err(e) = self.send(&socket_id, res.clone()).await {
-                println!("Error sending to player {player_id}: {:?}", e);
-                println!("message: {:?}", res);
+                println!("Error sending to player {player_id}: {e:?}");
+                println!("message: {res:?}");
                 if e.to_string() == "channel closed" {
                     println!("player disconnected");
                     self.logout_socket(&socket_id).await;
@@ -77,7 +77,7 @@ impl Server {
         let addr = stream
             .peer_addr()
             .expect("connected streams should have a peer address");
-        println!("Peer address: {}", addr);
+        println!("Peer address: {addr}");
 
         let ws_stream = tokio_tungstenite::accept_async(stream).await;
         if ws_stream.is_err() {
@@ -86,7 +86,7 @@ impl Server {
         }
         let ws_stream = ws_stream.unwrap();
 
-        println!("New WebSocket connection: {}", addr);
+        println!("New WebSocket connection: {addr}");
 
         let socket_id = nanoid::nanoid!();
         let (mut write, mut read) = ws_stream.split();
@@ -99,7 +99,7 @@ impl Server {
             .client_loop(&socket_id, &mut write, &mut read, &mut recv)
             .await
         {
-            println!("websocket client loop errored: {:?}", e);
+            println!("websocket client loop errored: {e:?}");
             // we'll cleanup now with the assumption that the connection will be forcibly closed
             self.cleanup_connection(&socket_id, &mut recv).await;
 
@@ -114,7 +114,7 @@ impl Server {
 
             // close the connection
             if let Err(e) = write.close().await {
-                println!("error closing websocket connection: {:?}", e);
+                println!("error closing websocket connection: {e:?}");
             }
         }
     }
@@ -151,7 +151,7 @@ impl Server {
                     match msg {
                         Some(msg) => {
                             if let Err(e) = msg {
-                                println!("websocket client error: {}", e);
+                                println!("websocket client error: {e}");
                                 self.cleanup_connection(socket_id, recv).await;
                                 break;
                             }
@@ -202,11 +202,7 @@ impl Server {
     }
 
     pub async fn socket_by_player_id(&self, player_id: &str) -> Option<String> {
-        if let Some(v) = self.player_socket_map.get(player_id) {
-            Some(v.value().clone())
-        } else {
-            None
-        }
+        self.player_socket_map.get(player_id).map(|v| v.value().clone())
     }
 
     pub async fn logout_socket(&self, socket_id: &str) -> Option<String> {
@@ -214,7 +210,7 @@ impl Server {
         if let Some((_, player_id)) = player_id.as_ref() {
             self.player_socket_map.remove(player_id);
         }
-        player_id.and_then(|(_, v)| Some(v))
+        player_id.map(|(_, v)| v)
     }
 
     pub async fn register_player(&self, socket_id: String, player_id: String) {
