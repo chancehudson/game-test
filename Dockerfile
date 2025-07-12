@@ -1,10 +1,11 @@
 # Multi-stage build for smaller final image
-FROM rust:1.87-slim AS builder
+FROM rust:1.88-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    libasound2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -13,7 +14,7 @@ WORKDIR /app
 COPY . ./
 
 # Build the actual application
-RUN cargo build --bin=server --features=server --no-default-features --release
+RUN cargo build --bin=server --release
 
 # Runtime stage
 FROM debian:bookworm-slim
