@@ -67,7 +67,7 @@ impl SpriteManager {
             if let Some(handle) = self.sprite_image_handle_map.get(&name) {
                 if asset_server.is_loaded(handle) {
                     let atlas_handle =
-                        texture_atlas_layouts.add(build_sprite_textures(&animation_data));
+                        texture_atlas_layouts.add(build_sprite_textures(animation_data));
                     self.sprite_texture_atlas_map
                         .insert(name.clone(), atlas_handle);
                     // TODO: animation support

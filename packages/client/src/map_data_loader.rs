@@ -24,15 +24,12 @@ impl AssetLoader for MapDataLoader {
     type Settings = ();
     type Error = anyhow::Error;
 
-    fn load<'a>(
+    fn load(
         &self,
-        reader: &'a mut dyn Reader,
+        reader: &mut dyn Reader,
         _settings: &Self::Settings,
         _load_context: &mut LoadContext,
-    ) -> impl ConditionalSendFuture
-    + futures_util::Future<
-        Output = Result<<Self as AssetLoader>::Asset, <Self as AssetLoader>::Error>,
-    > {
+    ) -> impl ConditionalSendFuture<Output = Result<<Self as AssetLoader>::Asset, <Self as AssetLoader>::Error>> {
         async move {
             println!("hit map data loader");
             let mut data_str = String::new();

@@ -104,7 +104,7 @@ fn damage_text_system(
                     if p.received_damage_this_step.0 {
                         commands.spawn(DamageComponent::player_damage(
                             engine.step_index,
-                            &p,
+                            p,
                             p.received_damage_this_step.1,
                         ));
                     }
@@ -125,7 +125,7 @@ fn iframe_blink_system(
         if let Some(entity) = &entity.entity {
             match entity {
                 EngineEntity::Player(p) => {
-                    if let Some(_) = p.receiving_damage_until {
+                    if p.receiving_damage_until.is_some() {
                         let alpha = if blink { 0.4 } else { 1.0 };
                         sprite.color.set_alpha(alpha);
                     } else {

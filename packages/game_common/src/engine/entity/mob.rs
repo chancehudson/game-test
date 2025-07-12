@@ -114,7 +114,7 @@ impl MobEntity {
                             universal: false,
                         },
                     );
-                    self.moving_sign = self.moving_sign * -1;
+                    self.moving_sign = -self.moving_sign;
                 } else {
                     // do this so if we move for more than
                     // TRAILING_STATE_COUNT steps we can still replay
@@ -178,9 +178,9 @@ impl SEEntity for MobEntity {
         next_self.prestep(engine);
         let mut rng = self.rng(&engine.step_index);
         // velocity in the last frame based on movement
-        let last_velocity = self.velocity.clone();
+        let last_velocity = self.velocity;
         let body = self.rect();
-        let mut velocity = last_velocity.clone();
+        let mut velocity = last_velocity;
         let can_jump = on_platform(body, engine);
         let (_, input) = engine.latest_input(&self.id);
 
@@ -320,8 +320,8 @@ impl SEEntity for MobEntity {
         let lower_speed_limit = IVec2::new(-150, -350);
         let upper_speed_limit = IVec2::new(150, 700);
         velocity = velocity.clamp(lower_speed_limit, upper_speed_limit);
-        let x_pos = move_x(self.rect(), last_velocity.x / STEPS_PER_SECOND_I32, &engine);
-        let map_size = engine.size.clone();
+        let x_pos = move_x(self.rect(), last_velocity.x / STEPS_PER_SECOND_I32, engine);
+        let map_size = engine.size;
         let platforms = engine.entities_by_type::<PlatformEntity>();
         let y_pos = move_y(
             self.rect(),

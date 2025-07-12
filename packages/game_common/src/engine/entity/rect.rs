@@ -25,7 +25,7 @@ impl SEEntity for RectEntity {
             }
         }
         let mut next_self = self.clone();
-        next_self.position.x = move_x(self.rect(), self.velocity.x / STEPS_PER_SECOND_I32, &engine);
+        next_self.position.x = move_x(self.rect(), self.velocity.x / STEPS_PER_SECOND_I32, engine);
         next_self
     }
 }

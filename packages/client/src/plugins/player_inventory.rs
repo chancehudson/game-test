@@ -95,7 +95,7 @@ fn draw_drag_window(
             #[cfg(debug_assertions)]
             assert_ne!(inventory_gui_data.dragging_entry.1.1, 0);
             if let Some(item) = game_data.items.get(&inventory_gui_data.dragging_entry.1.0) {
-                if !sprite_manager.is_animation_loaded(&item.icon_animation, &asset_server) {
+                if !sprite_manager.is_animation_loaded(&item.icon_animation, asset_server) {
                     sprite_manager.load_animation(&item.icon_animation);
                     return;
                 }
@@ -134,7 +134,7 @@ fn show_inventory_gui(
     draw_drag_window(
         Rect::from_min_size(pointer_pos + egui::Vec2::splat(3.), item_size),
         &mut contexts,
-        &game_data,
+        game_data,
         &mut sprite_manager,
         &asset_server,
         &mut inventory_gui_data,
@@ -190,7 +190,7 @@ fn show_inventory_gui(
                                 );
 
                                 let entry_maybe =
-                                    player_inventory.0.items.get(&i).map(|v| v.clone());
+                                    player_inventory.0.items.get(&i).copied();
                                 if response.drag_started()
                                     && let Some(entry) = entry_maybe
                                 {

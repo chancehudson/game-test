@@ -72,8 +72,8 @@ impl crate::EngineInit for MapData {
             engine.spawn_entity(
                 EngineEntity::Platform(PlatformEntity::new(
                     id,
-                    platform.position.clone(),
-                    platform.size.clone(),
+                    platform.position,
+                    platform.size,
                 )),
                 None,
                 true,

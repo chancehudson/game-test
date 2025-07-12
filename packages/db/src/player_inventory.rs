@@ -66,7 +66,7 @@ impl PlayerInventory {
                     let drop_count = item.1.min(count);
                     #[cfg(debug_assertions)]
                     assert_ne!(drop_count, 0);
-                    let mut item = item.clone();
+                    let mut item = item;
                     item.1 -= drop_count;
                     if item.1 == 0 {
                         inventory_table.remove(key)?;
@@ -166,11 +166,10 @@ impl PlayerInventory {
             }
             if let Some(obj) = inventory_slot {
                 let (slot_item_type, _count) = obj.value();
-                if item_type_slot_maybe.is_none() {
-                    if item_type == slot_item_type {
+                if item_type_slot_maybe.is_none()
+                    && item_type == slot_item_type {
                         item_type_slot_maybe = Some(i);
                     }
-                }
             }
         }
         // no space in inventory

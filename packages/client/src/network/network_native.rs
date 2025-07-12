@@ -60,7 +60,7 @@ impl NetworkConnection {
                 rt.block_on(async {
                     let connection = connect_async(url_clone).await;
                     if let Err(e) = connection {
-                        println!("Connection errored: {:?}", e);
+                        println!("Connection errored: {e:?}");
                         connected_tx.send(Err(anyhow::format_err!(e))).ok();
                         return; // thread ends
                     }
@@ -78,7 +78,7 @@ impl NetworkConnection {
                                         bincode::deserialize::<Response>(&msg.into_data())
                                     {
                                         if let Err(e) = receive_tx.send(r) {
-                                            println!("receive err {:?}", e);
+                                            println!("receive err {e:?}");
                                             break;
                                         }
                                     } else {
@@ -92,7 +92,7 @@ impl NetworkConnection {
                         while let Ok(action) = send_rx.recv_async().await {
                             if let Ok(serialized) = bincode::serialize(&action) {
                                 if let Err(e) = write.send(Message::binary(serialized)).await {
-                                    println!("error sending {:?}", e);
+                                    println!("error sending {e:?}");
                                     break;
                                 }
                             }
@@ -114,7 +114,7 @@ impl NetworkConnection {
 
     pub fn write_connection(&self, action: Action) {
         if let Err(e) = self.send_tx.send(action) {
-            println!("error writing to network connection (native): {:?}", e);
+            println!("error writing to network connection (native): {e:?}");
         }
     }
 }

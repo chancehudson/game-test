@@ -42,9 +42,8 @@ pub fn compute_damage<R: Rng>(
 
     let min_hit_amount = relative_level * 2 + 1;
     let max_hit_amount = relative_level * 3 + 3;
-    let hit_amount = rng.random_range(min_hit_amount..max_hit_amount);
 
     // reduce the damage based on armor amount
     //
-    hit_amount
+    rng.random_range(min_hit_amount..max_hit_amount)
 }

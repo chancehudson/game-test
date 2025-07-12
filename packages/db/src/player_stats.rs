@@ -29,14 +29,14 @@ impl PlayerStats {
 
     /// Compute the accuracy of an attack using a certain ability
     pub fn avoidability_by_ability(&self, ability: &Ability) -> u64 {
-        let level = self.level_by_ability(ability);
-        level
+        
+        self.level_by_ability(ability)
     }
 
     /// Compute the accuracy of an attack using a certain ability
     pub fn accuracy_by_ability(&self, ability: &Ability) -> u64 {
-        let level = self.level_by_ability(ability);
-        level
+        
+        self.level_by_ability(ability)
     }
 
     /// A players level is defined simply as the summation of all ability levels
@@ -124,11 +124,8 @@ impl PlayerStats {
         let ability_exp_table = read.open_table(ABILITY_EXP_TABLE)?;
         for ability in Ability::iter() {
             let key = AbilityExpRecord::key(player_id, &ability)?;
-            match ability_exp_table.get(key)? {
-                Some(ability_exp) => {
-                    out.ability_exp.insert(ability.clone(), ability_exp.value());
-                }
-                None => {}
+            if let Some(ability_exp) = ability_exp_table.get(key)? {
+                out.ability_exp.insert(ability.clone(), ability_exp.value());
             }
         }
         Ok(out)

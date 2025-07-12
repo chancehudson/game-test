@@ -83,7 +83,7 @@ impl GameData {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn load(assets_dir: &Path) -> Result<Self> {
-        let data_str = std::fs::read_to_string(&assets_dir.join("game_data.json5"))?;
+        let data_str = std::fs::read_to_string(assets_dir.join("game_data.json5"))?;
         let raw = json5::from_str(&data_str)?;
         Self::from_json(raw)
     }

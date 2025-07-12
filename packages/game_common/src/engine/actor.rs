@@ -24,7 +24,7 @@ pub fn on_platform(body: IRect, engine: &mut GameEngine) -> bool {
     // check if the intersection is underneath the player
     let launch_rect = IRect::new(body.min.x, body.min.y - 2, body.max.x, body.min.y - 1);
     let not_launch_rect = IRect::new(body.min.x, body.min.y + 1, body.max.x, body.min.y + 3);
-    return contains_platform(engine, launch_rect) && !contains_platform(engine, not_launch_rect);
+    contains_platform(engine, launch_rect) && !contains_platform(engine, not_launch_rect)
 }
 
 pub fn can_move_left_right(body: IRect, engine: &mut GameEngine) -> (bool, bool) {
@@ -77,7 +77,7 @@ pub fn move_x(body: IRect, dx: i32, engine: &GameEngine) -> i32 {
     if dx == 0 {
         return body.min.x;
     }
-    let mut body = body.clone();
+    let mut body = body;
     body.min.x += dx;
     body.max.x += dx;
     if body.max.x > engine.size.x {
@@ -102,7 +102,7 @@ where
     let mut moved = 0;
     let min_y = 0;
     let max_y = map_size.y - body.height();
-    let mut position = body.min.clone();
+    let mut position = body.min;
 
     // if the character is jumping we don't care about collisions
     if dy.signum() == 1 {
@@ -110,7 +110,7 @@ where
         return position.y;
     }
     while moved < dy_abs + 1 {
-        let mut new_player_rect = body.clone();
+        let mut new_player_rect = body;
         new_player_rect.min.y += sign * moved;
         new_player_rect.max.y += sign * moved;
 

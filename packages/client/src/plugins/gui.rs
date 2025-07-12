@@ -11,8 +11,6 @@ use bevy_egui::egui::RichText;
 use bevy_egui::egui::Stroke;
 use bevy_egui::egui::StrokeKind;
 use bevy_egui::egui::Vec2;
-use egui::Align2;
-use egui::FontId;
 
 use db::Ability;
 use game_common::entity::EngineEntity;
@@ -131,7 +129,7 @@ fn show_bottom_info_bar(
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new(&active_player.username).size(18.0));
-                    ui.label(format!("lvl. {}", player_level));
+                    ui.label(format!("lvl. {player_level}"));
                 });
                 ui.vertical(|ui| {
                     ui.horizontal_top(|ui| {
@@ -194,7 +192,7 @@ fn small_bar(
 ) {
     let _current = current as f64;
     let _max = max as f64;
-    let corner_radius = 4 as u8;
+    let corner_radius = 4_u8;
     let fill_width = width * percent as f32;
 
     // Always allocate the full width to maintain layout
@@ -272,7 +270,7 @@ fn small_bar(
     ui.painter().text(
         Pos2::new(full_rect.right() - 8., full_rect.center().y),
         egui::Align2::RIGHT_CENTER,
-        format!("{} lvl {}", name, level),
+        format!("{name} lvl {level}"),
         egui::FontId::proportional(8.0),
         Color32::WHITE,
     );
@@ -281,7 +279,7 @@ fn small_bar(
 fn bar(ui: &mut egui::Ui, current: u64, max: u64, color: Color32, width: f32, height: f32) {
     let current = current as f64;
     let max = max as f64;
-    let corner_radius = 4 as u8;
+    let corner_radius = 4_u8;
     let percentage = (current / max).clamp(0.0, 1.0) as f32;
     let fill_width = width * percentage;
 
@@ -326,7 +324,7 @@ fn bar(ui: &mut egui::Ui, current: u64, max: u64, color: Color32, width: f32, he
     ui.painter().text(
         full_rect.center(),
         egui::Align2::CENTER_CENTER,
-        format!("{:.0} / {:.0}", current, max),
+        format!("{current:.0} / {max:.0}"),
         egui::FontId::proportional(12.0),
         Color32::WHITE,
     );

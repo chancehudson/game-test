@@ -27,7 +27,7 @@ pub fn default_handler(engine: &mut GameEngine, game_event: &GameEvent) {
             // we'll just handle synchronizing the player entities stats here
             // database logic lives in map_instance.rs or game.rs
             if let Some(player_entity) =
-                engine.entity_by_id_mut::<PlayerEntity>(&player_entity_id, None)
+                engine.entity_by_id_mut::<PlayerEntity>(player_entity_id, None)
             {
                 player_entity.stats.increment(&AbilityExpRecord {
                     player_id: player_entity.player_id.clone(),

@@ -82,7 +82,7 @@ impl SEEntity for PlayerEntity {
             return next_self;
         }
         // velocity in the last frame based on movement
-        let last_velocity = self.velocity.clone();
+        let last_velocity = self.velocity;
         let body = self.rect();
         let can_jump = on_platform(body, engine);
         if input.admin_enable_debug_markers && input_step_index == step_index {
@@ -255,9 +255,9 @@ impl SEEntity for PlayerEntity {
         let x_pos = move_x(
             self.rect(),
             next_self.velocity.x / STEPS_PER_SECOND_I32,
-            &engine,
+            engine,
         );
-        let map_size = engine.size.clone();
+        let map_size = engine.size;
         let platforms = engine.entities_by_type::<PlatformEntity>();
         let y_pos = move_y(
             self.rect(),

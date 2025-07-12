@@ -27,7 +27,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use web_time::Instant;
 
-pub static START_INSTANT: Lazy<Instant> = Lazy::new(|| Instant::now());
+pub static START_INSTANT: Lazy<Instant> = Lazy::new(Instant::now);
 pub fn timestamp() -> f64 {
     Instant::now().duration_since(*START_INSTANT).as_secs_f64()
 }
@@ -171,8 +171,7 @@ impl GameEngine {
     pub fn game_events(&self, from_step: u64, to_step: u64) -> Vec<GameEvent> {
         self.game_events_by_step
             .range(from_step..to_step)
-            .map(|(_, game_events)| game_events.clone())
-            .flatten()
+            .flat_map(|(_, game_events)| game_events.clone())
             .collect::<Vec<_>>()
     }
 
@@ -204,7 +203,7 @@ impl GameEngine {
                 .map(|(k, v)| (*k, v.clone()))
                 .collect::<BTreeMap<_, _>>();
             out.start_timestamp = self.start_timestamp;
-            out.size = self.size.clone();
+            out.size = self.size;
             out.entities = entities.clone();
             out.enable_debug_markers = self.enable_debug_markers;
             out.entities_by_step = self
@@ -320,8 +319,8 @@ impl GameEngine {
                                 "{} steps from start of replay",
                                 past_engine.step_index - from_step_index
                             );
-                            println!("{:?}", entity);
-                            println!("{:?}", other_entity);
+                            println!("{entity:?}");
+                            println!("{other_entity:?}");
                         }
                     } else {
                         println!("ENTITY DOES NOT EXIST");
@@ -350,7 +349,7 @@ impl GameEngine {
             .or_default()
             .insert(event.id(), event)
         {
-            println!("overwriting event: {:?}", event);
+            println!("overwriting event: {event:?}");
         }
     }
 
@@ -493,48 +492,42 @@ impl GameEngine {
         self.entities = stepped_entities;
 
         // Execute the creation phase of the step
-        for (_event_id, event) in self
+        for event in self
             .events_by_type
             .entry(EngineEventType::SpawnEntity)
             .or_default()
             .entry(self.step_index)
-            .or_default()
+            .or_default().values_mut()
         {
-            match event {
-                EngineEvent::SpawnEntity {
+            if let EngineEvent::SpawnEntity {
                     id: _,
                     entity,
                     universal: _,
-                } => {
-                    if let Some(e) = self.entities.insert(entity.id(), entity.clone()) {
-                        println!("WARNING: inserting entity that already existed! {:?}", e);
-                        if &e == entity {
-                            println!("entities are equal");
-                        }
-                        println!("new: {:?}", entity);
+                } = event {
+                if let Some(e) = self.entities.insert(entity.id(), entity.clone()) {
+                    println!("WARNING: inserting entity that already existed! {e:?}");
+                    if &e == entity {
+                        println!("entities are equal");
                     }
+                    println!("new: {entity:?}");
                 }
-                _ => {}
             }
         }
 
         // Execute the removal phase of the step
-        for (_event_id, event) in self
+        for event in self
             .events_by_type
             .entry(EngineEventType::RemoveEntity)
             .or_default()
             .entry(self.step_index)
-            .or_default()
+            .or_default().values_mut()
         {
-            match event {
-                EngineEvent::RemoveEntity {
+            if let EngineEvent::RemoveEntity {
                     id: _,
                     entity_id,
                     universal: _,
-                } => {
-                    self.entities.remove(entity_id);
-                }
-                _ => {}
+                } = event {
+                self.entities.remove(entity_id);
             }
         }
 

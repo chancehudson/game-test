@@ -35,7 +35,7 @@ fn damage_text_system(
                         if let Some((_aggro_to_entity_id, _)) = p.aggro_to {
                             commands.spawn(DamageComponent::mob_damage(
                                 engine.step_index,
-                                &p,
+                                p,
                                 *amount,
                             ));
                         } else {
@@ -98,16 +98,14 @@ fn animate_mobs(
                     animated_sprite.fps = data.standing_animation.fps as u8;
                     animated_sprite.frame_count = data.standing_animation.frame_count as u8;
                 }
-            } else {
-                if sprite.image != mob.walking_texture {
-                    sprite.image = mob.walking_texture.clone();
-                    sprite.texture_atlas = Some(TextureAtlas {
-                        layout: mob.walking_texture_atlas_layout.clone(),
-                        index: 0,
-                    });
-                    animated_sprite.fps = data.walking_animation.fps as u8;
-                    animated_sprite.frame_count = data.walking_animation.frame_count as u8;
-                }
+            } else if sprite.image != mob.walking_texture {
+                sprite.image = mob.walking_texture.clone();
+                sprite.texture_atlas = Some(TextureAtlas {
+                    layout: mob.walking_texture_atlas_layout.clone(),
+                    index: 0,
+                });
+                animated_sprite.fps = data.walking_animation.fps as u8;
+                animated_sprite.frame_count = data.walking_animation.frame_count as u8;
             }
         } else {
             println!("WARNING: MobComponent is keyed to a non-mob engine entity");

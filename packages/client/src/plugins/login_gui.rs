@@ -204,14 +204,12 @@ fn connect_view(
                     connect_view_state.attempting_connection = false;
                     connection_maybe.0 = None;
                 }
-            } else {
-                if ui.button("Connect!").clicked() || enter_pressed{
-                    // handle join click
-                    connect_view_state.attempting_connection = true;
-                    connect_view_state.began_connecting = Some(Instant::now());
-                    let connection = NetworkConnection::attempt_connection(connect_view_state.server_url.clone());
-                    connection_maybe.0 = Some(connection);
-                }
+            } else if ui.button("Connect!").clicked() || enter_pressed{
+                // handle join click
+                connect_view_state.attempting_connection = true;
+                connect_view_state.began_connecting = Some(Instant::now());
+                let connection = NetworkConnection::attempt_connection(connect_view_state.server_url.clone());
+                connection_maybe.0 = Some(connection);
             }
             // render error message
             if let Some(msg) = connect_view_state.error.clone() {

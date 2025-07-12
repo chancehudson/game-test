@@ -154,7 +154,7 @@ fn step_game_engine(
                 {
                     let ability_str: &'static str = ability.into();
                     info_event_writer
-                        .write(InfoMessage(format!("+ {} {} exp", amount, ability_str)));
+                        .write(InfoMessage(format!("+ {amount} {ability_str} exp")));
                 }
             }
             _ => {}
@@ -190,29 +190,26 @@ fn handle_engine_event(
     mut interpolating_entities: ResMut<InterpolatingEntities>,
 ) {
     for event in action_events.read() {
-        match &event.0 {
-            Response::RemoteEngineEvents(engine_id, events, server_step_index) => {
-                let engine = &mut active_engine_state.0;
-                if engine.id != *engine_id || events.is_empty() {
-                    continue;
-                }
-                let player_entity_id = active_player_entity_id.0.unwrap_or_default();
-                engine_sync.server_step = *server_step_index;
-                engine_sync.server_step_timestamp = timestamp();
-                // these are the mobs we were seeing before
-                let last_mobs = engine
-                    .entities_by_type::<MobEntity>()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                engine.integrate_events(events.clone());
-                interpolate_mobs(
-                    last_mobs,
-                    engine,
-                    player_entity_id,
-                    &mut interpolating_entities,
-                );
+        if let Response::RemoteEngineEvents(engine_id, events, server_step_index) = &event.0 {
+            let engine = &mut active_engine_state.0;
+            if engine.id != *engine_id || events.is_empty() {
+                continue;
             }
-            _ => {}
+            let player_entity_id = active_player_entity_id.0.unwrap_or_default();
+            engine_sync.server_step = *server_step_index;
+            engine_sync.server_step_timestamp = timestamp();
+            // these are the mobs we were seeing before
+            let last_mobs = engine
+                .entities_by_type::<MobEntity>()
+                .cloned()
+                .collect::<Vec<_>>();
+            engine.integrate_events(events.clone());
+            interpolate_mobs(
+                last_mobs,
+                engine,
+                player_entity_id,
+                &mut interpolating_entities,
+            );
         }
     }
 }
@@ -236,12 +233,12 @@ fn handle_engine_stats(
             engine_sync.server_step_timestamp = timestamp();
             engine_sync.sync_distance = (engine.step_index as i64) - (*step_index as i64);
             if !engine_sync.requested_resync {
-                if let Ok(local_engine_hash) = engine.step_hash(&hash_step_index) {
+                if let Ok(local_engine_hash) = engine.step_hash(hash_step_index) {
                     if local_engine_hash != *server_engine_hash {
                         println!("WARNING: desync detected");
                         println!(
                             "local engine state: {:?}",
-                            active_engine_state.0.entities_by_step.get(&hash_step_index)
+                            active_engine_state.0.entities_by_step.get(hash_step_index)
                         );
                         action_events_writer.write(NetworkAction(Action::RequestEngineReload(
                             engine.id,
@@ -272,7 +269,7 @@ fn handle_engine_state(
             active_engine_state.0 = engine.clone();
             let engine = &mut active_engine_state.0;
             if server_step > &engine.step_index {
-                engine.step_to(&server_step);
+                engine.step_to(server_step);
             }
             println!("INFO: Received engine with id: {}", engine.id);
             // TODO: figure out how to get rid of this clone
@@ -306,16 +303,13 @@ pub fn sync_engine_components(
         .entities
         .iter()
         .filter(|(_id, entity)| {
-            match entity {
-                EngineEntity::Mob(p) => {
-                    if let Some(aggro_to) = p.aggro_to {
-                        if aggro_to.0 != player_entity_id {
-                            aggrod_mobs.insert(p.id, true);
-                            return false;
-                        }
+            if let EngineEntity::Mob(p) = entity {
+                if let Some(aggro_to) = p.aggro_to {
+                    if aggro_to.0 != player_entity_id {
+                        aggrod_mobs.insert(p.id, true);
+                        return false;
                     }
                 }
-                _ => {}
             }
             if let Some(player_creator_id) = entity.player_creator_id() {
                 player_creator_id == player_entity_id
@@ -328,7 +322,7 @@ pub fn sync_engine_components(
         let past_step_index = engine.step_index - STEP_DELAY;
         if let Some(past_entities) = engine.entities_by_step.get(&past_step_index) {
             for (entity_id, entity) in past_entities.iter().filter(|(id, entity)| {
-                if aggrod_mobs.contains_key(&id) {
+                if aggrod_mobs.contains_key(id) {
                     return true;
                 }
                 if let Some(player_creator_id) = entity.player_creator_id() {
@@ -337,7 +331,7 @@ pub fn sync_engine_components(
                     false
                 }
             }) {
-                if let Some(_) = current_entities.insert(entity_id, entity) {
+                if current_entities.insert(entity_id, entity).is_some() {
                     println!("WARNING: entity filtered to both present and past");
                 }
             }
@@ -428,9 +422,9 @@ pub fn spawn_bevy_entity(
                 );
                 return;
             };
-            for animation_data in vec![&mob_data.walking_animation, &mob_data.standing_animation] {
-                if !sprite_manager.is_animation_loaded(&animation_data, asset_server) {
-                    sprite_manager.load_animation(&animation_data);
+            for animation_data in [&mob_data.walking_animation, &mob_data.standing_animation] {
+                if !sprite_manager.is_animation_loaded(animation_data, asset_server) {
+                    sprite_manager.load_animation(animation_data);
                     return;
                 }
             }
@@ -500,7 +494,7 @@ pub fn spawn_bevy_entity(
         EngineEntity::Emoji(p) => {
             let animation =
                 AnimationData::static_data("reactions/eqib.jpg", UVec2 { x: 25, y: 25 });
-            if !sprite_manager.is_animation_loaded(&animation, &asset_server) {
+            if !sprite_manager.is_animation_loaded(&animation, asset_server) {
                 sprite_manager.load_animation(&animation);
                 return;
             }
@@ -549,7 +543,7 @@ pub fn spawn_bevy_entity(
                 );
                 return;
             };
-            if !sprite_manager.is_animation_loaded(&item_data.icon_animation, &asset_server) {
+            if !sprite_manager.is_animation_loaded(&item_data.icon_animation, asset_server) {
                 sprite_manager.load_animation(&item_data.icon_animation);
                 return;
             }

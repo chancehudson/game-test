@@ -28,18 +28,15 @@ pub const ABILITY_EXP_TABLE: redb::TableDefinition<(Ability, String), AbilityExp
     strum::IntoStaticStr,
 )]
 #[repr(u8)]
+#[derive(Default)]
 pub enum Ability {
     Health = 0,
+    #[default]
     Strength = 1,
     Dexterity = 2,
     Intelligence = 3,
 }
 
-impl Default for Ability {
-    fn default() -> Self {
-        Ability::Strength
-    }
-}
 
 const EXP_LEVEL_PRECALC: LazyCell<BTreeMap<u64, u64>> = LazyCell::new(|| {
     let mut out = BTreeMap::default();
@@ -80,7 +77,7 @@ impl AbilityExpRecord {
         if let Some((_exp, lvl)) = EXP_LEVEL_PRECALC.range(..=exp).last() {
             *lvl
         } else {
-            println!("exp: {}", exp);
+            println!("exp: {exp}");
             panic!("you've looked for a level that is not precalculated")
         }
     }
@@ -88,9 +85,7 @@ impl AbilityExpRecord {
     /// Calculate the ability level based on the amount of stored experience
     pub fn calc_level(&self) -> u64 {
         // exp curve the same for all to start
-        match self.ability {
-            _ => Self::level_from_exp(self.amount),
-        }
+        Self::level_from_exp(self.amount)
     }
 }
 
@@ -193,7 +188,7 @@ mod tests {
     fn test_known_values() {
         for i in 0..120 {
             let exp = AbilityExpRecord::exp_for_level(i);
-            println!("Level {} requires ~{} exp ", i, exp);
+            println!("Level {i} requires ~{exp} exp ");
             assert_eq!(AbilityExpRecord::level_from_exp(exp), i);
         }
     }

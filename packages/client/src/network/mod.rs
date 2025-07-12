@@ -87,7 +87,7 @@ fn receive_system(
             .read_connection()
             .iter()
             .cloned()
-            .map(|v| NetworkMessage(v))
+            .map(NetworkMessage)
             .collect::<Vec<_>>();
         message_events.write_batch(messages);
     } else {

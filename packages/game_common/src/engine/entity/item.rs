@@ -79,7 +79,7 @@ impl SEEntity for ItemEntity {
             next_self.velocity = next_self
                 .velocity
                 .clamp(lower_speed_limit, upper_speed_limit);
-            let map_size = engine.size.clone();
+            let map_size = engine.size;
             let platforms = engine.entities_by_type::<PlatformEntity>();
             let y_pos = move_y(
                 self_rect,
