@@ -1,7 +1,7 @@
 /// Handles loading all ability experience, worn items, etc. and consolidating it
 /// Buffs will not be stored at this level
 /// TODO: figure out how to handle relogging to drop debuffs (debuffs probably won't be a thing for a while)
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -15,7 +15,7 @@ use crate::ability_exp_record::ABILITY_EXP_TABLE;
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct PlayerStats {
     pub player_id: String,
-    pub ability_exp: HashMap<Ability, AbilityExpRecord>,
+    pub ability_exp: BTreeMap<Ability, AbilityExpRecord>,
 }
 
 impl PlayerStats {

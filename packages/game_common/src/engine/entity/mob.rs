@@ -232,10 +232,9 @@ impl SEEntity for MobEntity {
                         .collect::<Vec<_>>()
                     {
                         // drop an item
-                        let id = engine.generate_id();
                         engine.spawn_entity(
                             EngineEntity::Item(ItemEntity::new_item(
-                                id,
+                                rng.random(),
                                 self.center() + IVec2::new(x_offset, 0),
                                 drop.0, // item type
                                 drop.1, // amount

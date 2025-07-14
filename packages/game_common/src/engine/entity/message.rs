@@ -13,17 +13,28 @@ entity_struct!(
 
 /// Text centered at a point. Height to be determined by rendering impl
 impl MessageEntity {
-    pub fn new_text(id: u128, position: IVec2, text: String) -> Self {
+    pub fn new_text(
+        id: u128,
+        position: IVec2,
+        text: String,
+        step_index: u64,
+        player_creator_id: u128,
+    ) -> Self {
         // measure the size of the text?
         //
         let mut out = Self::new(id, position, IVec2::ZERO);
         out.text = text;
+        out.disappears_at_step = step_index + 90;
+        out.player_creator_id = Some(player_creator_id);
         out
     }
 }
 
 impl SEEntity for MessageEntity {
-    fn step(&self, _engine: &mut crate::GameEngine) -> Self {
+    fn step(&self, engine: &mut crate::GameEngine) -> Self {
+        if engine.step_index >= self.disappears_at_step {
+            engine.remove_entity(self.id, false);
+        }
         self.clone()
     }
 }

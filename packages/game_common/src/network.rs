@@ -41,7 +41,7 @@ pub enum Response {
         (u64, blake3::Hash),
         Option<BTreeMap<u128, EngineEntity>>,
     ),
-    // engine id, game events <step_index, <event_id, event>>, server step
+    // engine id, game events <step_index, events>, server step
     RemoteEngineEvents(u128, BTreeMap<u64, Vec<EngineEvent>>, u64),
     PlayerState(PlayerRecord),
     // when a record in the inventory table changes

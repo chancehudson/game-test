@@ -401,7 +401,27 @@ impl MapInstance {
                 if has_events {
                     let response = Response::RemoteEngineEvents(
                         player.engine_id,
-                        new_events.clone(),
+                        new_events
+                            .iter()
+                            .map(|(step_index, events)| {
+                                (
+                                    *step_index,
+                                    events
+                                        .iter()
+                                        .filter(|event| match event {
+                                            EngineEvent::Input {
+                                                input: _,
+                                                entity_id,
+                                                universal: _,
+                                            } => entity_id != &player.entity_id,
+                                            _ => true,
+                                        })
+                                        .cloned()
+                                        .collect::<Vec<_>>(),
+                                )
+                            })
+                            .filter(|(_step_index, events)| !events.is_empty())
+                            .collect::<BTreeMap<_, Vec<_>>>(),
                         self.engine.expected_step_index(),
                     );
                     self.network_server.send_to_player(id, response).await;
