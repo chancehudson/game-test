@@ -45,6 +45,8 @@ use entity::SEEntity;
 use game_event::*;
 
 use crate::data::GameData;
+use crate::entity::message::MessageEntity;
+use crate::entity::player;
 
 pub const STEP_LEN_S: f64 = 1. / 60.;
 pub const STEP_LEN_S_F32: f32 = 1. / 60.;
@@ -75,7 +77,6 @@ pub struct GameEngine {
     pub entities_by_step: BTreeMap<u64, BTreeMap<u128, EngineEntity>>,
 
     // engine events may be scheduled for the future, game events may not
-    // pub events_by_type: HashMap<EngineEventType, BTreeMap<u64, BTreeMap<u128, EngineEvent>>>,
     pub engine_events_by_step: BTreeMap<u64, Vec<EngineEvent>>,
     // pub engine_event_id_counter: u64,
     #[serde(skip)]
@@ -483,22 +484,32 @@ impl GameEngine {
                         println!("new: {:?}", entity);
                     }
                 }
-                _ => {}
-            }
-        }
-
-        // Execute the removal phase of the step
-        for event in self
-            .engine_events_by_step
-            .entry(self.step_index)
-            .or_default()
-        {
-            match event {
                 EngineEvent::RemoveEntity {
                     entity_id,
                     universal: _,
                 } => {
                     self.entities.remove(entity_id);
+                }
+                EngineEvent::Message {
+                    text,
+                    entity_id,
+                    universal: _,
+                } => {
+                    if let Some(player_entity) = self.entities.get(entity_id) {
+                        let entity = MessageEntity::new_text(
+                            IVec2::new(
+                                player_entity.center().x,
+                                player_entity.center().y + player_entity.size().y / 2,
+                            ),
+                            text.clone(),
+                            self.step_index,
+                            player_entity.id(),
+                        );
+                        self.entities
+                            .insert(entity.id(), EngineEntity::Message(entity));
+                    } else {
+                        println!("WARNING: sending message from non-existent player entity")
+                    }
                 }
                 _ => {}
             }

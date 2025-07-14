@@ -213,10 +213,25 @@ impl MapInstance {
             }
             // Structure for validity checks
             match &event {
-                EngineEvent::SpawnEntity {
-                    universal: _, // player should not set this
-                    entity: _,
-                } => {}
+                EngineEvent::Message {
+                    text,
+                    entity_id,
+                    universal: _,
+                } => {
+                    if entity_id != &player.entity_id {
+                        anyhow::bail!("player tried to message from wrong entity");
+                    }
+                    println!("integrating input event at {step_index}");
+                    // player.last_input_step_index = *step_index;
+                    return Ok(Some((
+                        *step_index,
+                        EngineEvent::Message {
+                            text: text.clone(),
+                            entity_id: *entity_id,
+                            universal: true,
+                        },
+                    )));
+                }
                 EngineEvent::Input {
                     universal: _,
                     input: _,
@@ -229,6 +244,10 @@ impl MapInstance {
                     player.last_input_step_index = *step_index;
                     return Ok(Some((*step_index, event.clone())));
                 }
+                EngineEvent::SpawnEntity {
+                    universal: _,
+                    entity: _,
+                } => {}
                 EngineEvent::RemoveEntity {
                     entity_id: _,
                     universal: _,

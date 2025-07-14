@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use bevy_math::IVec2;
 
 use crate::entity::EEntity;
@@ -14,7 +16,6 @@ entity_struct!(
 /// Text centered at a point. Height to be determined by rendering impl
 impl MessageEntity {
     pub fn new_text(
-        id: u128,
         position: IVec2,
         text: String,
         step_index: u64,
@@ -22,6 +23,14 @@ impl MessageEntity {
     ) -> Self {
         // measure the size of the text?
         //
+        let mut id_hasher = blake3::Hasher::new();
+        id_hasher.write(&player_creator_id.to_le_bytes()).unwrap();
+        id_hasher.write(&step_index.to_le_bytes()).unwrap();
+        id_hasher.write(text.as_bytes()).unwrap();
+        let mut id_bytes: [u8; 16] = [0; 16];
+        id_bytes.copy_from_slice(&id_hasher.finalize().as_bytes().as_slice()[..16]);
+        let id = u128::from_le_bytes(id_bytes);
+
         let mut out = Self::new(id, position, IVec2::ZERO);
         out.text = text;
         out.disappears_at_step = step_index + 90;
