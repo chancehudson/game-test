@@ -34,7 +34,6 @@ pub struct EntityInput {
     pub show_emoji: bool,
     pub respawn: bool,
     pub pick_up: bool,
-    pub message: Option<String>,
 }
 
 /// An entity that exists inside the engine.

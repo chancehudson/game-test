@@ -176,6 +176,21 @@ fn input_system(
 
     // allow general input if spawned
     if let Some(entity_id) = active_player_entity_id.0 {
+        if keyboard.just_pressed(KeyCode::KeyM) {
+            let event = EngineEvent::Message {
+                text: "hello world".to_string(),
+                entity_id,
+                universal: true,
+            };
+            engine.register_event(None, event.clone());
+            // send the new input to the server
+            action_events.write(NetworkAction(Action::RemoteEngineEvent(
+                engine.id,
+                event,
+                engine.step_index,
+            )));
+        }
+
         // input currently being received
         let input = EntityInput {
             jump: keyboard.pressed(KeyCode::Space),
@@ -188,11 +203,6 @@ fn input_system(
             show_emoji: keyboard.just_pressed(KeyCode::KeyQ),
             respawn: keyboard.just_pressed(KeyCode::KeyR),
             pick_up: keyboard.just_pressed(KeyCode::KeyZ),
-            message: if keyboard.pressed(KeyCode::KeyM) {
-                Some("hello world".to_string())
-            } else {
-                None
-            },
         };
         let (_, latest_input) =
             if let Some(player_entity) = engine.entity_by_id::<PlayerEntity>(&entity_id, None) {

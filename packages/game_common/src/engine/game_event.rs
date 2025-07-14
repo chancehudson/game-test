@@ -34,13 +34,6 @@ pub enum GameEvent {
     PlayerPickUp(String, u64, u32),
 }
 
-#[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Clone, Debug)]
-pub enum EngineEventType {
-    RemoveEntity,
-    SpawnEntity,
-    Input,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum EngineEvent {
     RemoveEntity {
@@ -56,6 +49,11 @@ pub enum EngineEvent {
         entity_id: u128,
         universal: bool,
     },
+    Message {
+        text: String,
+        entity_id: u128, // sender id
+        universal: bool,
+    },
 }
 
 pub trait HasUniversal {
@@ -65,6 +63,7 @@ pub trait HasUniversal {
 impl HasUniversal for EngineEvent {
     fn is_universal(&self) -> bool {
         match self {
+            EngineEvent::Message { universal, .. } => *universal,
             EngineEvent::RemoveEntity { universal, .. } => *universal,
             EngineEvent::SpawnEntity { universal, .. } => *universal,
             EngineEvent::Input { universal, .. } => *universal,
