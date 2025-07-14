@@ -389,6 +389,10 @@ impl MapInstance {
                             player.engine_id,
                             self.engine.step_index,
                             engine_hash,
+                            #[cfg(debug_assertions)]
+                            self.engine.entities_by_step.get(&engine_hash.0).cloned(),
+                            #[cfg(not(debug_assertions))]
+                            None,
                         ),
                     )
                     .await;
