@@ -236,7 +236,10 @@ fn handle_engine_stats(
         ) = &event.0
         {
             if engine_id != &active_engine_state.0.id {
-                println!("WARNING: received engine stats for inactive engine, discarding");
+                println!(
+                    "WARNING: received engine stats for inactive engine, discarding  server: {} local: {}",
+                    engine_id, active_engine_state.0.id
+                );
                 return;
             }
             engine_sync.server_step = *step_index;
