@@ -180,7 +180,9 @@ fn input_system(
     if let Some(entity_id) = active_player_entity_id.0 {
         // input currently being received
         let input = EntityInput {
-            jump: keyboard.pressed(KeyCode::Space),
+            jump: !keyboard.pressed(KeyCode::ArrowDown) && keyboard.pressed(KeyCode::Space),
+            jump_down: keyboard.pressed(KeyCode::ArrowDown)
+                && keyboard.just_pressed(KeyCode::Space),
             move_left: keyboard.pressed(KeyCode::ArrowLeft),
             move_right: keyboard.pressed(KeyCode::ArrowRight),
             crouch: keyboard.pressed(KeyCode::ArrowDown),

@@ -25,6 +25,7 @@ pub mod text;
 #[derive(Default, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub struct EntityInput {
     pub jump: bool,
+    pub jump_down: bool,
     pub move_left: bool,
     pub move_right: bool,
     pub crouch: bool,

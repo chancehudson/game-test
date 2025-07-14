@@ -1,8 +1,11 @@
 use bevy::prelude::*;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui;
+use bevy_egui::egui::Color32;
+use bevy_egui::egui::RichText;
 
 use crate::GameState;
+use crate::ui::draw_key_binding_inline;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum HelpGuiState {
@@ -31,12 +34,37 @@ fn show_help_gui(mut contexts: EguiContexts) {
         .collapsible(false)
         .show(contexts.ctx_mut(), |ui| {
             ui.heading("Controls");
-            ui.label("Move with arrow keys");
-            ui.label("Move through portals with up arrow key");
-            ui.label("Jump with space");
-            ui.label("Attack with a");
-            ui.label("Respawn with r");
-            ui.label("Resync engine with p");
-            ui.label("Pick up item with z");
+            ui.horizontal(|ui| {
+                draw_key_binding_inline(ui, "← →");
+                ui.label("Move");
+            });
+            ui.horizontal(|ui| {
+                draw_key_binding_inline(ui, "↑");
+                ui.label("Enter portal");
+            });
+            ui.horizontal(|ui| {
+                draw_key_binding_inline(ui, "space");
+                ui.label("Jump");
+            });
+            ui.horizontal(|ui| {
+                draw_key_binding_inline(ui, "↓ + space");
+                ui.label("Jump down");
+            });
+            ui.horizontal(|ui| {
+                draw_key_binding_inline(ui, "a");
+                ui.label("Attack");
+            });
+            ui.horizontal(|ui| {
+                draw_key_binding_inline(ui, "r");
+                ui.label("Respawn");
+            });
+            ui.horizontal(|ui| {
+                draw_key_binding_inline(ui, "p");
+                ui.label("Request full resync");
+            });
+            ui.horizontal(|ui| {
+                draw_key_binding_inline(ui, "z");
+                ui.label("Pick up item");
+            });
         });
 }

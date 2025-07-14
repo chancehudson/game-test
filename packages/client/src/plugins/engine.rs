@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-
 use bevy::sprite::Anchor;
 use bevy::text::TextBounds;
 use bevy::text::TextLayoutInfo;
+
 use db::PlayerRecord;
 use game_common::AnimationData;
 use game_common::STEP_DELAY;

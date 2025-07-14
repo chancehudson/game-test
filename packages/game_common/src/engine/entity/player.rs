@@ -220,8 +220,11 @@ impl SEEntity for PlayerEntity {
                 next_self.attacking_until = None;
             }
         }
+
         // check if the player is standing on a platform
-        if input.jump && can_jump && last_velocity.y == 0 {
+        let jump = input.jump && can_jump && last_velocity.y == 0;
+        let jump_down = input.jump_down && can_jump && last_velocity.y == 0;
+        if jump {
             next_self.velocity.y = 380;
             next_self.weightless_until = Some(step_index + 4);
         } else if can_jump && last_velocity.y <= 0 {
@@ -255,21 +258,27 @@ impl SEEntity for PlayerEntity {
         next_self.velocity = next_self
             .velocity
             .clamp(lower_speed_limit, upper_speed_limit);
-        let x_pos = move_x(
-            self.rect(),
-            next_self.velocity.x / STEPS_PER_SECOND_I32,
-            &engine,
-        );
-        let map_size = engine.size.clone();
-        let platforms = engine.entities_by_type::<PlatformEntity>();
-        let y_pos = move_y(
-            self.rect(),
-            next_self.velocity.y / STEPS_PER_SECOND_I32,
-            &platforms.collect::<Vec<_>>(),
-            map_size,
-        );
-        next_self.position.x = x_pos;
-        next_self.position.y = y_pos;
-        next_self
+
+        if jump_down {
+            next_self.position.y = (self.position.y - 4).max(0);
+            next_self
+        } else {
+            let x_pos = move_x(
+                self.rect(),
+                next_self.velocity.x / STEPS_PER_SECOND_I32,
+                &engine,
+            );
+            let map_size = engine.size.clone();
+            let platforms = engine.entities_by_type::<PlatformEntity>();
+            let y_pos = move_y(
+                self.rect(),
+                next_self.velocity.y / STEPS_PER_SECOND_I32,
+                &platforms.collect::<Vec<_>>(),
+                map_size,
+            );
+            next_self.position.x = x_pos;
+            next_self.position.y = y_pos;
+            next_self
+        }
     }
 }
