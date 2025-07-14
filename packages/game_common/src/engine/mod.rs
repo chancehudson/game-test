@@ -172,9 +172,11 @@ impl GameEngine {
     /// Retrieve a past instance of the engine that will be equal
     /// to self after N steps
     /// universal events occur independently on the engine state. e.g. a player logging on
-    ///
-    /// The returned engine will not be rewindable. e.g. no previous step data is included
-    pub fn engine_at_step(&self, target_step_index: &u64) -> anyhow::Result<Self> {
+    pub fn engine_at_step(
+        &self,
+        target_step_index: &u64,
+        rewindable: bool,
+    ) -> anyhow::Result<Self> {
         if let Some(entities) = self.entities_by_step.get(target_step_index) {
             let mut out = Self::default();
             out.id = self.id;
@@ -194,20 +196,34 @@ impl GameEngine {
                 })
                 .collect::<BTreeMap<_, _>>();
 
-            out.game_events_by_step = BTreeMap::new();
-            // .game_events_by_step
-            // .range(..target_step_index)
-            // .map(|(k, v)| (*k, v.clone()))
-            // .collect::<BTreeMap<_, _>>();
+            if rewindable {
+                out.engine_events_by_step.extend(
+                    self.engine_events_by_step
+                        .range(..target_step_index)
+                        .into_iter()
+                        .map(|(k, v)| (*k, v.clone())),
+                );
+                out.game_events_by_step = self
+                    .game_events_by_step
+                    .range(..target_step_index)
+                    .map(|(k, v)| (*k, v.clone()))
+                    .collect::<BTreeMap<_, _>>();
+                out.entities_by_step = self
+                    .entities_by_step
+                    .range(
+                        (self.step_index - TRAILING_STATE_COUNT.min(self.step_index))
+                            ..*target_step_index,
+                    )
+                    .map(|(si, data)| (*si, data.clone()))
+                    .collect::<BTreeMap<_, _>>();
+            } else {
+                out.game_events_by_step = BTreeMap::new();
+                out.entities_by_step = BTreeMap::new();
+            }
             out.start_timestamp = self.start_timestamp;
             out.size = self.size.clone();
             out.entities = entities.clone();
             out.enable_debug_markers = self.enable_debug_markers;
-            out.entities_by_step = BTreeMap::new();
-            // .entities_by_step
-            // .range((self.step_index - STEP_DELAY.min(self.step_index))..*target_step_index)
-            // .map(|(si, data)| (*si, data.clone()))
-            // .collect::<BTreeMap<_, _>>();
 
             out.step_index = *target_step_index;
             Ok(out)
@@ -288,7 +304,7 @@ impl GameEngine {
                 self.step_index - from_step_index
             );
             // we receive an event from the past, rewind and replay
-            if let Ok(mut past_engine) = self.engine_at_step(&from_step_index) {
+            if let Ok(mut past_engine) = self.engine_at_step(&from_step_index, true) {
                 past_engine.integrate_events(events);
                 past_engine.step_to(&self.step_index);
 

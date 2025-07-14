@@ -132,7 +132,6 @@ fn begin_load_map(
     mut loader: ResMut<MapLoader>,
     active_player_state: Res<ActivePlayerState>,
 ) {
-    println!("starting map load 2");
     // Start loading the map data
     if let Some(player_record) = active_player_state.0.as_ref() {
         let map_path = format!("maps/{}.map.json5", player_record.current_map);

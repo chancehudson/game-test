@@ -317,7 +317,6 @@ impl MapInstance {
                     let mut inventory = PlayerInventory::new(player_id.to_string());
                     match inventory.player_picked_up(self.db.clone(), item_type, count)? {
                         Some((slot_index, new_record)) => {
-                            println!("{:?} {:?}", slot_index, new_record);
                             self.network_server
                                 .send_to_player(
                                     &player_id,
@@ -496,7 +495,7 @@ impl MapInstance {
         if engine.step_index < STEP_DELAY {
             return;
         }
-        let client_engine = engine.engine_at_step(&(engine.step_index - STEP_DELAY));
+        let client_engine = engine.engine_at_step(&(engine.step_index - STEP_DELAY), false);
         if client_engine.is_err() {
             // engine warming up, we'll try again next tick
             return;
