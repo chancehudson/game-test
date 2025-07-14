@@ -7,6 +7,7 @@ use serde::Serialize;
 use db::PlayerRecord;
 
 use crate::GameEngine;
+use crate::entity::EngineEntity;
 use crate::game_event::EngineEvent;
 
 /// Types of messages that can be sent to the server
@@ -34,7 +35,12 @@ pub enum Response {
     PlayerRemoved(String),
     // engine, entity id the player controls, server step
     EngineState(GameEngine, u128, u64),
-    EngineStats(u128, u64, (u64, blake3::Hash)),
+    EngineStats(
+        u128,
+        u64,
+        (u64, blake3::Hash),
+        Option<BTreeMap<u128, EngineEntity>>,
+    ),
     // engine id, game events <step_index, <event_id, event>>, server step
     RemoteEngineEvents(u128, BTreeMap<u64, Vec<EngineEvent>>, u64),
     PlayerState(PlayerRecord),

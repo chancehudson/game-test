@@ -180,22 +180,28 @@ impl GameEngine {
         if let Some(entities) = self.entities_by_step.get(target_step_index) {
             let mut out = Self::default();
             out.id = self.id;
-            // get all events in the past
-            // and universal events in the future, as well
-            // as events that have been scheduled in the future, from the past
-            out.engine_events_by_step = self.engine_events_by_step.clone();
-            // out.events_by_type = self.events_by_type.clone();
-            // // out.events_by_step = self.events_by_step.clone();
-            // for (_, events_by_step) in out.events_by_type.iter_mut() {
-            //     for (step_index, events) in events_by_step.iter_mut() {
-            //         // keep all events in past
-            //         if step_index < target_step_index {
-            //             continue;
-            //         }
-            //         // keep only universal events and inputs in the future
-            //         // events.retain(|_event_id, event| event.is_universal());
-            //     }
-            // }
+
+            // get all events that have been registered before target step
+            out.engine_events_by_step = self
+                .engine_events_by_step
+                .range(..target_step_index)
+                .map(|(k, v)| (*k, v.clone()))
+                .collect::<BTreeMap<_, _>>();
+            out.engine_events_by_step.append(
+                &mut self
+                    .engine_events_by_step
+                    .range(target_step_index..)
+                    .map(|(k, v)| {
+                        (
+                            *k,
+                            v.iter()
+                                .filter(|v| v.is_universal())
+                                .cloned()
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>(),
+            );
 
             out.game_events_by_step = self
                 .game_events_by_step

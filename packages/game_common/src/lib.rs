@@ -37,7 +37,7 @@ impl AnimationData {
 }
 
 // how many steps each client is behind the server
-pub static STEP_DELAY: u64 = 40;
+pub static STEP_DELAY: u64 = 60;
 
 // Custom deserializer for Vec2
 pub fn deserialize_vec2<'de, D>(deserializer: D) -> Result<bevy_math::IVec2, D::Error>

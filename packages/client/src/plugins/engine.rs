@@ -225,8 +225,12 @@ fn handle_engine_stats(
 ) {
     let engine = &active_engine_state.0;
     for event in action_events.read() {
-        if let Response::EngineStats(engine_id, step_index, (hash_step_index, server_engine_hash)) =
-            &event.0
+        if let Response::EngineStats(
+            engine_id,
+            step_index,
+            (hash_step_index, server_engine_hash),
+            entities_maybe,
+        ) = &event.0
         {
             if engine_id != &active_engine_state.0.id {
                 println!("WARNING: received engine stats for inactive engine, discarding");
@@ -249,6 +253,26 @@ fn handle_engine_stats(
                         )));
                         engine_sync.requested_resync = true;
                         // trigger resync
+                        // debug if needed
+                        if let Some(server_entities) = entities_maybe
+                            && let Some(local_entities) =
+                                engine.entities_by_step.get(hash_step_index)
+                        {
+                            let server_json =
+                                serde_json::to_string_pretty(&server_entities).unwrap();
+                            let local_json = serde_json::to_string_pretty(&local_entities).unwrap();
+                            let diff = similar::TextDiff::from_lines(&local_json, &server_json);
+                            for change in diff.iter_all_changes() {
+                                let sign = match change.tag() {
+                                    similar::ChangeTag::Delete => "-",
+                                    similar::ChangeTag::Insert => "+",
+                                    similar::ChangeTag::Equal => " ",
+                                };
+                                if change.tag() != similar::ChangeTag::Equal {
+                                    println!("diff {}{}", sign, change);
+                                }
+                            }
+                        }
                     }
                 }
             }
