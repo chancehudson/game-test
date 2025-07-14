@@ -11,8 +11,6 @@ use bevy_egui::egui::RichText;
 use bevy_egui::egui::Stroke;
 use bevy_egui::egui::StrokeKind;
 use bevy_egui::egui::Vec2;
-use egui::Align2;
-use egui::FontId;
 
 use db::Ability;
 use game_common::entity::EngineEntity;

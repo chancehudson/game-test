@@ -3,6 +3,9 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
+use bevy::sprite::Anchor;
+use bevy::text::TextBounds;
+use bevy::text::TextLayoutInfo;
 use db::PlayerRecord;
 use game_common::AnimationData;
 use game_common::STEP_DELAY;
@@ -39,7 +42,6 @@ pub struct ActiveGameEngine(pub GameEngine);
 #[derive(Component, Default)]
 pub struct GameEntityComponent {
     pub entity_id: u128,
-    pub entity: Option<EngineEntity>,
 }
 
 #[derive(Resource, Default)]
@@ -68,6 +70,7 @@ impl Plugin for EnginePlugin {
                     handle_engine_event,
                     step_game_engine,
                     sync_engine_components,
+                    add_simple_bubble_background,
                 )
                     .chain()
                     .run_if(
@@ -315,7 +318,7 @@ fn handle_engine_state(
 pub fn sync_engine_components(
     mut commands: Commands,
     active_engine_state: Res<ActiveGameEngine>,
-    mut entity_query: Query<(Entity, &mut GameEntityComponent, &mut Transform)>,
+    mut entity_query: Query<(Entity, &GameEntityComponent, &mut Transform)>,
     asset_server: Res<AssetServer>,
     mut sprite_manager: ResMut<SpriteManager>,
     active_player_entity_id: Res<ActivePlayerEntityId>,
@@ -380,7 +383,7 @@ pub fn sync_engine_components(
         .0
         .retain(|_, Interpolation { to_step, .. }| engine.step_index < *to_step);
 
-    for (entity, mut entity_component, mut transform) in entity_query.iter_mut() {
+    for (entity, entity_component, mut transform) in entity_query.iter_mut() {
         if let Some(game_entity) = current_entities.get(&entity_component.entity_id) {
             if let Some(position_override) = position_overrides.get(&game_entity.id()) {
                 transform.translation = Vec3::new(
@@ -391,7 +394,6 @@ pub fn sync_engine_components(
             } else {
                 transform.translation = game_entity.position_f32().extend(transform.translation.z);
             }
-            entity_component.entity = Some((*game_entity).clone());
             current_entities.remove(&game_entity.id());
         } else {
             commands.entity(entity).despawn();
@@ -409,6 +411,58 @@ pub fn sync_engine_components(
     }
 }
 
+#[derive(Component)]
+struct NeedsSpriteBackground;
+
+fn add_simple_bubble_background(
+    mut commands: Commands,
+    query: Query<(Entity, &TextLayoutInfo, &GameEntityComponent), With<NeedsSpriteBackground>>,
+    active_engine: Res<ActiveGameEngine>,
+) {
+    let engine = &active_engine.0;
+    for (entity, info, game_entity) in query.iter() {
+        let text_size = info.size;
+        if text_size == Vec2::ZERO {
+            continue;
+        }
+
+        const MARGIN: f32 = 4.0;
+        if let Some(p) = engine.entities.get(&game_entity.entity_id) {
+            let bubble_size =
+                Vec2::new(p.size().x as f32 + MARGIN * 2.0, text_size.y + MARGIN * 2.0);
+
+            // Create a nice speech bubble using multiple rounded rectangles
+            let bubble_id = commands
+                .spawn((
+                    Sprite {
+                        color: Color::srgba(0.95, 0.95, 0.95, 0.95), // Light background
+                        custom_size: Some(bubble_size),
+                        anchor: Anchor::BottomLeft,
+                        ..default()
+                    },
+                    Transform::from_translation(Vec3::new(-MARGIN, -MARGIN, -0.1)),
+                ))
+                .with_children(|parent| {
+                    // Add border effect with slightly larger darker sprite behind
+                    parent.spawn((
+                        Sprite {
+                            color: Color::srgba(0.6, 0.6, 0.6, 0.8), // Border color
+                            custom_size: Some(bubble_size + Vec2::splat(2.0)),
+                            anchor: Anchor::BottomLeft,
+                            ..default()
+                        },
+                        Transform::from_translation(Vec3::new(-1.0, -1.0, -0.1)),
+                    ));
+                })
+                .id();
+
+            commands
+                .entity(entity)
+                .add_child(bubble_id)
+                .remove::<NeedsSpriteBackground>();
+        }
+    }
+}
 pub fn spawn_bevy_entity(
     game_data: &Res<GameDataResource>,
     engine_entity: &EngineEntity,
@@ -429,8 +483,8 @@ pub fn spawn_bevy_entity(
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
                 },
+                MapEntity,
                 Transform::from_translation(p.position_f32().extend(10.0)),
                 AnimatedSprite {
                     frame_count: standing_animation.frame_count as u8,
@@ -447,18 +501,31 @@ pub fn spawn_bevy_entity(
                     anchor: bevy::sprite::Anchor::BottomLeft,
                     ..default()
                 },
-                MapEntity,
             ));
         }
         EngineEntity::Message(p) => {
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
                 },
                 Transform::from_translation(p.position_f32().extend(100.0)),
                 MapEntity,
+                NeedsSpriteBackground,
                 Text2d::new(&p.text),
+                TextColor(Color::BLACK.lighter(0.05)),
+                Anchor::BottomLeft,
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextLayout {
+                    justify: JustifyText::Center,
+                    linebreak: LineBreak::WordOrCharacter,
+                },
+                TextBounds {
+                    width: Some(p.size.x as f32),
+                    ..default()
+                },
             ));
         }
         EngineEntity::Player(p) => {
@@ -471,7 +538,6 @@ pub fn spawn_bevy_entity(
                 .spawn((
                     GameEntityComponent {
                         entity_id: engine_entity.id(),
-                        entity: Some(engine_entity.clone()),
                     },
                     Transform::from_translation(p.position_f32().extend(100.0)),
                     PlayerComponent::default_sprite(sprite_manager.as_ref()),
@@ -505,7 +571,6 @@ pub fn spawn_bevy_entity(
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
                 },
                 Transform::from_translation(p.position_f32().extend(1.0)),
                 // Text2d(p.id.to_string().split_off(15)),
@@ -521,7 +586,6 @@ pub fn spawn_bevy_entity(
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
                 },
                 Transform::from_translation(p.position_f32().extend(0.0)),
                 MapEntity,
@@ -537,7 +601,6 @@ pub fn spawn_bevy_entity(
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
                 },
                 Transform::from_translation(p.position_f32().extend(0.0)),
                 MapEntity,
@@ -553,7 +616,6 @@ pub fn spawn_bevy_entity(
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
                 },
                 Transform::from_translation(p.position_f32().extend(0.0)),
                 MapEntity,
@@ -575,7 +637,6 @@ pub fn spawn_bevy_entity(
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
                 },
                 Transform::from_translation(p.position_f32().extend(20.0)),
                 MapEntity,
@@ -595,7 +656,6 @@ pub fn spawn_bevy_entity(
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
                 },
                 Transform::from_translation(p.position_f32().extend(20.0)),
                 MapEntity,
@@ -628,7 +688,6 @@ pub fn spawn_bevy_entity(
             commands.spawn((
                 GameEntityComponent {
                     entity_id: engine_entity.id(),
-                    entity: Some(engine_entity.clone()),
                 },
                 Transform::from_translation(p.position_f32().extend(20.0)),
                 MapEntity,

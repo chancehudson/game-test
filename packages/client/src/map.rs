@@ -155,22 +155,3 @@ pub fn spawn_background(commands: &mut Commands, asset_server: &AssetServer, map
         Transform::from_translation(Vec3::new(0.0, -CAMERA_Y_PADDING, -10.0)),
     ));
 }
-
-// pub fn spawn_npcs(commands: &mut Commands, asset_server: &AssetServer, map_data: &MapData) {
-//     for npc in &map_data.npc {
-//         commands.spawn((
-//             MapEntity,
-//             Transform::from_translation(Vec3::new(
-//                 npc.position.x as f32,
-//                 npc.position.y as f32,
-//                 0.0,
-//             )),
-//             Sprite {
-//                 image: asset_server.load(&npc.asset),
-//                 custom_size: Some(Vec2::new(npc.size.x as f32, npc.size.y as f32)),
-//                 anchor: bevy::sprite::Anchor::BottomLeft,
-//                 ..default()
-//             },
-//         ));
-//     }
-// }

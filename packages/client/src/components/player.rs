@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 use game_common::AnimationData;
-use game_common::entity::EngineEntity;
 use game_common::entity::EntityInput;
 use game_common::entity::player::PlayerEntity;
 use game_common::game_event::EngineEvent;
@@ -14,6 +13,8 @@ use crate::plugins::engine::ActivePlayerEntityId;
 use crate::plugins::engine::GameEntityComponent;
 use crate::plugins::help_gui::HelpGuiState;
 use crate::plugins::player_inventory::PlayerInventoryState;
+use crate::plugins::text_input::TextInput;
+use crate::plugins::text_input::spawn_text_input;
 use crate::sprite_data_loader::SpriteManager;
 
 use crate::GameState;
@@ -79,15 +80,12 @@ impl Plugin for PlayerPlugin {
 
 fn animation_system(
     mut entity_query: Query<(&GameEntityComponent, &mut Sprite), With<PlayerComponent>>,
+    active_engine: Res<ActiveGameEngine>,
 ) {
+    let engine = &active_engine.0;
     for (entity, mut sprite) in entity_query.iter_mut() {
-        if let Some(entity) = &entity.entity {
-            match entity {
-                EngineEntity::Player(p) => {
-                    sprite.flip_x = !p.facing_left;
-                }
-                _ => unreachable!(),
-            }
+        if let Some(entity) = engine.entity_by_id::<PlayerEntity>(&entity.entity_id, None) {
+            sprite.flip_x = !entity.facing_left;
         }
     }
 }
@@ -99,18 +97,13 @@ fn damage_text_system(
 ) {
     let engine = &active_engine.0;
     for entity in entity_query.iter_mut() {
-        if let Some(entity) = &entity.entity {
-            match entity {
-                EngineEntity::Player(p) => {
-                    if p.received_damage_this_step.0 {
-                        commands.spawn(DamageComponent::player_damage(
-                            engine.step_index,
-                            &p,
-                            p.received_damage_this_step.1,
-                        ));
-                    }
-                }
-                _ => unreachable!(),
+        if let Some(entity) = engine.entity_by_id::<PlayerEntity>(&entity.entity_id, None) {
+            if entity.received_damage_this_step.0 {
+                commands.spawn(DamageComponent::player_damage(
+                    engine.step_index,
+                    &entity,
+                    entity.received_damage_this_step.1,
+                ));
             }
         }
     }
@@ -120,20 +113,16 @@ fn iframe_blink_system(
     mut entity_query: Query<(&GameEntityComponent, &mut Sprite), With<PlayerComponent>>,
     active_engine: Res<ActiveGameEngine>,
 ) {
+    let engine = &active_engine.0;
     let blink_step_interval = 8;
-    let blink = (active_engine.0.step_index / blink_step_interval) % 2 == 0;
+    let blink = (engine.step_index / blink_step_interval) % 2 == 0;
     for (entity, mut sprite) in entity_query.iter_mut() {
-        if let Some(entity) = &entity.entity {
-            match entity {
-                EngineEntity::Player(p) => {
-                    if let Some(_) = p.receiving_damage_until {
-                        let alpha = if blink { 0.4 } else { 1.0 };
-                        sprite.color.set_alpha(alpha);
-                    } else {
-                        sprite.color.set_alpha(1.0);
-                    }
-                }
-                _ => unreachable!(),
+        if let Some(entity) = engine.entity_by_id::<PlayerEntity>(&entity.entity_id, None) {
+            if entity.receiving_damage_until.is_some() {
+                let alpha = if blink { 0.4 } else { 1.0 };
+                sprite.color.set_alpha(alpha);
+            } else {
+                sprite.color.set_alpha(1.0);
             }
         }
     }
@@ -149,8 +138,21 @@ fn input_system(
     mut active_game_engine: ResMut<ActiveGameEngine>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut action_events: EventWriter<NetworkAction>,
+    text_inputs: Query<&TextInput>,
+    mut commands: Commands,
 ) {
     let engine = &mut active_game_engine.0;
+    if text_inputs.is_empty() && keyboard.just_pressed(KeyCode::Enter) {
+        spawn_text_input(
+            &mut commands,
+            Vec2::new(50., 200.),
+            Vec2::new(300., 30.),
+            TextInput::new().with_max_length(50),
+        );
+        return;
+    } else if !text_inputs.is_empty() {
+        return;
+    }
     // request engine reload if p key is pressed
     if keyboard.just_pressed(KeyCode::KeyP) {
         action_events.write(NetworkAction(Action::RequestEngineReload(
@@ -176,21 +178,6 @@ fn input_system(
 
     // allow general input if spawned
     if let Some(entity_id) = active_player_entity_id.0 {
-        if keyboard.just_pressed(KeyCode::KeyM) {
-            let event = EngineEvent::Message {
-                text: "hello world".to_string(),
-                entity_id,
-                universal: true,
-            };
-            engine.register_event(None, event.clone());
-            // send the new input to the server
-            action_events.write(NetworkAction(Action::RemoteEngineEvent(
-                engine.id,
-                event,
-                engine.step_index,
-            )));
-        }
-
         // input currently being received
         let input = EntityInput {
             jump: keyboard.pressed(KeyCode::Space),
