@@ -209,12 +209,13 @@ impl SEEntity for PlayerEntity {
                 .unwrap();
         }
         if let Some(text) = &input.message {
-            let id = rng.random();
             engine.spawn_entity(
                 EngineEntity::Message(MessageEntity::new_text(
-                    id,
+                    rng.random(),
                     IVec2::new(self.center().x, self.center().y + self.size.y / 2),
                     text.clone(),
+                    engine.step_index,
+                    self.id,
                 )),
                 None,
                 true,
