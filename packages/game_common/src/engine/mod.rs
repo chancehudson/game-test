@@ -210,14 +210,11 @@ impl GameEngine {
             out.size = self.size.clone();
             out.entities = entities.clone();
             out.enable_debug_markers = self.enable_debug_markers;
-            out.entities_by_step = self
-                .entities_by_step
-                .range(
-                    (self.step_index - TRAILING_STATE_COUNT.min(self.step_index))
-                        ..*target_step_index,
-                )
-                .map(|(si, data)| (*si, data.clone()))
-                .collect::<BTreeMap<_, _>>();
+            out.entities_by_step = BTreeMap::new();
+            // .entities_by_step
+            // .range((self.step_index - STEP_DELAY.min(self.step_index))..*target_step_index)
+            // .map(|(si, data)| (*si, data.clone()))
+            // .collect::<BTreeMap<_, _>>();
 
             out.step_index = *target_step_index;
             Ok(out)
