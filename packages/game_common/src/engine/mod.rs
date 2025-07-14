@@ -17,6 +17,7 @@
 use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use bevy_math::IVec2;
 use once_cell::sync::Lazy;
@@ -71,14 +72,14 @@ pub struct GameEngine {
 
     // entity id keyed to struct
     // #[serde(serialize_with = "serialize_unpure_entities")]
-    pub entities: BTreeMap<u128, EngineEntity>,
+    entities: BTreeMap<u128, EngineEntity>,
     // step index keyed to entity id to struct
-    pub entities_by_step: BTreeMap<u64, BTreeMap<u128, EngineEntity>>,
+    entities_by_step: BTreeMap<u64, BTreeMap<u128, EngineEntity>>,
 
     // engine events may be scheduled for the future, game events may not
-    pub engine_events_by_step: BTreeMap<u64, Vec<EngineEvent>>,
+    engine_events_by_step: BTreeMap<u64, Vec<EngineEvent>>,
     #[serde(skip)]
-    pub game_events_by_step: BTreeMap<u64, Vec<GameEvent>>,
+    game_events_by_step: BTreeMap<u64, Vec<GameEvent>>,
 
     // for external use
     #[serde(skip)]
@@ -113,31 +114,24 @@ impl GameEngine {
         Self {
             id: rand::random(),
             start_timestamp: timestamp(),
-            step_index: 0,
             size,
             rng: default_rng(),
+            game_events: default_game_events(),
+            seed: 0,
+            step_index: 0,
             entities: BTreeMap::new(),
             entities_by_step: BTreeMap::new(),
             engine_events_by_step: BTreeMap::new(),
-            game_events: default_game_events(),
+            game_events_by_step: BTreeMap::new(),
             grouped_entities: (0, HashMap::new()),
             enable_debug_markers: false,
-            seed: 0,
-            game_events_by_step: BTreeMap::new(),
         }
     }
 
     pub fn step_hash(&self, step_index: &u64) -> anyhow::Result<blake3::Hash> {
-        // we'll do just hash of all entities
+        // hash of all entities
         if let Some(entities) = self.entities_by_step.get(step_index) {
             let serialized = bincode::serialize(&entities.iter().collect::<BTreeMap<_, _>>())?;
-            // print!(
-            //     "{:?}",
-            //     &entities
-            //         .iter()
-            //         .filter(|(_, entity)| !entity.pure())
-            //         .collect::<BTreeMap<_, _>>(),
-            // );
             Ok(blake3::hash(&serialized))
         } else {
             anyhow::bail!("error calculating engine.step_hash, {step_index} not known to engine");
@@ -171,41 +165,40 @@ impl GameEngine {
             .collect::<Vec<_>>()
     }
 
+    pub fn entity_count(&self) -> usize {
+        self.entities.len()
+    }
+
     /// Retrieve a past instance of the engine that will be equal
     /// to self after N steps
     /// universal events occur independently on the engine state. e.g. a player logging on
+    ///
+    /// The returned engine will not be rewindable. e.g. no previous step data is included
     pub fn engine_at_step(&self, target_step_index: &u64) -> anyhow::Result<Self> {
         if let Some(entities) = self.entities_by_step.get(target_step_index) {
             let mut out = Self::default();
             out.id = self.id;
 
-            // get all events that have been registered before target step
+            // get all future events that are universal
             out.engine_events_by_step = self
                 .engine_events_by_step
-                .range(..target_step_index)
-                .map(|(k, v)| (*k, v.clone()))
+                .range(target_step_index..)
+                .map(|(k, v)| {
+                    (
+                        *k,
+                        v.iter()
+                            .filter(|v| v.is_universal())
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                    )
+                })
                 .collect::<BTreeMap<_, _>>();
-            out.engine_events_by_step.append(
-                &mut self
-                    .engine_events_by_step
-                    .range(target_step_index..)
-                    .map(|(k, v)| {
-                        (
-                            *k,
-                            v.iter()
-                                .filter(|v| v.is_universal())
-                                .cloned()
-                                .collect::<Vec<_>>(),
-                        )
-                    })
-                    .collect::<BTreeMap<_, _>>(),
-            );
 
-            out.game_events_by_step = self
-                .game_events_by_step
-                .range(..target_step_index)
-                .map(|(k, v)| (*k, v.clone()))
-                .collect::<BTreeMap<_, _>>();
+            out.game_events_by_step = BTreeMap::new();
+            // .game_events_by_step
+            // .range(..target_step_index)
+            // .map(|(k, v)| (*k, v.clone()))
+            // .collect::<BTreeMap<_, _>>();
             out.start_timestamp = self.start_timestamp;
             out.size = self.size.clone();
             out.entities = entities.clone();
@@ -338,6 +331,15 @@ impl GameEngine {
             .push(event)
     }
 
+    pub fn entity_by_id_untyped(
+        &self,
+        id: &u128,
+        step_index: Option<u64>,
+    ) -> Option<&EngineEntity> {
+        let step_index = step_index.unwrap_or(self.step_index);
+        self.entities_at_step(step_index).get(id)
+    }
+
     /// Return an entity by id at a certain step index, if possible. Extracts the underlying
     /// entity type from the EngineEntity
     pub fn entity_by_id<T: 'static>(&self, id: &u128, step_index: Option<u64>) -> Option<&T>
@@ -345,18 +347,11 @@ impl GameEngine {
         T: EEntity,
     {
         let step_index = step_index.unwrap_or(self.step_index);
-        let entities = if step_index == self.step_index {
-            Some(&self.entities)
-        } else {
-            self.entities_by_step.get(&step_index)
-        };
-        if let Some(entities) = entities {
-            if let Some(engine_entity) = entities.get(id) {
-                if let Some(e) = engine_entity.extract_ref::<T>() {
-                    return Some(e);
-                } else {
-                    println!("WARNING: attempting to extract entity of mismatched type");
-                }
+        if let Some(engine_entity) = self.entities_at_step(step_index).get(id) {
+            if let Some(e) = engine_entity.extract_ref::<T>() {
+                return Some(e);
+            } else {
+                println!("WARNING: attempting to extract entity of mismatched type");
             }
         }
         None
@@ -386,6 +381,26 @@ impl GameEngine {
             }
         }
         None
+    }
+
+    pub fn entities_at_step(&self, step_index: u64) -> &BTreeMap<u128, EngineEntity> {
+        if step_index == self.step_index {
+            &self.entities
+        } else {
+            match self.entities_by_step.get(&step_index) {
+                Some(entities) => entities,
+                None => {
+                    #[cfg(debug_assertions)]
+                    panic!(
+                        "requested entities for an unknown step {step_index}, current step {}",
+                        self.step_index
+                    );
+                    static EMPTY_ENTITIES: LazyLock<BTreeMap<u128, EngineEntity>> =
+                        LazyLock::new(|| BTreeMap::new());
+                    &EMPTY_ENTITIES
+                }
+            }
+        }
     }
 
     pub fn entities_by_type<T>(&mut self) -> impl Iterator<Item = &T>

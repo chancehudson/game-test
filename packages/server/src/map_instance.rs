@@ -87,7 +87,11 @@ impl MapInstance {
 
     pub async fn spawn_item(&mut self, player_id: &str, item: (u64, u32)) -> anyhow::Result<()> {
         if let Some(player_engine) = self.player_engines.get(player_id) {
-            if let Some(entity) = self.engine.entities.get(&player_engine.entity_id).cloned() {
+            if let Some(entity) = self
+                .engine
+                .entity_by_id_untyped(&player_engine.entity_id, None)
+                .cloned()
+            {
                 let new_entity_id = self.engine.generate_id();
                 let event = EngineEvent::SpawnEntity {
                     entity: EngineEntity::Item(ItemEntity::new_item(
@@ -409,7 +413,7 @@ impl MapInstance {
                             self.engine.step_index,
                             engine_hash,
                             #[cfg(debug_assertions)]
-                            self.engine.entities_by_step.get(&engine_hash.0).cloned(),
+                            Some(self.engine.entities_at_step(engine_hash.0).clone()),
                             #[cfg(not(debug_assertions))]
                             None,
                         ),

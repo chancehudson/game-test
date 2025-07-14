@@ -73,38 +73,35 @@ fn animate_mobs(
 ) {
     let game_data = &game_data.0;
     for (e, mob, mut animated_sprite, mut sprite) in &mut query {
-        let entity = active_game_engine.0.entities.get(&e.entity_id);
+        let entity = active_game_engine
+            .0
+            .entity_by_id::<MobEntity>(&e.entity_id, None);
         if entity.is_none() {
             continue;
         }
         let entity = entity.unwrap();
-        if let EngineEntity::Mob(mob_data) = &entity {
-            let data = game_data.mobs.get(&mob_data.mob_type).unwrap();
-            if mob_data.velocity.x.abs() < 1 {
-                if sprite.image != mob.standing_texture {
-                    sprite.image = mob.standing_texture.clone();
-                    sprite.texture_atlas = Some(TextureAtlas {
-                        layout: mob.standing_texture_atlas_layout.clone(),
-                        index: 0,
-                    });
-                    animated_sprite.fps = data.standing_animation.fps as u8;
-                    animated_sprite.frame_count = data.standing_animation.frame_count as u8;
-                }
-            } else {
-                if sprite.image != mob.walking_texture {
-                    sprite.image = mob.walking_texture.clone();
-                    sprite.texture_atlas = Some(TextureAtlas {
-                        layout: mob.walking_texture_atlas_layout.clone(),
-                        index: 0,
-                    });
-                    animated_sprite.fps = data.walking_animation.fps as u8;
-                    animated_sprite.frame_count = data.walking_animation.frame_count as u8;
-                }
+        let data = game_data.mobs.get(&entity.mob_type).unwrap();
+        if entity.velocity.x.abs() < 1 {
+            if sprite.image != mob.standing_texture {
+                sprite.image = mob.standing_texture.clone();
+                sprite.texture_atlas = Some(TextureAtlas {
+                    layout: mob.standing_texture_atlas_layout.clone(),
+                    index: 0,
+                });
+                animated_sprite.fps = data.standing_animation.fps as u8;
+                animated_sprite.frame_count = data.standing_animation.frame_count as u8;
             }
         } else {
-            println!("WARNING: MobComponent is keyed to a non-mob engine entity");
-            continue;
-        };
+            if sprite.image != mob.walking_texture {
+                sprite.image = mob.walking_texture.clone();
+                sprite.texture_atlas = Some(TextureAtlas {
+                    layout: mob.walking_texture_atlas_layout.clone(),
+                    index: 0,
+                });
+                animated_sprite.fps = data.walking_animation.fps as u8;
+                animated_sprite.frame_count = data.walking_animation.frame_count as u8;
+            }
+        }
     }
 }
 

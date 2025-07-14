@@ -290,10 +290,7 @@ impl Game {
                     let (_, map_instance) = entry.value();
                     let mut map_instance = map_instance.write().await;
                     map_instance.reload_player_engine(&player_id).await?;
-                    println!(
-                        "Reload requested from step {step_index}: {:?}",
-                        map_instance.engine.entities_by_step.get(&step_index)
-                    );
+                    println!("Reload requested from step {step_index}");
                 }
             }
         }

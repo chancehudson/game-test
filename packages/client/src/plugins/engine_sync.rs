@@ -61,12 +61,15 @@ fn display_hud(
                 ui.label(format!("engine step: {}", engine.step_index));
                 ui.label(format!("server step: {}", hud_info.server_step));
                 ui.label(format!("sync distance: {}", hud_info.sync_distance));
-                ui.label(format!("entity count: {}", engine.entities.len()));
+                ui.label(format!("entity count: {}", engine.entity_count()));
                 if hud_info.requested_resync {
                     ui.label(RichText::new("requested resync!").color(Color32::RED));
                 }
                 if let Some(player_entity_id) = active_player_entity_id.0 {
-                    if let Some(entity) = engine.entities.get(&player_entity_id) {
+                    if let Some(entity) = engine
+                        .entities_at_step(engine.step_index)
+                        .get(&player_entity_id)
+                    {
                         ui.label(format!(
                             "player position: {} {}",
                             entity.position().x,

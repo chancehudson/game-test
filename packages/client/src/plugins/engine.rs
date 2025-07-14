@@ -248,7 +248,7 @@ fn handle_engine_stats(
                         println!("WARNING: desync detected");
                         println!(
                             "local engine state: {:?}",
-                            active_engine_state.0.entities_by_step.get(&hash_step_index)
+                            active_engine_state.0.entities_at_step(*hash_step_index)
                         );
                         action_events_writer.write(NetworkAction(Action::RequestEngineReload(
                             engine.id,
@@ -257,10 +257,8 @@ fn handle_engine_stats(
                         engine_sync.requested_resync = true;
                         // trigger resync
                         // debug if needed
-                        if let Some(server_entities) = entities_maybe
-                            && let Some(local_entities) =
-                                engine.entities_by_step.get(hash_step_index)
-                        {
+                        if let Some(server_entities) = entities_maybe {
+                            let local_entities = engine.entities_at_step(*hash_step_index);
                             let server_json =
                                 serde_json::to_string_pretty(&server_entities).unwrap();
                             let local_json = serde_json::to_string_pretty(&local_entities).unwrap();
@@ -330,7 +328,7 @@ pub fn sync_engine_components(
     // this is the entities in relative positions we want to render
     let mut aggrod_mobs = HashMap::new();
     let mut current_entities = engine
-        .entities
+        .entities_at_step(engine.step_index)
         .iter()
         .filter(|(_id, entity)| {
             match entity {
@@ -353,20 +351,19 @@ pub fn sync_engine_components(
         .collect::<BTreeMap<_, _>>();
     if engine.step_index >= STEP_DELAY {
         let past_step_index = engine.step_index - STEP_DELAY;
-        if let Some(past_entities) = engine.entities_by_step.get(&past_step_index) {
-            for (entity_id, entity) in past_entities.iter().filter(|(id, entity)| {
-                if aggrod_mobs.contains_key(&id) {
-                    return true;
-                }
-                if let Some(player_creator_id) = entity.player_creator_id() {
-                    player_creator_id != player_entity_id
-                } else {
-                    false
-                }
-            }) {
-                if let Some(_) = current_entities.insert(entity_id, entity) {
-                    println!("WARNING: entity filtered to both present and past");
-                }
+        let past_entities = engine.entities_at_step(past_step_index);
+        for (entity_id, entity) in past_entities.iter().filter(|(id, entity)| {
+            if aggrod_mobs.contains_key(&id) {
+                return true;
+            }
+            if let Some(player_creator_id) = entity.player_creator_id() {
+                player_creator_id != player_entity_id
+            } else {
+                false
+            }
+        }) {
+            if let Some(_) = current_entities.insert(entity_id, entity) {
+                println!("WARNING: entity filtered to both present and past");
             }
         }
     }
@@ -427,7 +424,10 @@ fn add_simple_bubble_background(
         }
 
         const MARGIN: f32 = 4.0;
-        if let Some(p) = engine.entities.get(&game_entity.entity_id) {
+        if let Some(p) = engine
+            .entities_at_step(engine.step_index)
+            .get(&game_entity.entity_id)
+        {
             let bubble_size =
                 Vec2::new(p.size().x as f32 + MARGIN * 2.0, text_size.y + MARGIN * 2.0);
 

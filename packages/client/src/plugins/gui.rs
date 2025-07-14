@@ -98,7 +98,8 @@ fn show_bottom_info_bar(
         return;
     }
     let entity_id = active_player_entity_id.0.unwrap();
-    let player_entity = active_engine.0.entities.get(&entity_id);
+    let engine = &active_engine.0;
+    let player_entity = engine.entities_at_step(engine.step_index).get(&entity_id);
     if player_entity.is_none() {
         return;
     }
