@@ -13,7 +13,10 @@ mod ui;
 
 use network::NetworkMessage;
 
-use crate::sprite_data_loader::SpriteManager;
+use crate::{
+    plugins::text_input::{TextInput, spawn_text_input},
+    sprite_data_loader::SpriteManager,
+};
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum GameState {
@@ -53,6 +56,7 @@ fn main() {
         .add_plugins(plugins::database::DatabasePlugin)
         .add_plugins(plugins::help_gui::HelpGuiPlugin)
         .add_plugins(plugins::info_text::InfoTextPlugin)
+        .add_plugins(plugins::text_input::TextInputPlugin)
         // components
         .add_plugins(components::player::PlayerPlugin)
         .add_plugins(components::mob::MobPlugin)

@@ -10,3 +10,4 @@ pub mod loading_screen;
 pub mod login_gui;
 pub mod player_inventory;
 pub mod smooth_camera;
+pub mod text_input;

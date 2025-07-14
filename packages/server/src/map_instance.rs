@@ -428,11 +428,12 @@ impl MapInstance {
                                     events
                                         .iter()
                                         .filter(|event| match event {
-                                            EngineEvent::Input {
-                                                input: _,
-                                                entity_id,
-                                                universal: _,
-                                            } => entity_id != &player.entity_id,
+                                            EngineEvent::Input { entity_id, .. } => {
+                                                entity_id != &player.entity_id
+                                            }
+                                            EngineEvent::Message { entity_id, .. } => {
+                                                entity_id != &player.entity_id
+                                            }
                                             _ => true,
                                         })
                                         .cloned()
@@ -488,6 +489,9 @@ impl MapInstance {
         player_id: &str,
         player: &mut RemotePlayerEngine,
     ) {
+        if engine.step_index < STEP_DELAY {
+            return;
+        }
         let client_engine = engine.engine_at_step(&(engine.step_index - STEP_DELAY));
         if client_engine.is_err() {
             // engine warming up, we'll try again next tick

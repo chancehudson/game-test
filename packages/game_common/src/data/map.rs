@@ -3,7 +3,6 @@ use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::npc::NpcData;
 use crate::GameEngine;
 use crate::data::GameData;
 use crate::deserialize_vec2;

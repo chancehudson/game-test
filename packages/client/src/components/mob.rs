@@ -28,22 +28,17 @@ fn damage_text_system(
 ) {
     let engine = &active_engine.0;
     for entity in entity_query.iter_mut() {
-        if let Some(entity) = &entity.entity {
-            match entity {
-                EngineEntity::Mob(p) => {
-                    for amount in &p.received_damage_this_step {
-                        if let Some((_aggro_to_entity_id, _)) = p.aggro_to {
-                            commands.spawn(DamageComponent::mob_damage(
-                                engine.step_index,
-                                &p,
-                                *amount,
-                            ));
-                        } else {
-                            unreachable!();
-                        }
-                    }
+        if let Some(entity) = engine.entity_by_id::<MobEntity>(&entity.entity_id, None) {
+            for amount in &entity.received_damage_this_step {
+                if let Some((_aggro_to_entity_id, _)) = entity.aggro_to {
+                    commands.spawn(DamageComponent::mob_damage(
+                        engine.step_index,
+                        entity,
+                        *amount,
+                    ));
+                } else {
+                    unreachable!();
                 }
-                _ => unreachable!(),
             }
         }
     }
@@ -51,19 +46,16 @@ fn damage_text_system(
 
 fn animate_left_right_system(
     mut entity_query: Query<(&GameEntityComponent, &mut Sprite), With<MobComponent>>,
+    active_engine: Res<ActiveGameEngine>,
 ) {
+    let engine = &active_engine.0;
     for (entity, mut sprite) in entity_query.iter_mut() {
-        if let Some(entity) = &entity.entity {
-            match entity {
-                EngineEntity::Mob(p) => {
-                    if p.moving_sign > 0 {
-                        sprite.flip_x = true;
-                    }
-                    if p.moving_sign < 0 {
-                        sprite.flip_x = false;
-                    }
-                }
-                _ => unreachable!(),
+        if let Some(entity) = engine.entity_by_id::<MobEntity>(&entity.entity_id, None) {
+            if entity.moving_sign > 0 {
+                sprite.flip_x = true;
+            }
+            if entity.moving_sign < 0 {
+                sprite.flip_x = false;
             }
         }
     }

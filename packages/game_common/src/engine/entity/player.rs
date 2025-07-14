@@ -17,7 +17,6 @@ use crate::actor::on_platform;
 use crate::damage_calc::compute_damage;
 use crate::entity::EngineEntity;
 use crate::entity::SEEntity;
-use crate::entity::message::MessageEntity;
 use crate::entity::mob::MobEntity;
 use crate::entity::mob_damage::MobDamageEntity;
 use crate::entity::platform::PlatformEntity;
