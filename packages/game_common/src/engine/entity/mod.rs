@@ -230,8 +230,8 @@ engine_entity_enum! {
 ///
 /// Usage:
 /// ```
-/// use game_test::entity_struct;
-/// use game_test::engine::entity::EEntity;
+/// use game_common::entity_struct;
+/// use game_common::engine::entity::EEntity;
 /// // Basic entity with default trait implementation
 /// entity_struct! {
 ///     pub struct MyEntity {

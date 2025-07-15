@@ -1,0 +1,163 @@
+name: Multi-Platform Build
+
+on:
+  push:
+    branches: [main, ci]
+    tags: ["playtest*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+
+          # macOS (ARM64 for new runners)
+          - target: aarch64-apple-darwin
+            os: macos-latest
+
+          # macOS (Intel x86_64)
+          - target: x86_64-apple-darwin
+            os: macos-latest
+
+          # Windows
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+
+          # WASM
+          - target: wasm32-unknown-unknown
+            os: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt update
+          sudo apt install -y pkg-config libssl-dev libasound2-dev libudev-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Add target (if cross-compiling)
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Cache wasm-bindgen-cli
+        if: matrix.target == 'wasm32-unknown-unknown'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/wasm-bindgen
+          key: ${{ runner.os }}-wasm-bindgen-cli
+          restore-keys: |
+            ${{ runner.os }}-wasm-bindgen-cli
+
+      - name: Install wasm-bindgen-cli (for WASM target)
+        if: matrix.target == 'wasm32-unknown-unknown'
+        run: |
+          if ! command -v wasm-bindgen &> /dev/null; then
+            echo "Installing wasm-bindgen-cli..."
+            cargo install wasm-bindgen-cli
+          else
+            echo "wasm-bindgen-cli already installed"
+            wasm-bindgen --version
+          fi
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build for WASM
+        if: matrix.target == 'wasm32-unknown-unknown'
+        run: |
+          cargo build --target ${{ matrix.target }} --bin=client --release
+          wasm-bindgen --out-dir web --web target/${{ matrix.target }}/release/client.wasm
+
+      - name: Build for native targets
+        if: matrix.target != 'wasm32-unknown-unknown'
+        run: cargo build --bin=client --target ${{ matrix.target }} --release
+
+      - name: Create archive for native targets
+        if: matrix.target != 'wasm32-unknown-unknown'
+        shell: bash
+        run: |
+          mkdir -p release-package
+          cp target/${{ matrix.target }}/release/client${{ matrix.target == 'x86_64-pc-windows-msvc' && '.exe' || '' }} release-package/
+          cp -r assets release-package/
+
+          # Create platform-specific archives
+          if [[ "${{ matrix.target }}" == "x86_64-pc-windows-msvc" ]]; then
+            cd release-package && 7z a ../client-${{ matrix.target }}.zip . && cd ..
+          else
+            tar -czf client-${{ matrix.target }}.tar.gz -C release-package .
+          fi
+
+      - name: Create WASM web archive
+        if: matrix.target == 'wasm32-unknown-unknown'
+        run: |
+          tar -czf client-${{ matrix.target }}-web.tar.gz web/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-${{ matrix.target }}
+          path: |
+            client-${{ matrix.target }}.tar.gz
+            client-${{ matrix.target }}.zip
+            client-${{ matrix.target }}-web.tar.gz
+          if-no-files-found: ignore
+          retention-days: 30
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Display structure of downloaded files
+        run: |
+          ls -la
+          echo "WASM artifact contents:"
+          ls -la client-wasm32-unknown-unknown/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            client-x86_64-unknown-linux-gnu/client-x86_64-unknown-linux-gnu.tar.gz
+            client-aarch64-apple-darwin/client-aarch64-apple-darwin.tar.gz
+            client-x86_64-apple-darwin/client-x86_64-apple-darwin.tar.gz
+            client-x86_64-pc-windows-msvc/client-x86_64-pc-windows-msvc.zip
+            client-wasm32-unknown-unknown/client-wasm32-unknown-unknown-web.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
