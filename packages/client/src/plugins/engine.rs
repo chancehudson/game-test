@@ -107,6 +107,7 @@ fn handle_player_state(
 ) {
     for event in action_events.read() {
         if let Response::PlayerState(state) = &event.0 {
+            println!("Player state received");
             active_player_state.0 = Some(state.clone());
         }
     }
@@ -175,6 +176,7 @@ fn handle_exit_map(
 ) {
     for event in action_events.read() {
         if let Response::PlayerExitMap(_from_map) = &event.0 {
+            println!("Player exit map received");
             for entity in query {
                 commands.entity(entity).despawn();
             }

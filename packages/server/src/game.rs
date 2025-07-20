@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Instant;
 
 use dashmap::DashMap;
 use db::DEFAULT_MAP;
@@ -97,14 +98,18 @@ impl Game {
 
                     // this is the slowest, but safest implementation
                     // TODO: switch to channels
+                    let begin_acquire_lock = Instant::now();
                     if let Some(from_instance) = self.map_instances.get(&from_map) {
                         if let Some(to_instance) = self.map_instances.get(&to_map) {
+                            println!(
+                                "Acquired lock for map change in {} ms",
+                                begin_acquire_lock.elapsed().as_millis()
+                            );
                             let to_instance_ref = to_instance.clone();
                             // must wait for both
                             let mut from_instance = from_instance.write().await;
                             let mut to_instance = to_instance.write().await;
                             // write change to db
-                            // transaction ???
                             let record =
                                 PlayerRecord::change_map(&self.db, &player_id, &from_map, &to_map)?;
                             let stats = PlayerStats::by_id(&self.db, &record.id)?;
@@ -132,6 +137,10 @@ impl Game {
                             self.network_server
                                 .send_to_player(&player_id, Response::PlayerState(record))
                                 .await;
+                            println!(
+                                "Map change done in {} ms",
+                                begin_acquire_lock.elapsed().as_millis()
+                            );
                         }
                     }
                 }

@@ -96,7 +96,7 @@ pub struct GameEngine {
 
 // default seeded rng for engine
 fn default_rng() -> (u64, ChaCha8Rng) {
-    (0, ChaCha8Rng::seed_from_u64(0))
+    (u64::MAX, ChaCha8Rng::seed_from_u64(0))
 }
 
 fn default_game_events() -> (flume::Sender<GameEvent>, flume::Receiver<GameEvent>) {
@@ -210,10 +210,7 @@ impl GameEngine {
                     .collect::<BTreeMap<_, _>>();
                 out.entities_by_step = self
                     .entities_by_step
-                    .range(
-                        (self.step_index - TRAILING_STATE_COUNT.min(self.step_index))
-                            ..*target_step_index,
-                    )
+                    .range(..target_step_index)
                     .map(|(si, data)| (*si, data.clone()))
                     .collect::<BTreeMap<_, _>>();
             } else {
@@ -452,7 +449,8 @@ impl GameEngine {
         let now = timestamp();
         assert!(now >= self.start_timestamp, "GameEngine time ran backward");
         // rounds toward 0
-        ((now - self.start_timestamp) / STEP_LEN_S) as u64
+        self.step_index
+            .max(((now - self.start_timestamp) / STEP_LEN_S) as u64)
     }
 
     /// Automatically step forward in time as much as needed
@@ -544,9 +542,10 @@ impl GameEngine {
         // Do some engine housekeeping
         if self.step_index >= TRAILING_STATE_COUNT {
             let step_to_remove = self.step_index - TRAILING_STATE_COUNT;
-            self.entities_by_step.remove(&step_to_remove);
-            self.engine_events_by_step.remove(&step_to_remove);
-            self.game_events_by_step.remove(&step_to_remove);
+            self.entities_by_step.retain(|k, _v| k > &step_to_remove);
+            self.engine_events_by_step
+                .retain(|k, _v| k > &step_to_remove);
+            self.game_events_by_step.retain(|k, _v| k > &step_to_remove);
         }
 
         let game_events = self.game_events.1.drain().collect::<Vec<_>>();
@@ -565,4 +564,116 @@ impl GameEngine {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    use anyhow::Result;
+
+    use crate::data::map::MobSpawnData;
+    use crate::entity::mob_spawn::MobSpawnEntity;
+    use crate::entity::platform::PlatformEntity;
+
+    pub fn test_engine() -> GameEngine {
+        let mut engine = GameEngine::new(IVec2::new(1000, 1000));
+        engine.seed = rand::random();
+        {
+            let id = engine.generate_id();
+            engine.spawn_entity(
+                EngineEntity::Platform(PlatformEntity::new(
+                    id,
+                    IVec2::ZERO,
+                    IVec2::new(engine.size.x, 1),
+                )),
+                None,
+                false,
+            );
+        }
+        {
+            let id = engine.generate_id();
+            engine.spawn_entity(
+                EngineEntity::MobSpawner(MobSpawnEntity::new_data(
+                    id,
+                    MobSpawnData {
+                        position: IVec2::new(50, 50),
+                        size: IVec2::splat(10),
+                        mob_type: 1,
+                        max_count: 10,
+                    },
+                    vec![],
+                )),
+                None,
+                false,
+            );
+        }
+        engine
+    }
+
+    #[test]
+    fn should_generate_different_ids_for_different_seeds() {
+        let id0 = {
+            let mut engine = GameEngine::new(IVec2::ZERO);
+            engine.seed = rand::random();
+            engine.generate_id()
+        };
+        let id1 = {
+            let mut engine = GameEngine::new(IVec2::ZERO);
+            engine.seed = rand::random();
+            engine.generate_id()
+        };
+        assert_ne!(id0, id1);
+    }
+
+    #[test]
+    #[ignore]
+    fn should_be_constant_size() -> Result<()> {
+        let mut engine = test_engine();
+        engine.step_to(&TRAILING_STATE_COUNT);
+
+        let mut total_events = 0;
+        for v in engine.engine_events_by_step.values() {
+            total_events += v.len();
+        }
+        for event in engine
+            .engine_events_by_step
+            .get(&(engine.step_index - 1))
+            .cloned()
+            .unwrap_or_default()
+        {
+            println!("{:?}", event);
+        }
+        println!(
+            "{} {} {} {}",
+            engine.engine_events_by_step.len(),
+            engine.game_events_by_step.len(),
+            engine.entities_by_step.len(),
+            total_events
+        );
+        let bytes_start =
+            bincode::serialize(&engine.engine_at_step(&(engine.step_index - 1), false)?)?;
+        engine.step_to(&100000);
+
+        let mut total_events = 0;
+        for v in engine.engine_events_by_step.values() {
+            total_events += v.len();
+        }
+        println!(
+            "{} {} {} {}",
+            engine.engine_events_by_step.len(),
+            engine.game_events_by_step.len(),
+            engine.entities_by_step.len(),
+            total_events
+        );
+        for event in engine
+            .engine_events_by_step
+            .get(&(engine.step_index - 1))
+            .cloned()
+            .unwrap_or_default()
+        {
+            println!("{:?}", event);
+        }
+        let bytes_end =
+            bincode::serialize(&engine.engine_at_step(&(engine.step_index - 1), false)?)?;
+        assert_eq!(bytes_start.len(), bytes_end.len());
+        Ok(())
+    }
+}
