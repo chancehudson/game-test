@@ -10,8 +10,8 @@ use serde::Serialize;
 
 use db::Ability;
 
-use super::entity::EngineEntity;
-use super::entity::EntityInput;
+use crate::entity::EngineEntity;
+use crate::entity::EntityInput;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum GameEvent {

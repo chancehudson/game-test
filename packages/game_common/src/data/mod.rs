@@ -6,17 +6,15 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::*;
 
-pub mod item;
-pub mod map;
-pub mod mob;
-pub mod npc;
+mod item;
+mod map;
+mod mob;
+mod npc;
 
-use item::ItemData;
-use map::MapData;
-use mob::MobData;
-
-use crate::data::map::DropTableData;
-use crate::data::npc::NpcData;
+pub use item::*;
+pub use map::*;
+pub use mob::*;
+pub use npc::*;
 
 /// Handles loading all game ascii data.
 ///

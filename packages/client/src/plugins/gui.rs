@@ -13,7 +13,7 @@ use bevy_egui::egui::StrokeKind;
 use bevy_egui::egui::Vec2;
 
 use db::Ability;
-use game_common::entity::EngineEntity;
+use game_common::prelude::*;
 
 use crate::GameState;
 use crate::plugins::engine::ActiveGameEngine;

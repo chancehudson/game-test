@@ -1,0 +1,10 @@
+[package]
+name = "zk-risczero-methods"
+version = "0.1.0"
+edition = "2024"
+
+[build-dependencies]
+risc0-build = "2.0.0"
+
+[package.metadata.risc0]
+methods = ["guest"]

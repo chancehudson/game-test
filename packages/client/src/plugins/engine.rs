@@ -8,16 +8,7 @@ use bevy::text::TextLayoutInfo;
 
 use db::PlayerRecord;
 use game_common::AnimationData;
-use game_common::STEP_DELAY;
-use game_common::STEP_LEN_S;
-use game_common::engine::GameEngine;
-use game_common::entity::EEntity;
-use game_common::entity::EngineEntity;
-use game_common::entity::mob::MobEntity;
-use game_common::game_event::GameEvent;
-use game_common::network::Action;
-use game_common::network::Response;
-use game_common::timestamp;
+use game_common::prelude::*;
 
 use crate::GameState;
 use crate::NetworkMessage;
@@ -37,7 +28,7 @@ use crate::plugins::info_text::InfoMessage;
 /// Engine tracking resources/components
 ///
 #[derive(Resource, Default)]
-pub struct ActiveGameEngine(pub GameEngine);
+pub struct ActiveGameEngine(pub RewindableGameEngine);
 
 #[derive(Component, Default)]
 pub struct GameEntityComponent {
@@ -181,7 +172,7 @@ fn handle_exit_map(
                 commands.entity(entity).despawn();
             }
             active_player_entity_id.0 = None;
-            active_game_engine.0 = GameEngine::default();
+            active_game_engine.0 = RewindableGameEngine::default();
             next_state.set(GameState::Waiting);
         }
     }
@@ -358,7 +349,7 @@ pub fn sync_engine_components(
         let past_step_index = engine.step_index - STEP_DELAY;
         let past_entities = engine.entities_at_step(past_step_index);
         for (entity_id, entity) in past_entities.iter().filter(|(id, entity)| {
-            if aggrod_mobs.contains_key(&id) {
+            if aggrod_mobs.contains_key(id) {
                 return true;
             }
             if let Some(player_creator_id) = entity.player_creator_id() {

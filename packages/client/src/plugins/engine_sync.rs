@@ -3,10 +3,7 @@ use bevy_egui::egui::Color32;
 use bevy_egui::egui::RichText;
 use bevy_egui::{EguiContextPass, EguiContexts, egui};
 
-use game_common::STEP_LEN_S;
-use game_common::STEPS_PER_SECOND;
-use game_common::entity::EEntity;
-use game_common::timestamp;
+use game_common::prelude::*;
 
 use crate::plugins::engine::ActiveGameEngine;
 use crate::plugins::engine::ActivePlayerEntityId;

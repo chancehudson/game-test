@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 
-members = ["packages/game_common", "packages/client", "packages/db", "packages/server"]
+members = ["packages/game_common", "packages/client", "packages/db", "packages/server", "packages/zk-risczero", "packages/zk-sp1"]
 
 [workspace.dependencies]
 anyhow = "1.0.95"
@@ -15,6 +15,7 @@ serde = { version = "1.0.217", features = ["derive"] }
 web-time = "1.1.0"
 tracy-client = { version = "=0.18.0" }
 rand_chacha = "0.9.0"
+rand_xoshiro = "0.7.0"
 blake3 = { version = "1.8.2", features = ["serde"] }
 strum = { version = "0.27.1", features = ["derive"] }
 tokio = { version = "1.43.0" }
