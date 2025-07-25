@@ -36,7 +36,6 @@ impl SEEntity for NpcEntity {
                 EngineEvent::Message {
                     text: self.data.announcements[announcement_index].clone(),
                     entity_id: self.id,
-                    entity_type_id: entity_type_ids::Npc,
                     universal: false,
                 },
             );

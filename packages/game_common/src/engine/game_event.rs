@@ -52,7 +52,6 @@ pub enum EngineEvent {
     Message {
         text: String,
         entity_id: u128, // sender id
-        entity_type_id: u32,
         universal: bool,
     },
 }

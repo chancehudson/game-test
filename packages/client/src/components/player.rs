@@ -1,10 +1,7 @@
 use bevy::prelude::*;
 
+use game_common::prelude::*;
 use game_common::AnimationData;
-use game_common::entity::EntityInput;
-use game_common::entity::player::PlayerEntity;
-use game_common::game_event::EngineEvent;
-use game_common::network::Action;
 
 use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;
@@ -188,19 +185,11 @@ fn input_system(
             crouch: keyboard.pressed(KeyCode::ArrowDown),
             attack: keyboard.just_pressed(KeyCode::KeyA),
             enter_portal: keyboard.pressed(KeyCode::ArrowUp),
-            admin_enable_debug_markers: keyboard.just_pressed(KeyCode::Digit9),
             show_emoji: keyboard.just_pressed(KeyCode::KeyQ),
             respawn: keyboard.just_pressed(KeyCode::KeyR),
             pick_up: keyboard.just_pressed(KeyCode::KeyZ),
         };
-        let (_, latest_input) =
-            if let Some(player_entity) = engine.entity_by_id::<PlayerEntity>(&entity_id, None) {
-                &player_entity.input_system.latest_input
-            } else {
-                println!("WARNING: player entity not found for input");
-                return;
-            };
-
+        let latest_input = engine.input_for_entity(&entity_id);
         if latest_input == &input {
             return;
         }

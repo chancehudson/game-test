@@ -8,19 +8,7 @@ use db::AbilityExpRecord;
 use db::PlayerInventory;
 use db::PlayerRecord;
 use db::PlayerStats;
-use game_common::GameEngine;
-use game_common::MapData;
-use game_common::STEP_DELAY;
-use game_common::STEPS_PER_SECOND;
-use game_common::TRAILING_STATE_COUNT;
-use game_common::entity::EEntity;
-use game_common::entity::EngineEntity;
-use game_common::entity::item::ItemEntity;
-use game_common::entity::player::PlayerEntity;
-use game_common::game_event::EngineEvent;
-use game_common::game_event::GameEvent;
-use game_common::network::Response;
-use game_common::timestamp;
+use game_common::prelude::*;
 
 use crate::game::RemoteEngineEvent;
 use crate::network;
@@ -37,7 +25,7 @@ pub struct RemotePlayerEngine {
 /// A distinct instance of a map. Each map is it's own game instance
 /// responsible for player communication, mob management, and physics.
 pub struct MapInstance {
-    pub engine: GameEngine,
+    pub engine: RewindableGameEngine,
     pub map: MapData,
 
     // actions received from players. These must be sanitized before
@@ -75,7 +63,7 @@ impl MapInstance {
             pending_actions: flume::unbounded(),
             pending_events: flume::unbounded(),
             player_engines: HashMap::new(),
-            engine: GameEngine::new(map.size, rand::random()),
+            engine: RewindableGameEngine::new(map.size, rand::random()),
             map,
             network_server,
             last_stats_broadcast: 0.,
@@ -342,7 +330,7 @@ impl MapInstance {
                 GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {
                     if let Some(player_entity) = self
                         .engine
-                        .entity_by_id_mut::<PlayerEntity>(&player_entity_id, None)
+                        .entity_by_id_mut::<PlayerEntity>(&player_entity_id)
                     {
                         // we don't want to modify the entities here, this is purely synchronizing the server
                         // and db with the engine
@@ -488,7 +476,7 @@ impl MapInstance {
 
     pub async fn init_remote_engine(
         network_server: Arc<network::Server>,
-        engine: &GameEngine,
+        engine: &RewindableGameEngine,
         player_id: &str,
         player: &mut RemotePlayerEngine,
     ) {

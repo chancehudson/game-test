@@ -1,11 +1,12 @@
 use bevy_math::IRect;
 use bevy_math::IVec2;
 use bevy_math::Vec2;
+use rand::SeedableRng;
+use rand_xoshiro::Xoroshiro64StarStar;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::engine::GameEngine;
-use crate::rng::XorShiftRng;
 
 pub mod emoji;
 pub mod item;
@@ -53,8 +54,8 @@ pub trait EEntity {
     fn player_creator_id(&self) -> Option<u128>;
 
     /// deterministic rng for entities, safe for replay
-    fn rng(&self, step_index: &u64) -> XorShiftRng {
-        XorShiftRng::new((self.id() as u64) + *step_index)
+    fn rng(&self, step_index: &u64) -> Xoroshiro64StarStar {
+        Xoroshiro64StarStar::seed_from_u64((self.id() as u64) + *step_index)
     }
 
     fn center(&self) -> IVec2 {

@@ -3,10 +3,9 @@ use rand::Rng;
 
 use db::Ability;
 use db::PlayerStats;
+use rand::RngCore;
 
 use crate::prelude::*;
-use crate::system::input::InputSystem;
-use crate::entity_struct;
 
 const KNOCKBACK_STEPS: u64 = 20;
 
@@ -25,15 +24,13 @@ entity_struct!(
         pub knockback_until: Option<(i32, u64)>,
         pub current_health: u64,
         pub is_dead: bool,
-        input_system: InputSystem,
     }
 );
 
 impl MobEntity {
     // handle movement calculations
-    fn prestep<T: GameEngine>(&mut self, engine: &T) {
+    fn prestep<T: GameEngine, R: RngCore>(&mut self, engine: &T, rng: &mut R) {
         let step_index = engine.step_index();
-        let mut rng = self.rng(step_index);
         if let Some((aggro_to, _last_hit_step)) = self.aggro_to {
             if let Some(aggro_to_entity) = engine.entity_by_id_untyped(&aggro_to, None) {
                 let mut new_input = EntityInput::default();
@@ -74,7 +71,8 @@ impl MobEntity {
             } else {
                 let (can_move_left_without_falling, can_move_right_without_falling) =
                     actor::can_move_left_right_without_falling(self.rect(), engine);
-                let (can_move_left, can_move_right) = actor::can_move_left_right(self.rect(), engine);
+                let (can_move_left, can_move_right) =
+                    actor::can_move_left_right(self.rect(), engine);
                 let (can_move_left, can_move_right) = (
                     can_move_left_without_falling && can_move_left,
                     can_move_right_without_falling && can_move_right,
@@ -138,15 +136,14 @@ impl SEEntity for MobEntity {
             return next_self;
         }
         next_self.received_damage_this_step = vec![];
-        next_self.prestep(engine);
         let mut rng = self.rng(step_index);
+        next_self.prestep(engine, &mut rng);
         // velocity in the last frame based on movement
         let last_velocity = self.velocity.clone();
         let body = self.rect();
         let mut velocity = last_velocity.clone();
         let can_jump = actor::on_platform(body, engine);
-        next_self.input_system.step(self, engine);
-        let (_, input) = &next_self.input_system.latest_input;
+        let input = engine.input_for_entity(&self.id);
 
         // look for damage the mob is receiving
         for entity in engine.entities_by_type::<MobDamageEntity>() {

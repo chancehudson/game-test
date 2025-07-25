@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, sync::LazyLock};
 
 use bevy_math::IVec2;
 
@@ -97,6 +97,12 @@ impl GameEngine for SimpleGameEngine {
         None
     }
 
+    fn input_for_entity(&self, id: &u128) -> &EntityInput {
+        static DEFAULT_INPUT: LazyLock<EntityInput> =
+            LazyLock::new(|| EntityInput::default());
+        &DEFAULT_INPUT
+    }
+
     fn register_game_event(&self, event: GameEvent) {
         
     }
@@ -125,7 +131,7 @@ impl GameEngine for SimpleGameEngine {
                 EngineEvent::RemoveEntity { entity_id, universal: _ } => {
                     self.entities.retain(|entity| entity.id() != entity_id);
                 }
-                EngineEvent::Message { text, entity_id, entity_type_id, universal: _ } => {
+                EngineEvent::Message { text, entity_id, universal: _ } => {
                     if let Some(entity) = self.entity_by_id_untyped(&entity_id, None) {
                         let is_player = match entity {
                             EngineEntity::Player(_) => true,

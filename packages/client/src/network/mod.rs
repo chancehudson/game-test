@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
-use game_common::network::Action;
-use game_common::network::Response;
+use game_common::prelude::*;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod network_native;
