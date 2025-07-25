@@ -112,6 +112,14 @@ impl GameEngine for RewindableGameEngine {
         }
     }
 
+    fn rng(&mut self) -> &mut Xoroshiro64StarStar {
+        if self.rng_state.0 != self.step_index {
+            self.rng_state.1 = Xoroshiro64StarStar::seed_from_u64(self.seed + self.step_index);
+            self.rng_state.0 = self.step_index;
+        }
+        &mut self.rng_state.1
+    }
+
     fn size(&self) -> &IVec2 {
         &self.size
     }
@@ -386,14 +394,6 @@ impl RewindableGameEngine {
         };
         out.id = out.generate_id();
         out
-    }
-
-    pub fn rng(&mut self) -> &mut Xoroshiro64StarStar {
-        if self.rng_state.0 != self.step_index {
-            self.rng_state.1 = Xoroshiro64StarStar::seed_from_u64(self.seed + self.step_index);
-            self.rng_state.0 = self.step_index;
-        }
-        &mut self.rng_state.1
     }
 
     pub fn step_hash(&self, step_index: &u64) -> anyhow::Result<blake3::Hash> {
