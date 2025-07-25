@@ -2,8 +2,7 @@ use std::io::Write;
 
 use bevy_math::IVec2;
 
-use crate::entity::EEntity;
-use crate::entity::SEEntity;
+use crate::prelude::*;
 use crate::entity_struct;
 
 const MESSAGE_WIDTH: i32 = 100;
@@ -47,17 +46,18 @@ impl MessageEntity {
 }
 
 impl SEEntity for MessageEntity {
-    fn step(&self, engine: &mut crate::GameEngine) -> Self {
+    fn step<T: GameEngine>(&self, engine: &T) -> Self {
         let mut next_self = self.clone();
-        if engine.step_index >= self.disappears_at_step {
-            engine.remove_entity(self.id, false);
+        let step_index = engine.step_index();
+        if step_index >= &self.disappears_at_step {
+            engine.remove_entity(&self.id, None, false);
             return next_self;
         }
-        if let Some(entity) = engine.entities.get(&self.creator_id) {
+        if let Some(entity) = engine.entity_by_id_untyped(&self.creator_id, None) {
             next_self.position = (entity.center()
                 + IVec2::new(0, entity.size().y / 2 + MESSAGE_TOP_PADDING)
                 - IVec2::new(MESSAGE_WIDTH / 2, 0))
-            .clamp(IVec2::ZERO, engine.size - self.size());
+            .clamp(IVec2::ZERO, engine.size() - self.size());
         }
         for id in engine
             .entities_by_type::<MessageEntity>()
@@ -71,7 +71,7 @@ impl SEEntity for MessageEntity {
             })
             .collect::<Vec<_>>()
         {
-            engine.remove_entity(id, false);
+            engine.remove_entity(&id, None, false);
         }
         next_self
     }

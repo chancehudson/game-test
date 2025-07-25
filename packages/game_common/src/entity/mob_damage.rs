@@ -4,12 +4,7 @@ use bevy_math::Vec3;
 
 use db::Ability;
 
-use crate::entity::EngineEntity;
-use crate::entity::mob::MobEntity;
-use crate::game_event::EngineEvent;
-
-use super::EEntity;
-use super::SEEntity;
+use crate::prelude::*;
 
 crate::entity_struct!(
     pub struct MobDamageEntity {
@@ -32,7 +27,7 @@ impl MobDamageEntity {
 }
 
 impl SEEntity for MobDamageEntity {
-    fn step(&self, engine: &mut super::GameEngine) -> Self
+    fn step<T: super::GameEngine>(&self, engine: &T) -> Self
     where
         Self: Sized + Clone,
     {
@@ -47,17 +42,18 @@ impl SEEntity for MobDamageEntity {
             );
             return self.clone();
         }
-        let mut next_self = if let Some(attached_entity) = engine.entities.get(&self.attached_to) {
-            let mut next_self = self.clone();
-            next_self.player_creator_id = attached_entity.player_creator_id();
-            next_self.size = attached_entity.size();
-            next_self.position = attached_entity.position();
-            next_self
-        } else {
-            let mut next_self = self.clone();
-            next_self.has_despawned = true;
-            next_self
-        };
+        let mut next_self =
+            if let Some(attached_entity) = engine.entity_by_id_untyped(&self.attached_to, None) {
+                let mut next_self = self.clone();
+                next_self.player_creator_id = attached_entity.player_creator_id();
+                next_self.size = attached_entity.size();
+                next_self.position = attached_entity.position();
+                next_self
+            } else {
+                let mut next_self = self.clone();
+                next_self.has_despawned = true;
+                next_self
+            };
 
         // handle contact with a mob
         for entity in engine.entities_by_type::<MobEntity>().collect::<Vec<_>>() {

@@ -1,15 +1,15 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-pub mod data;
-pub mod engine;
-pub mod network;
+pub mod prelude;
 
-pub use engine::*;
+mod data;
+mod engine;
+mod entity;
+mod network;
+mod rng;
+mod system;
 
-pub use data::item::ItemData;
-pub use data::map::MapData;
-pub use data::mob::MobData;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AnimationData {

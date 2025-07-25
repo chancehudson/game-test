@@ -5,23 +5,7 @@ use db::Ability;
 use db::PlayerRecord;
 use db::PlayerStats;
 
-use super::EEntity;
-use super::emoji::EmojiEntity;
-use super::portal::PortalEntity;
-use super::rect::RectEntity;
-use crate::GameEngine;
-use crate::STEPS_PER_SECOND_I32;
-use crate::actor::move_x;
-use crate::actor::move_y;
-use crate::actor::on_platform;
-use crate::damage_calc::compute_damage;
-use crate::entity::EngineEntity;
-use crate::entity::SEEntity;
-use crate::entity::mob::MobEntity;
-use crate::entity::mob_damage::MobDamageEntity;
-use crate::entity::platform::PlatformEntity;
-use crate::entity_struct;
-use crate::game_event::GameEvent;
+use crate::prelude::*;
 use crate::system::input::InputSystem;
 
 const DAMAGE_IFRAME_STEPS: u64 = 120;
@@ -64,9 +48,9 @@ impl PlayerEntity {
 }
 
 impl SEEntity for PlayerEntity {
-    fn step(&self, engine: &mut GameEngine) -> Self {
-        let step_index = engine.step_index;
-        let mut rng = self.rng(&step_index);
+    fn step<T: GameEngine>(&self, engine: &T) -> Self {
+        let step_index = engine.step_index();
+        let mut rng = self.rng(step_index);
         let mut next_self = self.clone();
         next_self.input_system.step(self, engine);
         let (input_step_index, input) = &next_self.input_system.latest_input;
@@ -75,11 +59,10 @@ impl SEEntity for PlayerEntity {
             next_self.receiving_damage_until = None;
             if input.respawn {
                 let new_health = self.stats.max_health();
-                engine
-                    .game_events
-                    .0
-                    .send(GameEvent::PlayerHealth(self.player_id.clone(), new_health))
-                    .unwrap();
+                engine.register_game_event(GameEvent::PlayerHealth(
+                    self.player_id.clone(),
+                    new_health,
+                ));
                 next_self.record.current_health = new_health;
             }
             return next_self;
@@ -87,18 +70,13 @@ impl SEEntity for PlayerEntity {
         // velocity in the last frame based on movement
         let last_velocity = self.velocity.clone();
         let body = self.rect();
-        let can_jump = on_platform(body, engine);
-        if input.admin_enable_debug_markers && input_step_index == &step_index {
-            engine.enable_debug_markers = !engine.enable_debug_markers;
-        }
+        let can_jump = actor::on_platform(body, engine);
 
         if let Some(receiving_damage_until) = self.receiving_damage_until {
-            if engine.step_index >= receiving_damage_until {
+            if step_index >= &receiving_damage_until {
                 next_self.receiving_damage_until = None;
             }
         } else {
-            let step_index = engine.step_index;
-            let game_events_sender = engine.game_events.0.clone();
             for entity in engine.entities_by_type::<MobEntity>() {
                 if !entity.rect().intersect(self.rect()).is_empty() {
                     // receiving damage
@@ -110,7 +88,7 @@ impl SEEntity for PlayerEntity {
                     next_self.knockback_until = Some((knockback_dir, step_index + KNOCKBACK_STEPS));
                     next_self.receiving_damage_until = Some(step_index + DAMAGE_IFRAME_STEPS);
                     next_self.weightless_until = Some(step_index + (KNOCKBACK_STEPS / 2));
-                    let damage_amount = compute_damage(
+                    let damage_amount = damage_calc::compute_damage(
                         &Ability::Strength,
                         &PlayerStats::default(),
                         &self.stats,
@@ -118,36 +96,33 @@ impl SEEntity for PlayerEntity {
                     );
                     next_self.received_damage_this_step = (true, damage_amount);
                     if damage_amount > 0 {
-                        game_events_sender
-                            .send(GameEvent::PlayerAbilityExp(
-                                self.id,
-                                Ability::Health,
-                                damage_amount,
-                            ))
-                            .unwrap();
+                        engine.register_game_event(GameEvent::PlayerAbilityExp(
+                            self.id,
+                            Ability::Health,
+                            damage_amount,
+                        ));
                     }
                     if next_self.record.current_health <= damage_amount {
                         next_self.record.current_health = 0;
                         // player has died
                         // TODO: move to respawn map
-                        game_events_sender
-                            .send(GameEvent::PlayerHealth(next_self.player_id.clone(), 0))
-                            .unwrap();
+                        engine.register_game_event(GameEvent::PlayerHealth(
+                            next_self.player_id.clone(),
+                            0,
+                        ));
                     } else {
                         next_self.record.current_health -= damage_amount;
-                        game_events_sender
-                            .send(GameEvent::PlayerHealth(
-                                next_self.player_id.clone(),
-                                next_self.record.current_health,
-                            ))
-                            .unwrap();
+                        engine.register_game_event(GameEvent::PlayerHealth(
+                            next_self.player_id.clone(),
+                            next_self.record.current_health,
+                        ));
                     }
                     break;
                 }
             }
         }
         if let Some(showing_emoji_until) = self.showing_emoji_until {
-            if step_index >= showing_emoji_until {
+            if step_index >= &showing_emoji_until {
                 next_self.showing_emoji_until = None;
             }
         } else if input.show_emoji {
@@ -165,7 +140,7 @@ impl SEEntity for PlayerEntity {
         if let Some((direction, until)) = self.knockback_until {
             next_self.velocity.x += direction * 100;
             next_self.velocity.y = 200;
-            if engine.step_index >= until {
+            if step_index >= &until {
                 next_self.knockback_until = None;
             }
         } else {
@@ -184,31 +159,24 @@ impl SEEntity for PlayerEntity {
             }
         }
         if input.enter_portal {
-            // TODO: clean up storage/memory in this if clause
-            let game_events_channel = engine.game_events.0.clone();
             for entity in engine.entities_by_type::<PortalEntity>() {
                 if entity.can_enter(self) {
-                    game_events_channel
-                        .send(GameEvent::PlayerEnterPortal {
-                            player_id: self.player_id.clone(),
-                            entity_id: self.id,
-                            from_map: entity.from.clone(),
-                            to_map: entity.to.clone(),
-                            requested_spawn_pos: None,
-                        })
-                        .unwrap();
+                    engine.register_game_event(GameEvent::PlayerEnterPortal {
+                        player_id: self.player_id.clone(),
+                        entity_id: self.id,
+                        from_map: entity.from.clone(),
+                        to_map: entity.to.clone(),
+                        requested_spawn_pos: None,
+                    });
                     break;
                 }
             }
         }
         if input.pick_up {
-            let game_events_channel = engine.game_events.0.clone();
-            game_events_channel
-                .send(GameEvent::PlayerPickUpRequest(self.id))
-                .unwrap();
+            engine.register_game_event(GameEvent::PlayerPickUpRequest(self.id));
         }
         if let Some(weightless_until) = self.weightless_until {
-            if step_index >= weightless_until {
+            if step_index >= &weightless_until {
                 next_self.weightless_until = None;
             }
             next_self.velocity.y += -20;
@@ -216,7 +184,7 @@ impl SEEntity for PlayerEntity {
             next_self.velocity.y += -20;
         }
         if let Some(attacking_until) = self.attacking_until {
-            if step_index >= attacking_until {
+            if step_index >= &attacking_until {
                 next_self.attacking_until = None;
             }
         }
@@ -263,14 +231,14 @@ impl SEEntity for PlayerEntity {
             next_self.position.y = (self.position.y - 4).max(0);
             next_self
         } else {
-            let x_pos = move_x(
+            let x_pos = actor::move_x(
                 self.rect(),
                 next_self.velocity.x / STEPS_PER_SECOND_I32,
-                &engine,
+                engine,
             );
-            let map_size = engine.size.clone();
+            let map_size = engine.size().clone();
             let platforms = engine.entities_by_type::<PlatformEntity>();
-            let y_pos = move_y(
+            let y_pos = actor::move_y(
                 self.rect(),
                 next_self.velocity.y / STEPS_PER_SECOND_I32,
                 &platforms.collect::<Vec<_>>(),
