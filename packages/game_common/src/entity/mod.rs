@@ -1,12 +1,11 @@
 use bevy_math::IRect;
 use bevy_math::IVec2;
 use bevy_math::Vec2;
-use rand::SeedableRng;
-use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::GameEngine;
+use crate::engine::GameEngine;
+use crate::rng::XorShiftRng;
 
 pub mod emoji;
 pub mod item;
@@ -31,7 +30,6 @@ pub struct EntityInput {
     pub crouch: bool,
     pub attack: bool,
     pub enter_portal: bool,
-    pub admin_enable_debug_markers: bool,
     pub show_emoji: bool,
     pub respawn: bool,
     pub pick_up: bool,
@@ -55,13 +53,8 @@ pub trait EEntity {
     fn player_creator_id(&self) -> Option<u128>;
 
     /// deterministic rng for entities, safe for replay
-    fn rng(&self, step_index: &u64) -> ChaCha8Rng {
-        let id = self.id();
-        let first_half = (id >> 64) as u64; // Upper 64 bits
-        let second_half = id as u64; // Lower 64 bits (cast truncates)
-
-        let seed = first_half ^ second_half ^ step_index;
-        ChaCha8Rng::seed_from_u64(seed)
+    fn rng(&self, step_index: &u64) -> XorShiftRng {
+        XorShiftRng::new((self.id() as u64) + *step_index)
     }
 
     fn center(&self) -> IVec2 {
@@ -86,7 +79,7 @@ pub trait EEntity {
 }
 
 pub trait SEEntity: EEntity + Clone {
-    fn step(&self, _engine: &mut GameEngine) -> Self
+    fn step<T: GameEngine>(&self, _engine: &T) -> Self
     where
         Self: Sized + Clone,
     {
@@ -98,10 +91,29 @@ macro_rules! engine_entity_enum {
     (
         $enum_name:ident {
             $(
-                $variant:ident($type:ty)
+                $variant:ident($type:ty) = $id:expr
             ),* $(,)?
         }
     ) => {
+        /// Get the u32 type ID for a concrete type T
+        pub fn type_id_of<T: 'static>() -> Option<u32> {
+            use std::any::TypeId;
+            $(
+                if TypeId::of::<T>() == TypeId::of::<$type>() {
+                    return Some($id);
+                }
+            )*
+            None
+        }
+
+        /// Type IDs for each entity variant
+        pub mod entity_type_ids {
+            $(
+                #[allow(non_upper_case_globals)]
+                pub const $variant: u32 = $id;
+            )*
+        }
+
         /// Enum to wrap all possible entity types
         #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
         pub enum $enum_name {
@@ -111,8 +123,17 @@ macro_rules! engine_entity_enum {
         }
 
         impl $enum_name {
+            /// Get the u32 type ID for this entity variant
+            pub fn type_id(&self) -> u32 {
+                match self {
+                    $(
+                        $enum_name::$variant(_) => entity_type_ids::$variant,
+                    )*
+                }
+            }
+
             /// Get the TypeId for this entity variant
-            pub fn type_id(&self) -> std::any::TypeId {
+            pub fn runtime_type_id(&self) -> std::any::TypeId {
                 match self {
                     $(
                         $enum_name::$variant(_) => std::any::TypeId::of::<$type>(),
@@ -148,7 +169,7 @@ macro_rules! engine_entity_enum {
         }
 
         impl SEEntity for $enum_name {
-            fn step(&self, engine: &mut GameEngine) -> Self {
+            fn step<T: GameEngine>(&self, engine: &T) -> Self {
                 match self {
                     $(
                         $enum_name::$variant(entity) => $enum_name::$variant(entity.step(engine)),
@@ -211,18 +232,18 @@ macro_rules! engine_entity_enum {
 
 engine_entity_enum! {
     EngineEntity {
-        MobDamage(mob_damage::MobDamageEntity),
-        Rect(rect::RectEntity),
-        Player(player::PlayerEntity),
-        Mob(mob::MobEntity),
-        MobSpawner(mob_spawn::MobSpawnEntity),
-        Platform(platform::PlatformEntity),
-        Portal(portal::PortalEntity),
-        Emoji(emoji::EmojiEntity),
-        Text(text::TextEntity),
-        Item(item::ItemEntity),
-        Npc(npc::NpcEntity),
-        Message(message::MessageEntity),
+        MobDamage(mob_damage::MobDamageEntity) = 0,
+        Rect(rect::RectEntity) = 1,
+        Player(player::PlayerEntity) = 2,
+        Mob(mob::MobEntity) = 3,
+        MobSpawner(mob_spawn::MobSpawnEntity) = 4,
+        Platform(platform::PlatformEntity) = 5,
+        Portal(portal::PortalEntity) = 6,
+        Emoji(emoji::EmojiEntity) = 7,
+        Text(text::TextEntity) = 8,
+        Item(item::ItemEntity) = 9,
+        Npc(npc::NpcEntity) = 10,
+        Message(message::MessageEntity) = 11,
     }
 }
 

@@ -4,29 +4,9 @@ use rand::Rng;
 use db::Ability;
 use db::PlayerStats;
 
-use crate::GameEngine;
-use crate::STEPS_PER_SECOND;
-use crate::STEPS_PER_SECOND_I32;
-use crate::actor::can_move_left_right;
-use crate::actor::can_move_left_right_without_falling;
-use crate::actor::move_x;
-use crate::actor::move_y;
-use crate::actor::on_platform;
-use crate::damage_calc::compute_damage;
-use crate::data::map::DropTableData;
-use crate::entity::EEntity;
-use crate::entity::EngineEntity;
-use crate::entity::SEEntity;
-use crate::entity::item::ItemEntity;
-use crate::entity::mob_damage::MobDamageEntity;
-use crate::entity::platform::PlatformEntity;
-use crate::entity::player::PlayerEntity;
-use crate::entity_struct;
-use crate::game_event::EngineEvent;
-use crate::game_event::GameEvent;
+use crate::prelude::*;
 use crate::system::input::InputSystem;
-
-use super::EntityInput;
+use crate::entity_struct;
 
 const KNOCKBACK_STEPS: u64 = 20;
 
@@ -51,11 +31,11 @@ entity_struct!(
 
 impl MobEntity {
     // handle movement calculations
-    fn prestep(&mut self, engine: &mut GameEngine) {
-        let step_index = engine.step_index;
-        let mut rng = self.rng(&step_index);
+    fn prestep<T: GameEngine>(&mut self, engine: &T) {
+        let step_index = engine.step_index();
+        let mut rng = self.rng(step_index);
         if let Some((aggro_to, _last_hit_step)) = self.aggro_to {
-            if let Some(aggro_to_entity) = engine.entities.get(&aggro_to) {
+            if let Some(aggro_to_entity) = engine.entity_by_id_untyped(&aggro_to, None) {
                 let mut new_input = EntityInput::default();
                 if aggro_to_entity.position().x > self.position.x {
                     new_input.move_right = true;
@@ -80,7 +60,7 @@ impl MobEntity {
                 self.aggro_to = None;
             }
         } else if let Some(moving_until) = self.moving_until {
-            if step_index >= moving_until {
+            if step_index >= &moving_until {
                 self.moving_until = None;
                 self.moving_sign = 0;
                 engine.register_event(
@@ -93,8 +73,8 @@ impl MobEntity {
                 );
             } else {
                 let (can_move_left_without_falling, can_move_right_without_falling) =
-                    can_move_left_right_without_falling(self.rect(), engine);
-                let (can_move_left, can_move_right) = can_move_left_right(self.rect(), engine);
+                    actor::can_move_left_right_without_falling(self.rect(), engine);
+                let (can_move_left, can_move_right) = actor::can_move_left_right(self.rect(), engine);
                 let (can_move_left, can_move_right) = (
                     can_move_left_without_falling && can_move_left,
                     can_move_right_without_falling && can_move_right,
@@ -135,15 +115,16 @@ impl MobEntity {
                 },
             );
         }
-        if engine.step_index % 30 == 0 {
+        if step_index % 30 == 0 {
             // println!("step: {} {}", engine.step_index, rng.random::<u64>());
         }
     }
 }
 
 impl SEEntity for MobEntity {
-    fn step(&self, engine: &mut GameEngine) -> Self {
+    fn step<T: GameEngine>(&self, engine: &T) -> Self {
         let mut next_self = self.clone();
+        let step_index = engine.step_index();
         // render a single frame with is_dead=true to trigger frontend animations
         if self.is_dead {
             next_self.received_damage_this_step = vec![];
@@ -158,24 +139,17 @@ impl SEEntity for MobEntity {
         }
         next_self.received_damage_this_step = vec![];
         next_self.prestep(engine);
-        let mut rng = self.rng(&engine.step_index);
+        let mut rng = self.rng(step_index);
         // velocity in the last frame based on movement
         let last_velocity = self.velocity.clone();
         let body = self.rect();
         let mut velocity = last_velocity.clone();
-        let can_jump = on_platform(body, engine);
+        let can_jump = actor::on_platform(body, engine);
         next_self.input_system.step(self, engine);
         let (_, input) = &next_self.input_system.latest_input;
 
-        let step_index = engine.step_index;
-        let game_events_sender = engine.game_events.0.clone();
-
         // look for damage the mob is receiving
-        for entity in engine
-            .entities_by_type::<MobDamageEntity>()
-            .cloned()
-            .collect::<Vec<_>>()
-        {
+        for entity in engine.entities_by_type::<MobDamageEntity>() {
             if entity.contacted_mob_id.is_none() {
                 continue;
             }
@@ -197,7 +171,7 @@ impl SEEntity for MobEntity {
             if let Some(player_entity) =
                 engine.entity_by_id::<PlayerEntity>(&player_entity_id, None)
             {
-                next_self.aggro_to = Some((entity.player_creator_id().unwrap(), step_index));
+                next_self.aggro_to = Some((entity.player_creator_id().unwrap(), *step_index));
                 // receiving damage
                 let knockback_dir = if entity.center().x > self.center().x {
                     -1
@@ -206,7 +180,7 @@ impl SEEntity for MobEntity {
                 };
                 next_self.knockback_until = Some((knockback_dir, step_index + KNOCKBACK_STEPS));
                 next_self.weightless_until = Some(step_index + (KNOCKBACK_STEPS / 2));
-                let damage_amount = compute_damage(
+                let damage_amount = damage_calc::compute_damage(
                     &Ability::Strength,
                     &player_entity.stats,
                     &PlayerStats::default(),
@@ -214,13 +188,11 @@ impl SEEntity for MobEntity {
                 );
                 next_self.received_damage_this_step.push(damage_amount);
                 if damage_amount > 0 {
-                    game_events_sender
-                        .send(GameEvent::PlayerAbilityExp(
-                            entity.player_creator_id().unwrap(),
-                            entity.ability.clone(),
-                            damage_amount,
-                        ))
-                        .unwrap();
+                    engine.register_game_event(GameEvent::PlayerAbilityExp(
+                        entity.player_creator_id().unwrap(),
+                        entity.ability.clone(),
+                        damage_amount,
+                    ));
                 }
                 if next_self.current_health <= damage_amount {
                     next_self.is_dead = true;
@@ -239,7 +211,7 @@ impl SEEntity for MobEntity {
                                 drop.0, // item type
                                 drop.1, // amount
                                 player_entity_id,
-                                engine.step_index,
+                                *step_index,
                             )),
                             None,
                             false,
@@ -254,18 +226,18 @@ impl SEEntity for MobEntity {
         }
 
         if let Some((_, last_damage_step)) = next_self.aggro_to {
-            if last_damage_step < engine.step_index && engine.step_index - last_damage_step >= 600 {
+            if &last_damage_step < step_index && step_index - last_damage_step >= 600 {
                 // de-aggro
                 next_self.aggro_to = None;
             }
         }
 
         if let Some((direction, until)) = self.knockback_until {
-            if engine.step_index >= until {
+            if step_index >= &until {
                 next_self.knockback_until = None;
             } else {
                 // linear decay
-                velocity.x += direction * ((until - engine.step_index) as i32) * 100;
+                velocity.x += direction * ((until - step_index) as i32) * 100;
             }
         } else {
             if input.move_left {
@@ -284,7 +256,7 @@ impl SEEntity for MobEntity {
             }
         }
         if let Some(weightless_until) = self.weightless_until {
-            if step_index >= weightless_until {
+            if step_index >= &weightless_until {
                 next_self.weightless_until = None;
             }
             velocity.y += -20;
@@ -302,10 +274,10 @@ impl SEEntity for MobEntity {
         let lower_speed_limit = IVec2::new(-150, -350);
         let upper_speed_limit = IVec2::new(150, 700);
         velocity = velocity.clamp(lower_speed_limit, upper_speed_limit);
-        let x_pos = move_x(self.rect(), last_velocity.x / STEPS_PER_SECOND_I32, &engine);
-        let map_size = engine.size.clone();
+        let x_pos = actor::move_x(self.rect(), last_velocity.x / STEPS_PER_SECOND_I32, engine);
+        let map_size = engine.size().clone();
         let platforms = engine.entities_by_type::<PlatformEntity>();
-        let y_pos = move_y(
+        let y_pos = actor::move_y(
             self.rect(),
             last_velocity.y / STEPS_PER_SECOND_I32,
             &platforms.collect::<Vec<_>>(),

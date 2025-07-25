@@ -1,0 +1,15 @@
+[package]
+name = "zk-risczero"
+version = "0.1.0"
+edition = "2024"
+
+
+[features]
+
+[dependencies]
+bevy_math = { workspace = true }
+
+game_common = { path = "../game_common" }
+zk-risczero-methods = { path = "methods" }
+
+risc0-zkvm = "2.3.1"

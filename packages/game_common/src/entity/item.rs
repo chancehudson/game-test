@@ -1,13 +1,7 @@
 use bevy_math::IVec2;
 use bevy_math::Vec2;
 
-use crate::GameEngine;
-use crate::STEPS_PER_SECOND_I32;
-use crate::actor::move_y;
-use crate::actor::on_platform;
-use crate::entity::EEntity;
-use crate::entity::SEEntity;
-use crate::entity::platform::PlatformEntity;
+use crate::prelude::*;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default, PartialEq)]
 pub struct ItemEntity {
@@ -54,20 +48,21 @@ impl ItemEntity {
 }
 
 impl SEEntity for ItemEntity {
-    fn step(&self, engine: &mut GameEngine) -> Self {
+    fn step<T: super::GameEngine>(&self, engine: &T) -> Self {
         let mut next_self = self.clone();
-        if self.disappears_at_step <= engine.step_index {
-            engine.remove_entity(self.id, false);
+        let step_index = engine.step_index();
+        if &self.disappears_at_step <= step_index {
+            engine.remove_entity(&self.id, None, false);
             return next_self;
         }
         let self_rect = self.rect();
-        if self.velocity.y <= 0 && on_platform(self_rect, engine) {
+        if self.velocity.y <= 0 && actor::on_platform(self_rect, engine) {
             const ANIMATION_FRAME_LEN: i32 = 12;
             const ANIMATION_FRAME_COUNT: i32 = 4;
             const ANIMATION_STEP_LEN: i32 = ANIMATION_FRAME_COUNT * ANIMATION_FRAME_LEN;
             next_self.position_offset_y =
-                ((engine.step_index % ANIMATION_STEP_LEN as u64) as i32) / ANIMATION_FRAME_LEN;
-            if (engine.step_index / ANIMATION_STEP_LEN as u64) % 2 == 0 {
+                ((step_index % ANIMATION_STEP_LEN as u64) as i32) / ANIMATION_FRAME_LEN;
+            if (step_index / ANIMATION_STEP_LEN as u64) % 2 == 0 {
                 next_self.position_offset_y = ANIMATION_FRAME_COUNT - next_self.position_offset_y;
             }
             next_self.velocity = IVec2::ZERO;
@@ -79,9 +74,9 @@ impl SEEntity for ItemEntity {
             next_self.velocity = next_self
                 .velocity
                 .clamp(lower_speed_limit, upper_speed_limit);
-            let map_size = engine.size.clone();
+            let map_size = engine.size().clone();
             let platforms = engine.entities_by_type::<PlatformEntity>();
-            let y_pos = move_y(
+            let y_pos = actor::move_y(
                 self_rect,
                 next_self.velocity.y / STEPS_PER_SECOND_I32,
                 &platforms.collect::<Vec<_>>(),

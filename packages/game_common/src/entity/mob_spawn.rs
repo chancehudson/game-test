@@ -3,14 +3,7 @@ use std::collections::BTreeSet;
 use bevy_math::IVec2;
 use rand::Rng;
 
-use super::EEntity;
-use super::EngineEntity;
-use super::SEEntity;
-use super::mob::MobEntity;
-use crate::GameEngine;
-use crate::data::map::DropTableData;
-use crate::data::map::MobSpawnData;
-use crate::entity_struct;
+use crate::prelude::*;
 
 entity_struct!(
     pub struct MobSpawnEntity {
@@ -31,12 +24,12 @@ impl MobSpawnEntity {
 }
 
 impl SEEntity for MobSpawnEntity {
-    fn step(&self, engine: &mut GameEngine) -> Self {
-        let step_index = engine.step_index;
+    fn step<T: GameEngine>(&self, engine: &T) -> Self {
+        let step_index = engine.step_index();
         let mut next_self = self.clone();
         let current_spawn_count = self.owned_mob_ids.len();
         for id in &self.owned_mob_ids {
-            if !engine.entities.contains_key(id) {
+            if !engine.entity_by_id_untyped(id, None).is_some() {
                 next_self.owned_mob_ids.remove(id);
             }
         }
@@ -66,7 +59,7 @@ impl SEEntity for MobSpawnEntity {
             mob_entity.mob_type = self.spawn_data.mob_type;
             engine.spawn_entity(EngineEntity::Mob(mob_entity), None, false);
         }
-        next_self.last_spawn_step = step_index;
+        next_self.last_spawn_step = *step_index;
         next_self
     }
 }

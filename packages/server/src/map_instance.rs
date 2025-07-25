@@ -75,7 +75,7 @@ impl MapInstance {
             pending_actions: flume::unbounded(),
             pending_events: flume::unbounded(),
             player_engines: HashMap::new(),
-            engine: GameEngine::new(map.size),
+            engine: GameEngine::new(map.size, rand::random()),
             map,
             network_server,
             last_stats_broadcast: 0.,
