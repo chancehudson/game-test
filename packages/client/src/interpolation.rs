@@ -2,10 +2,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-use game_common::GameEngine;
-use game_common::STEP_DELAY;
-use game_common::entity::EEntity;
-use game_common::entity::mob::MobEntity;
+use game_common::prelude::*;
 
 pub struct Interpolation {
     pub from_step: u64,
@@ -21,7 +18,7 @@ pub struct InterpolatingEntities(pub HashMap<u128, Interpolation>);
 /// Update the InterpolatingEntities resource as needed
 pub fn interpolate_mobs(
     last_mobs: Vec<MobEntity>,
-    engine: &GameEngine,
+    engine: &RewindableGameEngine,
     player_entity_id: u128,
     interpolating_entities: &mut ResMut<InterpolatingEntities>,
 ) {

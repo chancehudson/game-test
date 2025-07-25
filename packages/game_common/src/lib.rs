@@ -10,7 +10,6 @@ mod network;
 mod rng;
 mod system;
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AnimationData {
     pub frame_count: usize,

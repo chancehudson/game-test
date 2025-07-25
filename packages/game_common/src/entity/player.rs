@@ -6,7 +6,6 @@ use db::PlayerRecord;
 use db::PlayerStats;
 
 use crate::prelude::*;
-use crate::system::input::InputSystem;
 
 const DAMAGE_IFRAME_STEPS: u64 = 120;
 const KNOCKBACK_STEPS: u64 = 10;
@@ -24,7 +23,6 @@ entity_struct!(
         pub receiving_damage_until: Option<u64>,
         // direction, until
         pub knockback_until: Option<(i32, u64)>,
-        pub input_system: InputSystem,
     }
 );
 
@@ -52,8 +50,7 @@ impl SEEntity for PlayerEntity {
         let step_index = engine.step_index();
         let mut rng = self.rng(step_index);
         let mut next_self = self.clone();
-        next_self.input_system.step(self, engine);
-        let (input_step_index, input) = &next_self.input_system.latest_input;
+        let input = engine.input_for_entity(&self.id);
         next_self.received_damage_this_step = (false, 0);
         if self.is_dead() {
             next_self.receiving_damage_until = None;

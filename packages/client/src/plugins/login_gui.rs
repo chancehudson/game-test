@@ -4,21 +4,12 @@ use bevy_egui::EguiContexts;
 use bevy_egui::egui;
 use bevy_egui::egui::Color32;
 use bevy_egui::egui::RichText;
-use game_common::data::GameData;
 use web_time::Instant;
 
-use game_common::EngineInit;
-use game_common::GameEngine;
-use game_common::MapData;
-use game_common::entity::EngineEntity;
-use game_common::entity::mob_spawn::MobSpawnEntity;
-use game_common::entity::platform::PlatformEntity;
-use game_common::game_event::EngineEvent;
-use game_common::network::Action;
-use game_common::network::Response;
+use game_common::prelude::*;
 
-use crate::network::{NetworkConnectionMaybe, NetworkMessage};
-
+use crate::network::NetworkMessage;
+use crate::network::NetworkConnectionMaybe;
 use crate::GameState;
 use crate::network::NetworkConnection;
 use crate::plugins::engine::ActiveGameEngine;
@@ -79,7 +70,7 @@ impl Plugin for LoginGuiPlugin {
 fn show_home_engine(mut active_engine_state: ResMut<ActiveGameEngine>) {
     let mut home_map = MapData::default();
     home_map.size = IVec2::splat(1000);
-    let mut engine = GameEngine::new(home_map.size, rand::random());
+    let mut engine = RewindableGameEngine::new(home_map.size, rand::random());
     home_map.init(&GameData::default(), &mut engine).unwrap();
     active_engine_state.0 = engine;
     let engine = &mut active_engine_state.0;

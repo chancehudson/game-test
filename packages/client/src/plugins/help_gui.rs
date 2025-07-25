@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui;
-use bevy_egui::egui::Color32;
-use bevy_egui::egui::RichText;
 
 use crate::GameState;
 use crate::ui::draw_key_binding_inline;

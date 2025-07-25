@@ -12,8 +12,11 @@ pub struct XorShiftRng {
 
 impl XorShiftRng {
     pub fn new(seed: u64) -> Self {
-        assert_ne!(seed, 0);
-        Self { state: seed }
+        #[cfg(debug_assertions)]
+        if seed == 0 {
+            println!("WARNING: received 0 seed in XorShiftRng, replacing with 1");
+        }
+        Self { state: if seed == 0 { 1 } else { seed }}
     }
 
     pub fn next(&mut self) -> u64 {
@@ -29,15 +32,19 @@ impl XorShiftRng {
     }
 }
 
+impl Default for XorShiftRng {
+    fn default() -> Self {
+        Self::new(u64::MAX)
+    }
+}
+
 impl RngCore for XorShiftRng {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         fill_bytes_via_next(self, dst);
     }
 
     fn next_u64(&mut self) -> u64 {
-        let low = self.next() as u64;
-        let high = self.next() as u64;
-        (high << 32) + low
+        self.next()
     }
 
     fn next_u32(&mut self) -> u32 {
