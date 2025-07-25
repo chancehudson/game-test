@@ -1,7 +1,7 @@
 use bevy::asset::LoadedUntypedAsset;
 use bevy::prelude::*;
 
-use game_common::MapData;
+use game_common::prelude::*;
 
 use crate::components::damage::DamageComponent;
 // use crate::mob::MobRegistry;

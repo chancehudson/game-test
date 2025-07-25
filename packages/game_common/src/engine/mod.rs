@@ -70,4 +70,6 @@ pub trait GameEngine {
     fn entity_by_id<T: 'static + EEntity>(&self, id: &u128, step_index: Option<u64>) -> Option<&T>;
     /// Access all entities of a specific type currently in the engine.
     fn entities_by_type<T: 'static + EEntity>(&self) -> impl Iterator<Item = &T>;
+
+    fn input_for_entity(&self, id: &u128) -> &EntityInput;
 }

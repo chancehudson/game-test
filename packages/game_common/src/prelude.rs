@@ -1,6 +1,7 @@
 pub use crate::network::*;
 pub use crate::rng::XorShiftRng;
 pub use crate::entity_struct;
+pub use crate::STEP_DELAY;
 
 pub use crate::data::*;
 pub use crate::deserialize_vec2;
@@ -16,6 +17,7 @@ pub use crate::engine::damage_calc;
 pub use crate::engine::game_event::EngineEvent;
 pub use crate::engine::game_event::GameEvent;
 pub use crate::engine::game_event::HasUniversal;
+pub use crate::engine::rewindable::timestamp;
 
 // Entities
 pub use crate::entity::type_id_of;

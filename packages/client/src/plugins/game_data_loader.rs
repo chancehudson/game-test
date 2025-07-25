@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use game_common::data::GameData;
+use game_common::prelude::*;
 
 #[derive(Resource, Default)]
 pub struct GameDataResource(pub GameData);

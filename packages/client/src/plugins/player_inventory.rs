@@ -9,9 +9,7 @@ use bevy_egui::egui::Rect;
 use bevy_egui::egui::ScrollArea;
 
 use db::PlayerInventory;
-use game_common::data::GameData;
-use game_common::network::Action;
-use game_common::network::Response;
+use game_common::prelude::*;
 
 use crate::GameState;
 use crate::network::NetworkAction;

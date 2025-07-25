@@ -1,8 +1,8 @@
 use bevy::input::keyboard::Key;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
-use game_common::game_event::EngineEvent;
-use game_common::network::Action;
+
+use game_common::prelude::*;
 
 use crate::GameState;
 use crate::map::MapEntity;
