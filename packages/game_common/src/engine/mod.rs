@@ -1,4 +1,5 @@
 use bevy_math::IVec2;
+use rand_xoshiro::Xoroshiro64StarStar;
 
 use crate::prelude::*;
 
@@ -28,6 +29,8 @@ pub trait GameEngine {
     fn id(&self) -> &u128;
     /// Engine seed for rng.
     fn seed(&self) -> &u64;
+    /// Retrieve a random number generator that is reseeded each step.
+    fn rng(&mut self) -> &mut Xoroshiro64StarStar;
     /// Generate a new deterministic id.
     fn generate_id(&mut self) -> u128;
     /// The dimension of the engine.
@@ -46,7 +49,7 @@ pub trait GameEngine {
         out
     }
 
-    /// Register a game event that will be propagated upward from the engine to 
+    /// Register a game event that will be propagated upward from the engine to
     /// any structures above
     /// TODO: reconsider this architecture
     fn register_game_event(&self, event: GameEvent);
