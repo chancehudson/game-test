@@ -3,14 +3,7 @@ use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::GameEngine;
-use crate::data::GameData;
-use crate::deserialize_vec2;
-use crate::entity::EngineEntity;
-use crate::entity::mob_spawn::MobSpawnEntity;
-use crate::entity::npc::NpcEntity;
-use crate::entity::platform::PlatformEntity;
-use crate::entity::portal::PortalEntity;
+use crate::prelude::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Platform {
@@ -72,8 +65,8 @@ pub struct MapData {
     pub mob_spawns: Vec<MobSpawnData>,
 }
 
-impl crate::EngineInit for MapData {
-    fn init(&self, game_data: &GameData, engine: &mut GameEngine) -> anyhow::Result<()> {
+impl EngineInit for MapData {
+    fn init<T: GameEngine>(&self, game_data: &GameData, engine: &mut T) -> anyhow::Result<()> {
         // spawn the map components as needed
         for platform in &self.platforms {
             let id = engine.generate_id();

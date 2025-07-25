@@ -17,21 +17,21 @@ crate::entity_struct!(
 );
 
 impl SEEntity for TextEntity {
-    fn step(&self, engine: &mut super::GameEngine) -> Self
+    fn step<T: super::GameEngine>(&self, engine: &T) -> Self
     where
         Self: Sized + Clone,
     {
-        let step_index = engine.step_index;
+        let step_index = engine.step_index();
         let mut next_self = self.clone();
         if let Some((attached_id, relative_pos)) = self.attached_to {
-            if let Some(entity) = engine.entities.get(&attached_id) {
+            if let Some(entity) = engine.entity_by_id_untyped(&attached_id, None) {
                 next_self.position = entity.position() + relative_pos;
             } else {
                 println!("WARNING: TextEntity attached to non-existent entity");
             }
         }
-        if step_index >= self.disappears_at_step_index {
-            engine.remove_entity(self.id, false);
+        if step_index >= &self.disappears_at_step_index {
+            engine.remove_entity(&self.id, None, false);
         }
         next_self
     }

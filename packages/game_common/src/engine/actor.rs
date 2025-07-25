@@ -3,13 +3,11 @@
 use bevy_math::IRect;
 use bevy_math::IVec2;
 
-use crate::GameEngine;
+use crate::engine::GameEngine;
 use crate::entity::EEntity;
-use crate::entity::EngineEntity;
 use crate::entity::platform::PlatformEntity;
-use crate::entity::rect::RectEntity;
 
-pub fn contains_platform(engine: &mut GameEngine, rect: IRect) -> bool {
+pub fn contains_platform<T: GameEngine>(engine: &T, rect: IRect) -> bool {
     for platform in engine.entities_by_type::<PlatformEntity>() {
         let intersection = rect.intersect(platform.rect());
         if intersection.width() >= 1 && intersection.height() >= 1 {
@@ -20,22 +18,22 @@ pub fn contains_platform(engine: &mut GameEngine, rect: IRect) -> bool {
 }
 
 /// Are we standing with a platform beneath us, without a platform immediately above it?
-pub fn on_platform(body: IRect, engine: &mut GameEngine) -> bool {
+pub fn on_platform<T: GameEngine>(body: IRect, engine: &T) -> bool {
     // check if the intersection is underneath the player
     let launch_rect = IRect::new(body.min.x, body.min.y - 2, body.max.x, body.min.y - 1);
     let not_launch_rect = IRect::new(body.min.x, body.min.y + 1, body.max.x, body.min.y + 3);
     return contains_platform(engine, launch_rect) && !contains_platform(engine, not_launch_rect);
 }
 
-pub fn can_move_left_right(body: IRect, engine: &mut GameEngine) -> (bool, bool) {
+pub fn can_move_left_right<T: GameEngine>(body: IRect, engine: &T) -> (bool, bool) {
     (
         body.min.x > 2,
-        body.max.x + body.width() < engine.size.x - 2,
+        body.max.x + body.width() < engine.size().x - 2,
     )
 }
 
 // returns if we can move left or right
-pub fn can_move_left_right_without_falling(body: IRect, engine: &mut GameEngine) -> (bool, bool) {
+pub fn can_move_left_right_without_falling<T: GameEngine>(body: IRect, engine: &T) -> (bool, bool) {
     let dist = 2;
     let left_check = IRect::new(
         body.min.x - (2 * dist),
@@ -50,22 +48,6 @@ pub fn can_move_left_right_without_falling(body: IRect, engine: &mut GameEngine)
         body.min.x + body.width() + (2 * dist),
         body.min.y - dist,
     );
-    if engine.enable_debug_markers {
-        let mut debug_rect = RectEntity::default();
-        debug_rect.id = engine.generate_id();
-        debug_rect.disappears_at_step_index = Some(engine.step_index + 120);
-        debug_rect.color = bevy_math::Vec3::new(1.0, 0.0, 0.0);
-        debug_rect.position = left_check.min;
-        debug_rect.size = left_check.size();
-        engine.spawn_entity(EngineEntity::Rect(debug_rect), None, true);
-        let mut debug_rect = RectEntity::default();
-        debug_rect.id = engine.generate_id();
-        debug_rect.disappears_at_step_index = Some(engine.step_index + 120);
-        debug_rect.color = bevy_math::Vec3::new(1.0, 0.0, 0.0);
-        debug_rect.position = right_check.min;
-        debug_rect.size = right_check.size();
-        engine.spawn_entity(EngineEntity::Rect(debug_rect), None, true);
-    }
 
     (
         contains_platform(engine, left_check),
@@ -73,16 +55,16 @@ pub fn can_move_left_right_without_falling(body: IRect, engine: &mut GameEngine)
     )
 }
 
-pub fn move_x(body: IRect, dx: i32, engine: &GameEngine) -> i32 {
+pub fn move_x<T: GameEngine>(body: IRect, dx: i32, engine: &T) -> i32 {
     if dx == 0 {
         return body.min.x;
     }
     let mut body = body.clone();
     body.min.x += dx;
     body.max.x += dx;
-    if body.max.x > engine.size.x {
-        body.min.x = engine.size.x - body.width();
-        body.max.x = engine.size.x;
+    if body.max.x > engine.size().x {
+        body.min.x = engine.size().x - body.width();
+        body.max.x = engine.size().x;
     } else if body.min.x < 0 {
         body.max.x = body.width();
         body.min.x = 0;
@@ -90,10 +72,7 @@ pub fn move_x(body: IRect, dx: i32, engine: &GameEngine) -> i32 {
     body.min.x
 }
 
-pub fn move_y<T>(body: IRect, dy: i32, platforms: &[&T], map_size: IVec2) -> i32
-where
-    T: EEntity,
-{
+pub fn move_y<T: EEntity>(body: IRect, dy: i32, platforms: &[&T], map_size: IVec2) -> i32 {
     if dy == 0 {
         return body.min.y;
     }
