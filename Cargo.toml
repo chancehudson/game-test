@@ -11,7 +11,7 @@ flume = "0.11.1"
 json5 = "0.4.1"
 nanoid = "0.4.0"
 rand = "0.9.0"
-serde = { version = "1.0.217", features = ["derive"] }
+serde = { version = "1.0.217", features = ["derive", "rc"] }
 web-time = "1.1.0"
 tracy-client = { version = "=0.18.0" }
 rand_chacha = "0.9.0"

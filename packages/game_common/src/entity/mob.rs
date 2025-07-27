@@ -29,26 +29,26 @@ entity_struct!(
 
 impl MobEntity {
     // handle movement calculations
-    fn prestep<T: GameEngine, R: RngCore>(&mut self, engine: &T, rng: &mut R) {
+    fn prestep<R: RngCore>(&mut self, engine: &GameEngine, rng: &mut R) {
         let step_index = engine.step_index();
         if let Some((aggro_to, _last_hit_step)) = self.aggro_to {
             if let Some(aggro_to_entity) = engine.entity_by_id_untyped(&aggro_to, None) {
                 let mut new_input = EntityInput::default();
-                if aggro_to_entity.position().x > self.position.x {
+                if aggro_to_entity.position().x > self.position().x {
                     new_input.move_right = true;
                     self.moving_sign = 1;
                 } else {
                     new_input.move_left = true;
                     self.moving_sign = -1;
                 }
-                if aggro_to_entity.position().y > self.position.y && rng.random_bool(0.01) {
+                if aggro_to_entity.position().y > self.position().y && rng.random_bool(0.01) {
                     new_input.jump = true;
                 }
                 engine.register_event(
                     None,
                     EngineEvent::Input {
                         input: new_input,
-                        entity_id: self.id,
+                        entity_id: self.id(),
                         universal: false,
                     },
                 );
@@ -64,7 +64,7 @@ impl MobEntity {
                     None,
                     EngineEvent::Input {
                         input: EntityInput::default(),
-                        entity_id: self.id,
+                        entity_id: self.id(),
                         universal: false,
                     },
                 );
@@ -87,7 +87,7 @@ impl MobEntity {
                         None,
                         EngineEvent::Input {
                             input: new_input,
-                            entity_id: self.id,
+                            entity_id: self.id(),
                             universal: false,
                         },
                     );
@@ -108,7 +108,7 @@ impl MobEntity {
                 None,
                 EngineEvent::Input {
                     input: new_input,
-                    entity_id: self.id,
+                    entity_id: self.id(),
                     universal: false,
                 },
             );
@@ -119,31 +119,29 @@ impl MobEntity {
     }
 }
 
+#[typetag::serde]
 impl SEEntity for MobEntity {
-    fn step<T: GameEngine>(&self, engine: &T) -> Self {
+    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
         let mut next_self = self.clone();
         let step_index = engine.step_index();
         // render a single frame with is_dead=true to trigger frontend animations
         if self.is_dead {
             next_self.received_damage_this_step = vec![];
-            engine.register_event(
-                None,
-                EngineEvent::RemoveEntity {
-                    entity_id: self.id,
-                    universal: false,
-                },
-            );
-            return next_self;
+            let entity_rc = engine
+                .entity_by_id_untyped(&self.id(), None)
+                .expect("mob entity not in engine during step");
+            engine.remove_entity(entity_rc);
+            return None;
         }
         next_self.received_damage_this_step = vec![];
         let mut rng = self.rng(step_index);
         next_self.prestep(engine, &mut rng);
         // velocity in the last frame based on movement
-        let last_velocity = self.velocity.clone();
+        let last_velocity = self.velocity().clone();
         let body = self.rect();
         let mut velocity = last_velocity.clone();
         let can_jump = actor::on_platform(body, engine);
-        let input = engine.input_for_entity(&self.id);
+        let input = engine.input_for_entity(&self.id());
 
         // look for damage the mob is receiving
         for entity in engine.entities_by_type::<MobDamageEntity>() {
@@ -151,7 +149,7 @@ impl SEEntity for MobEntity {
                 continue;
             }
             let mob_id = entity.contacted_mob_id.unwrap();
-            if mob_id != self.id {
+            if mob_id != self.id() {
                 continue;
             }
             if let Some((aggro_to, _)) = next_self.aggro_to {
@@ -164,7 +162,7 @@ impl SEEntity for MobEntity {
                 println!("WARNING: mob damage entity has not player creator!");
                 continue;
             }
-            let player_entity_id = entity.player_creator_id.unwrap();
+            let player_entity_id = entity.player_creator_id().unwrap();
             if let Some(player_entity) =
                 engine.entity_by_id::<PlayerEntity>(&player_entity_id, None)
             {
@@ -201,18 +199,14 @@ impl SEEntity for MobEntity {
                         .collect::<Vec<_>>()
                     {
                         // drop an item
-                        engine.spawn_entity(
-                            EngineEntity::Item(ItemEntity::new_item(
-                                rng.random(),
-                                self.center() + IVec2::new(x_offset, 0),
-                                drop.0, // item type
-                                drop.1, // amount
-                                player_entity_id,
-                                *step_index,
-                            )),
-                            None,
-                            false,
-                        );
+                        engine.spawn_entity(Rc::new(ItemEntity::new_item(
+                            rng.random(),
+                            self.center() + IVec2::new(x_offset, 0),
+                            drop.0, // item type
+                            drop.1, // amount
+                            player_entity_id,
+                            *step_index,
+                        )));
                         x_offset += 10;
                     }
                     break;
@@ -273,16 +267,16 @@ impl SEEntity for MobEntity {
         velocity = velocity.clamp(lower_speed_limit, upper_speed_limit);
         let x_pos = actor::move_x(self.rect(), last_velocity.x / STEPS_PER_SECOND_I32, engine);
         let map_size = engine.size().clone();
-        let platforms = engine.entities_by_type::<PlatformEntity>();
         let y_pos = actor::move_y(
             self.rect(),
             last_velocity.y / STEPS_PER_SECOND_I32,
-            &platforms.collect::<Vec<_>>(),
+            &engine.entities_by_type::<PlatformEntity>(),
             map_size,
         );
-        next_self.position.x = x_pos;
-        next_self.position.y = y_pos;
-        next_self.velocity = velocity;
-        next_self
+        next_self.state.position.x = x_pos;
+        next_self.state.position.y = y_pos;
+        next_self.state.velocity = velocity;
+
+        Some(Box::new(next_self))
     }
 }

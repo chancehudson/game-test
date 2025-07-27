@@ -3,7 +3,6 @@ use std::io::Write;
 use bevy_math::IVec2;
 
 use crate::prelude::*;
-use crate::entity_struct;
 
 const MESSAGE_WIDTH: i32 = 100;
 const MESSAGE_TOP_PADDING: i32 = 10;
@@ -34,45 +33,51 @@ impl MessageEntity {
         id_bytes.copy_from_slice(&id_hasher.finalize().as_bytes().as_slice()[..16]);
         let id = u128::from_le_bytes(id_bytes);
 
-        let mut out = Self::new(id, IVec2::MAX, IVec2::new(MESSAGE_WIDTH, 0));
+        let mut out = Self::new(
+            BaseEntityState {
+                id,
+                position: IVec2::MAX,
+                size: IVec2::new(MESSAGE_WIDTH, 0),
+                ..Default::default()
+            },
+            vec![Rc::new(DisappearSystem {
+                at_step: step_index + 180,
+            })],
+        );
         out.creator_id = creator_id;
         out.text = text;
-        out.disappears_at_step = step_index + 180;
         if is_sender_player {
-            out.player_creator_id = Some(creator_id);
+            out.state.player_creator_id = Some(creator_id);
         }
         out
     }
 }
 
+#[typetag::serde]
 impl SEEntity for MessageEntity {
-    fn step<T: GameEngine>(&self, engine: &T) -> Self {
+    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+        assert!(self.has_system::<DisappearSystem>());
         let mut next_self = self.clone();
-        let step_index = engine.step_index();
-        if step_index >= &self.disappears_at_step {
-            engine.remove_entity(&self.id, None, false);
-            return next_self;
-        }
+        // Some custom attachment logic
         if let Some(entity) = engine.entity_by_id_untyped(&self.creator_id, None) {
-            next_self.position = (entity.center()
+            next_self.state.position = (entity.center()
                 + IVec2::new(0, entity.size().y / 2 + MESSAGE_TOP_PADDING)
                 - IVec2::new(MESSAGE_WIDTH / 2, 0))
             .clamp(IVec2::ZERO, engine.size() - self.size());
         }
-        for id in engine
+
+        // remove other messages that are scheduled to disappear before self
+        for entity_arc in engine
             .entities_by_type::<MessageEntity>()
-            .filter_map(|e| {
-                if e.creator_id == self.creator_id && e.disappears_at_step < self.disappears_at_step
-                {
-                    Some(e.id)
-                } else {
-                    None
-                }
+            .iter()
+            .filter(|entity| {
+                entity.creator_id == self.creator_id
+                    && entity.disappears_at_step < self.disappears_at_step
             })
             .collect::<Vec<_>>()
         {
-            engine.remove_entity(&id, None, false);
+            engine.remove_entity(entity_arc.clone());
         }
-        next_self
+        Some(Box::new(next_self))
     }
 }

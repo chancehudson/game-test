@@ -10,8 +10,7 @@ use serde::Serialize;
 
 use db::Ability;
 
-use crate::entity::EngineEntity;
-use crate::entity::EntityInput;
+use crate::prelude::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum GameEvent {
@@ -34,14 +33,14 @@ pub enum GameEvent {
     PlayerPickUp(String, u64, u32),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EngineEvent {
     RemoveEntity {
-        entity_id: u128,
+        entity: Rc<dyn SEEntity>,
         universal: bool,
     },
     SpawnEntity {
-        entity: EngineEntity,
+        entity: Rc<dyn SEEntity>,
         universal: bool,
     },
     Input {

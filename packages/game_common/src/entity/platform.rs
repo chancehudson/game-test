@@ -1,10 +1,8 @@
-use crate::entity::SEEntity;
-use crate::entity_struct;
-
-use super::EEntity;
+use crate::prelude::*;
 
 entity_struct!(
     pub struct PlatformEntity {}
 );
 
+#[typetag::serde]
 impl SEEntity for PlatformEntity {}

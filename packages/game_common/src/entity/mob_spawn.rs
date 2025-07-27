@@ -16,15 +16,24 @@ entity_struct!(
 
 impl MobSpawnEntity {
     pub fn new_data(id: u128, spawn_data: MobSpawnData, drop_table: Vec<DropTableData>) -> Self {
-        let mut out = Self::new(id, spawn_data.position, spawn_data.size);
+        let mut out = Self::new(
+            BaseEntityState {
+                id,
+                position: spawn_data.position,
+                size: spawn_data.size,
+                ..Default::default()
+            },
+            vec![],
+        );
         out.spawn_data = spawn_data;
         out.drop_table = drop_table;
         out
     }
 }
 
+#[typetag::serde]
 impl SEEntity for MobSpawnEntity {
-    fn step<T: GameEngine>(&self, engine: &T) -> Self {
+    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
         let step_index = engine.step_index();
         let mut next_self = self.clone();
         let current_spawn_count = self.owned_mob_ids.len();
@@ -35,10 +44,10 @@ impl SEEntity for MobSpawnEntity {
         }
 
         if current_spawn_count >= self.spawn_data.max_count {
-            return next_self;
+            return None;
         }
         if step_index - self.last_spawn_step < 10 {
-            return next_self;
+            return None;
         }
         let mut rng = self.rng(&step_index);
         let max_spawn_count = self.spawn_data.max_count - current_spawn_count;
@@ -50,16 +59,16 @@ impl SEEntity for MobSpawnEntity {
             let mut mob_entity = MobEntity::default();
             mob_entity.drop_table = self.drop_table.clone();
             mob_entity.current_health = 10;
-            mob_entity.id = id;
-            mob_entity.position = IVec2::new(
-                rng.random_range(self.position.x..self.position.x + self.size.x),
-                rng.random_range(self.position.y..self.position.y + self.size.y),
+            mob_entity.state.id = id;
+            mob_entity.state.position = IVec2::new(
+                rng.random_range(self.position().x..self.position().x + self.size().x),
+                rng.random_range(self.position().y..self.position().y + self.size().y),
             );
-            mob_entity.size = IVec2::new(37, 62);
+            mob_entity.state.size = IVec2::new(37, 62);
             mob_entity.mob_type = self.spawn_data.mob_type;
-            engine.spawn_entity(EngineEntity::Mob(mob_entity), None, false);
+            engine.spawn_entity(Rc::new(mob_entity));
         }
         next_self.last_spawn_step = *step_index;
-        next_self
+        Some(Box::new(next_self))
     }
 }

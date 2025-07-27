@@ -31,12 +31,12 @@ pub enum Response {
     PlayerLoggedIn(PlayerRecord),
     PlayerRemoved(String),
     // engine, entity id the player controls, server step
-    EngineState(RewindableGameEngine, u128, u64),
+    EngineState(GameEngine, u128, u64),
     EngineStats(
         u128,
         u64,
         (u64, blake3::Hash),
-        Option<BTreeMap<u128, EngineEntity>>,
+        Option<BTreeMap<u128, Rc<dyn SEEntity>>>,
     ),
     // engine id, game events <step_index, events>, server step
     RemoteEngineEvents(u128, BTreeMap<u64, Vec<EngineEvent>>, u64),

@@ -1,8 +1,6 @@
 use crate::entity_struct;
 
-use super::EEntity;
-use super::SEEntity;
-use super::player::PlayerEntity;
+use crate::prelude::*;
 
 entity_struct!(
     pub struct PortalEntity {
@@ -19,4 +17,5 @@ impl PortalEntity {
     }
 }
 
+#[typetag::serde]
 impl SEEntity for PortalEntity {}
