@@ -14,14 +14,15 @@
 ///   creation: entities scheduled for creation are created
 ///   removal: entities pending removal are removed
 ///
-use std::any::TypeId;
+use std::any::Any;
+use std::cell::LazyCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::mem;
 use std::sync::LazyLock;
 use std::time::Instant;
 
 use bevy_math::IVec2;
-use db::AbilityExpRecord;
 use once_cell::sync::Lazy;
 use rand::Rng;
 use rand::SeedableRng;
@@ -45,10 +46,11 @@ pub struct RewindableGameEngine {
 
     pub step_index: u64,
 
+    // pub systems: HashMap<u128, &dyn EEntitySystem>,
     // entity type, id keyed to struct
-    pub entities: BTreeMap<u128, EngineEntity>,
+    pub entities: BTreeMap<u128, Rc<dyn SEEntity>>,
     // step index keyed to entity id to struct
-    entities_by_step: BTreeMap<u64, BTreeMap<u128, EngineEntity>>,
+    entities_by_step: BTreeMap<u64, BTreeMap<u128, Rc<dyn SEEntity>>>,
 
     inputs: HashMap<u128, EntityInput>,
     inputs_by_step: BTreeMap<u64, HashMap<u128, EntityInput>>,
@@ -94,16 +96,16 @@ impl Default for RewindableGameEngine {
     }
 }
 
-impl GameEngine for RewindableGameEngine {
-    fn id(&self) -> &u128 {
+impl RewindableGameEngine {
+    pub fn id(&self) -> &u128 {
         &self.id
     }
 
-    fn seed(&self) -> &u64 {
+    pub fn seed(&self) -> &u64 {
         &self.seed
     }
 
-    fn generate_id(&mut self) -> u128 {
+    pub fn generate_id(&mut self) -> u128 {
         loop {
             let id = self.rng().random::<u128>();
             if !self.entities.contains_key(&id) {
@@ -112,7 +114,7 @@ impl GameEngine for RewindableGameEngine {
         }
     }
 
-    fn rng(&mut self) -> &mut Xoroshiro64StarStar {
+    pub fn rng(&mut self) -> &mut Xoroshiro64StarStar {
         if self.rng_state.0 != self.step_index {
             self.rng_state.1 = Xoroshiro64StarStar::seed_from_u64(self.seed + self.step_index);
             self.rng_state.0 = self.step_index;
@@ -120,96 +122,99 @@ impl GameEngine for RewindableGameEngine {
         &mut self.rng_state.1
     }
 
-    fn size(&self) -> &IVec2 {
+    pub fn size(&self) -> &IVec2 {
         &self.size
     }
 
-    fn step_index(&self) -> &u64 {
+    pub fn step_index(&self) -> &u64 {
         &self.step_index
     }
 
-    fn spawn_entity(&self, entity: EngineEntity, step_index: Option<u64>, is_universal: bool) {
-        self.engine_events
-            .0
-            .send((
-                step_index.unwrap_or(self.step_index),
-                EngineEvent::SpawnEntity {
-                    entity,
-                    universal: is_universal,
-                },
-            ))
-            .unwrap();
-    }
-
-    fn remove_entity(&self, entity_id: &u128, step_index: Option<u64>, universal: bool) {
+    pub fn spawn_entity(&self, entity: Rc<dyn SEEntity>) {
         self.register_event(
-            step_index,
-            EngineEvent::RemoveEntity {
-                entity_id: *entity_id,
-                universal,
+            Some(self.step_index),
+            EngineEvent::SpawnEntity {
+                entity,
+                universal: false,
             },
         );
     }
 
-    fn register_event(&self, step_index: Option<u64>, event: EngineEvent) {
+    pub fn remove_entity(&self, entity: Rc<dyn SEEntity>) {
+        self.register_event(
+            Some(self.step_index),
+            EngineEvent::RemoveEntity {
+                entity,
+                universal: false,
+            },
+        );
+    }
+
+    pub fn register_event(&self, step_index: Option<u64>, event: EngineEvent) {
         self.engine_events
             .0
             .send((step_index.unwrap_or(self.step_index), event))
             .unwrap();
     }
 
-    fn register_game_event(&self, event: GameEvent) {
+    pub fn register_game_event(&self, event: GameEvent) {
         self.game_events.0.send(event).unwrap();
     }
 
-    fn entity_by_id_untyped(&self, id: &u128, step_index: Option<u64>) -> Option<&EngineEntity> {
+    pub fn entity_by_id_untyped(
+        &self,
+        id: &u128,
+        step_index: Option<u64>,
+    ) -> Option<Rc<dyn SEEntity>> {
         let step_index = step_index.unwrap_or(self.step_index);
-        self.entities_at_step(step_index).get(id)
+        self.entities_at_step(step_index).get(id).cloned()
     }
 
-    fn input_for_entity(&self, id: &u128) -> &EntityInput {
+    pub fn entity_by_id<T: EEntity + 'static>(
+        &self,
+        id: &u128,
+        step_index: Option<u64>,
+    ) -> Option<Rc<T>> {
+        self.entity_by_id_untyped(id, step_index)
+            .map(|entity| (entity as Rc<dyn Any>).downcast::<T>().ok())
+            .flatten()
+    }
+
+    pub fn entities_by_type<T: EEntity + 'static>(&self) -> Vec<Rc<T>> {
+        self.entities
+            .iter()
+            .filter_map(|(_id, entity)| (entity.clone() as Rc<dyn Any>).downcast::<T>().ok())
+            .collect()
+    }
+
+    pub fn input_for_entity(&self, id: &u128) -> &EntityInput {
         static DEFAULT_INPUT: LazyLock<EntityInput> = LazyLock::new(|| EntityInput::default());
         self.inputs.get(id).unwrap_or(&DEFAULT_INPUT)
     }
 
-    /// Return an entity by id at a certain step index, if possible. Extracts the underlying
-    /// entity type from the EngineEntity
-    fn entity_by_id<T: 'static + EEntity>(&self, id: &u128, step_index: Option<u64>) -> Option<&T> {
-        let step_index = step_index.unwrap_or(self.step_index);
-        if let Some(engine_entity) = self.entities_at_step(step_index).get(id) {
-            if let Some(e) = engine_entity.extract_ref::<T>() {
-                return Some(e);
-            } else {
-                println!("WARNING: attempting to extract entity of mismatched type");
-            }
-        }
-        None
-    }
-
-    fn entities_by_type<T: 'static + EEntity>(&self) -> impl Iterator<Item = &T> {
-        self.entities.iter().filter_map(|(_, val)| {
-            if val.runtime_type_id() == TypeId::of::<T>() {
-                val.extract_ref::<T>()
-            } else {
-                None
-            }
-        })
-    }
-
     /// A step is considered complete at the _end_ of this function
-    fn step(&mut self) -> Vec<GameEvent> {
+    pub fn step(&mut self) -> Vec<GameEvent> {
         self.entities_by_step
             .insert(self.step_index, self.entities.clone());
         self.inputs_by_step
             .insert(self.step_index, self.inputs.clone());
 
         // Execute the modification phase of the step
-        let mut next_entities = BTreeMap::new();
-        for (id, entity) in &self.entities {
-            let stepped = entity.step(self);
-            next_entities.insert(*id, stepped);
+        // When an entity is stepped we keep the next version in a Box
+        // once step has been called for the entity and all systems
+        // the entity is put in an Rc and added to the engine
+        for (id, entity) in mem::take(&mut self.entities) {
+            let mut next_self_maybe = entity.step(self);
+            entity.step_systems(self, &mut next_self_maybe);
+            // insert the next_self, if it exists
+            // otherwise copy the existing Rc
+            self.entities.insert(
+                id,
+                next_self_maybe
+                    .map(|box_entity| Rc::from(box_entity))
+                    .unwrap_or(entity),
+            );
         }
-        self.entities = next_entities;
 
         // collect engine events in the channel
         for (step_index, event) in self.engine_events.1.drain() {
@@ -234,17 +239,17 @@ impl GameEngine for RewindableGameEngine {
                 } => {
                     if let Some(e) = self.entities.insert(entity.id(), entity.clone()) {
                         println!("WARNING: inserting entity that already existed! {:?}", e);
-                        if &e == entity {
-                            println!("entities are equal");
-                        }
+                        // if &e == entity {
+                        //     println!("entities are equal");
+                        // }
                         println!("new: {:?}", entity);
                     }
                 }
                 EngineEvent::RemoveEntity {
-                    entity_id,
+                    entity,
                     universal: _,
                 } => {
-                    self.entities.remove(entity_id);
+                    self.entities.remove(&entity.id());
                 }
                 EngineEvent::Input {
                     input,
@@ -259,18 +264,16 @@ impl GameEngine for RewindableGameEngine {
                     universal: _,
                 } => {
                     if let Some(entity) = self.entities.get(entity_id) {
-                        let is_player = match entity {
-                            EngineEntity::Player(_) => true,
-                            _ => false,
-                        };
+                        let is_player = (entity as &dyn Any)
+                            .downcast_ref::<PlayerEntity>()
+                            .is_some();
                         let msg_entity = MessageEntity::new_text(
                             text.clone(),
                             self.step_index,
                             entity.id(),
                             is_player,
                         );
-                        self.entities
-                            .insert(msg_entity.id(), EngineEntity::Message(msg_entity));
+                        self.entities.insert(msg_entity.id(), Rc::new(msg_entity));
                     } else {
                         println!("WARNING: sending message from non-existent entity")
                     }
@@ -302,7 +305,7 @@ impl GameEngine for RewindableGameEngine {
         game_events
     }
 
-    fn process_game_event(&mut self, event: &GameEvent) {
+    pub fn process_game_event(&mut self, event: &GameEvent) {
         // handle game events that occurred during a step
         match event {
             GameEvent::PlayerEnterPortal {
@@ -316,65 +319,65 @@ impl GameEngine for RewindableGameEngine {
                 self.entities.remove(entity_id);
             }
             GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {
+                // need to calculate new values in system and observe system state
                 // we'll just handle synchronizing the player entities stats here
                 // database logic lives in map_instance.rs or game.rs
-                if let Some(player_entity) = self
-                    .entities
-                    .get_mut(player_entity_id)
-                    .map(|v| v.extract_ref_mut::<PlayerEntity>())
-                    .flatten()
-                {
-                    player_entity.stats.increment(&AbilityExpRecord {
-                        player_id: player_entity.player_id.clone(),
-                        amount: *amount,
-                        ability: ability.clone(),
-                    });
-                } else {
-                    println!("WARNING: player entity does not exist in engine for ability exp!");
-                }
+                // if let Some(player_entity) = self
+                //     .entities
+                //     .get(player_entity_id)
+                //     .map(|v| (v as &dyn Any).downcast_ref::<PlayerEntity>())
+                //     .flatten()
+                // {
+                //     player_entity.stats.increment(&AbilityExpRecord {
+                //         player_id: player_entity.player_id.clone(),
+                //         amount: *amount,
+                //         ability: ability.clone(),
+                //     });
+                // } else {
+                //     println!("WARNING: player entity does not exist in engine for ability exp!");
+                // }
             }
             GameEvent::PlayerPickUpRequest(player_entity_id) => {
-                if let Some(player_entity) = self.entities.get(player_entity_id).cloned() {
-                    let game_events_sender = self.game_events.0.clone();
-                    // there are quirks with using entities_by_type in the default handler
-                    // see GameEngine::step
-                    for item in self
-                        .entities_by_type::<ItemEntity>()
-                        .cloned()
-                        .collect::<Vec<_>>()
-                    {
-                        if !self.entities.contains_key(&item.id) {
-                            continue;
-                        }
-                        if item.rect().intersect(player_entity.rect()).is_empty() {
-                            continue;
-                        }
-                        // otherwise pick up the item
-                        self.entities.remove(&item.id);
-                        // mark user as having object
-                        game_events_sender
-                            .send(GameEvent::PlayerPickUp(
-                                player_entity
-                                    .extract_ref::<PlayerEntity>()
-                                    .unwrap()
-                                    .player_id
-                                    .clone(),
-                                item.item_type,
-                                item.count,
-                            ))
-                            .unwrap();
-                        return;
-                    }
-                }
+                panic!("GameEvent::PlayerPickUpRequest default not implemented");
+                // if let Some(player_entity) = self.entities.get(player_entity_id).cloned() {
+                //     let game_events_sender = self.game_events.0.clone();
+                //     // there are quirks with using entities_by_type in the default handler
+                //     // see GameEngine::step
+                //     for item in self
+                //         .entities_by_type::<ItemEntity>()
+                //         .cloned()
+                //         .collect::<Vec<_>>()
+                //     {
+                //         if !self.entities.contains_key(&item.id) {
+                //             continue;
+                //         }
+                //         if item.rect().intersect(player_entity.rect()).is_empty() {
+                //             continue;
+                //         }
+                //         // otherwise pick up the item
+                //         self.entities.remove(&item.id);
+                //         // mark user as having object
+                //         game_events_sender
+                //             .send(GameEvent::PlayerPickUp(
+                //                 player_entity
+                //                     .extract_ref::<PlayerEntity>()
+                //                     .unwrap()
+                //                     .player_id
+                //                     .clone(),
+                //                 item.item_type,
+                //                 item.count,
+                //             ))
+                //             .unwrap();
+                //         return;
+                //     }
+                // }
             }
             GameEvent::PlayerPickUp(_, _, _) => {}
             GameEvent::PlayerHealth(_, _) => {}
             GameEvent::Message(_, _) => {}
         }
     }
-}
 
-impl RewindableGameEngine {
     pub fn new(size: IVec2, seed: u64) -> Self {
         let mut out = Self {
             id: 0,
@@ -399,7 +402,7 @@ impl RewindableGameEngine {
     pub fn step_hash(&self, step_index: &u64) -> anyhow::Result<blake3::Hash> {
         // hash of all entities
         if let Some(entities) = self.entities_by_step.get(step_index) {
-            let serialized = bincode::serialize(&entities.iter().collect::<BTreeMap<_, _>>())?;
+            let serialized = bincode::serialize(entities)?;
             Ok(blake3::hash(&serialized))
         } else {
             anyhow::bail!("error calculating engine.step_hash, {step_index} not known to engine");
@@ -416,13 +419,6 @@ impl RewindableGameEngine {
 
     pub fn entity_count(&self) -> usize {
         self.entities.len()
-    }
-
-    pub fn entity_by_id_mut<T: 'static + EEntity>(&mut self, id: &u128) -> Option<&mut T> {
-        self.entities
-            .get_mut(id)
-            .map(|v| v.extract_ref_mut::<T>())
-            .flatten()
     }
 
     /// Retrieve a past instance of the engine that will be equal
@@ -517,26 +513,6 @@ impl RewindableGameEngine {
                 past_engine.integrate_events(events);
                 past_engine.step_to(&self.step_index);
 
-                #[cfg(debug_assertions)]
-                for (id, entity) in self
-                    .entities_by_step
-                    .entry(past_engine.step_index)
-                    .or_default()
-                {
-                    if let Some(other_entity) = past_engine.entities.get(id) {
-                        if entity != other_entity {
-                            println!("ENTITIES MISMATCH step {}", past_engine.step_index);
-                            println!(
-                                "{} steps from start of replay",
-                                past_engine.step_index - from_step_index
-                            );
-                            println!("{:?}", entity);
-                            println!("{:?}", other_entity);
-                        }
-                    } else {
-                        println!("ENTITY DOES NOT EXIST");
-                    }
-                }
                 self.game_events_by_step = past_engine.game_events_by_step;
                 self.entities = past_engine.entities;
                 self.entities_by_step = past_engine.entities_by_step;
@@ -549,7 +525,7 @@ impl RewindableGameEngine {
         }
     }
 
-    pub fn entities_at_step(&self, step_index: u64) -> &BTreeMap<u128, EngineEntity> {
+    pub fn entities_at_step(&self, step_index: u64) -> &BTreeMap<u128, Rc<dyn SEEntity>> {
         if step_index == self.step_index {
             &self.entities
         } else {
@@ -561,8 +537,8 @@ impl RewindableGameEngine {
                         "requested entities for an unknown step {step_index}, current step {}",
                         self.step_index
                     );
-                    static EMPTY_ENTITIES: LazyLock<BTreeMap<u128, EngineEntity>> =
-                        LazyLock::new(|| BTreeMap::new());
+                    const EMPTY_ENTITIES: LazyCell<BTreeMap<u128, Rc<dyn SEEntity>>> =
+                        LazyCell::new(|| BTreeMap::new());
                     &EMPTY_ENTITIES
                 }
             }
@@ -586,6 +562,15 @@ impl RewindableGameEngine {
         }
         self.step_to(&expected)
     }
+
+    fn step_to(&mut self, to_step: &u64) -> Vec<GameEvent> {
+        assert!(to_step > self.step_index());
+        let mut out = vec![];
+        for _ in 0..(to_step - self.step_index()) {
+            out.append(&mut self.step());
+        }
+        out
+    }
 }
 
 #[cfg(test)]
@@ -599,33 +584,30 @@ mod tests {
         engine.seed = rand::random();
         {
             let id = engine.generate_id();
-            engine.spawn_entity(
-                EngineEntity::Platform(PlatformEntity::new(
+            engine.spawn_entity(Rc::new(PlatformEntity::new(
+                BaseEntityState {
                     id,
-                    IVec2::ZERO,
-                    IVec2::new(engine.size.x, 1),
-                )),
-                None,
-                false,
-            );
+                    ..Default::default()
+                },
+                vec![],
+            )));
         }
-        {
-            let id = engine.generate_id();
-            engine.spawn_entity(
-                EngineEntity::MobSpawner(MobSpawnEntity::new_data(
-                    id,
-                    MobSpawnData {
-                        position: IVec2::new(50, 50),
-                        size: IVec2::splat(10),
-                        mob_type: 1,
-                        max_count: 10,
-                    },
-                    vec![],
-                )),
-                None,
-                false,
-            );
-        }
+        // {
+        //     engine.spawn_entity(
+        //         Arc::new(MobSpawnEntity::new_data(
+        //             id,
+        //             MobSpawnData {
+        //                 position: IVec2::new(50, 50),
+        //                 size: IVec2::splat(10),
+        //                 mob_type: 1,
+        //                 max_count: 10,
+        //             },
+        //             vec![],
+        //         )),
+        //         None,
+        //         false,
+        //     );
+        // }
         engine
     }
 

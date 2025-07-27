@@ -15,16 +15,25 @@ entity_struct!(
 
 impl NpcEntity {
     pub fn new_data(id: u128, position: IVec2, data: NpcData) -> Self {
-        let mut out = Self::new(id, position, data.size);
+        let mut out = Self::new(
+            BaseEntityState {
+                id,
+                position,
+                size: data.size,
+                ..Default::default()
+            },
+            vec![],
+        );
         out.data = data;
         out
     }
 }
 
+#[typetag::serde]
 impl SEEntity for NpcEntity {
-    fn step<T: GameEngine>(&self, engine: &T) -> Self {
+    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
         if self.data.announcements.is_empty() {
-            return self.clone();
+            return None;
         }
         let mut next_self = self.clone();
         let step_index = engine.step_index();
@@ -35,12 +44,12 @@ impl SEEntity for NpcEntity {
                 None,
                 EngineEvent::Message {
                     text: self.data.announcements[announcement_index].clone(),
-                    entity_id: self.id,
+                    entity_id: self.id(),
                     universal: false,
                 },
             );
             next_self.last_message_step = *step_index;
         }
-        next_self
+        Some(Box::new(next_self))
     }
 }
