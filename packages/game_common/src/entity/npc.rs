@@ -29,9 +29,8 @@ impl NpcEntity {
     }
 }
 
-#[typetag::serde]
 impl SEEntity for NpcEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, engine: &GameEngine) -> Option<Self> {
         if self.data.announcements.is_empty() {
             return None;
         }
@@ -50,6 +49,6 @@ impl SEEntity for NpcEntity {
             );
             next_self.last_message_step = *step_index;
         }
-        Some(Box::new(next_self))
+        Some(next_self)
     }
 }

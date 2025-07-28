@@ -40,9 +40,9 @@ impl MessageEntity {
                 size: IVec2::new(MESSAGE_WIDTH, 0),
                 ..Default::default()
             },
-            vec![Rc::new(DisappearSystem {
+            vec![Rc::new(EngineEntitySystem::from(DisappearSystem {
                 at_step: step_index + 180,
-            })],
+            }))],
         );
         out.creator_id = creator_id;
         out.text = text;
@@ -53,9 +53,8 @@ impl MessageEntity {
     }
 }
 
-#[typetag::serde]
 impl SEEntity for MessageEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, engine: &GameEngine) -> Option<Self> {
         assert!(self.has_system::<DisappearSystem>());
         let mut next_self = self.clone();
         // Some custom attachment logic
@@ -76,8 +75,8 @@ impl SEEntity for MessageEntity {
             })
             .collect::<Vec<_>>()
         {
-            engine.remove_entity(entity_arc.clone());
+            engine.remove_entity(entity_arc.id());
         }
-        Some(Box::new(next_self))
+        Some(next_self)
     }
 }

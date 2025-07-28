@@ -31,9 +31,8 @@ impl MobSpawnEntity {
     }
 }
 
-#[typetag::serde]
 impl SEEntity for MobSpawnEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, engine: &GameEngine) -> Option<Self> {
         let step_index = engine.step_index();
         let mut next_self = self.clone();
         let current_spawn_count = self.owned_mob_ids.len();
@@ -66,9 +65,9 @@ impl SEEntity for MobSpawnEntity {
             );
             mob_entity.state.size = IVec2::new(37, 62);
             mob_entity.mob_type = self.spawn_data.mob_type;
-            engine.spawn_entity(Rc::new(mob_entity));
+            engine.spawn_entity(Rc::new(EngineEntity::from(mob_entity)));
         }
         next_self.last_spawn_step = *step_index;
-        Some(Box::new(next_self))
+        Some(next_self)
     }
 }

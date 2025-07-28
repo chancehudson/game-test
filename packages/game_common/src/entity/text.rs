@@ -15,15 +15,14 @@ entity_struct!(
     }
 );
 
-#[typetag::serde]
 impl SEEntity for TextEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, engine: &GameEngine) -> Option<Self> {
         let step_index = engine.step_index();
         if step_index >= &self.disappears_at_step_index {
             let entity = engine
                 .entity_by_id_untyped(&self.id(), None)
                 .expect("text entity did not exist");
-            engine.remove_entity(entity);
+            engine.remove_entity(entity.id());
         }
         let mut next_self = self.clone();
         if let Some((attached_id, relative_pos)) = self.attached_to {
@@ -33,6 +32,6 @@ impl SEEntity for TextEntity {
                 println!("WARNING: TextEntity attached to non-existent entity");
             }
         }
-        Some(Box::new(next_self))
+        Some(next_self)
     }
 }

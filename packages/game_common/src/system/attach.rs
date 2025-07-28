@@ -4,15 +4,14 @@ use serde::Serialize;
 
 use crate::prelude::*;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttachSystem {
     pub attached_to: u128,
     pub offset: IVec2,
 }
 
-#[typetag::serde]
 impl EEntitySystem for AttachSystem {
-    fn prestep(&self, engine: &GameEngine, entity: &Rc<dyn SEEntity>) -> bool {
+    fn prestep(&self, engine: &GameEngine, entity: &EngineEntity) -> bool {
         // only allow one of these per entity
         assert_eq!(
             entity
@@ -37,20 +36,12 @@ impl EEntitySystem for AttachSystem {
         }
     }
 
-    fn step(
-        &self,
-        engine: &GameEngine,
-        entity: &mut dyn SEEntity,
-    ) -> Option<Box<dyn EEntitySystem>> {
+    fn step(&self, engine: &GameEngine, entity: &mut EngineEntity) -> Option<Self> {
         if let Some(attached_entity) = engine.entity_by_id_untyped(&self.attached_to, None) {
             entity.state_mut().position = attached_entity.state().position + self.offset
         } else {
             unreachable!("entities changed existence during step");
         }
         None
-    }
-
-    fn clone_box(&self) -> Box<dyn EEntitySystem> {
-        Box::new(self.clone())
     }
 }

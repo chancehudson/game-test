@@ -70,15 +70,18 @@ impl EngineInit for MapData {
         // spawn the map components as needed
         for platform in &self.platforms {
             let id = engine.generate_id();
-            let entity = Rc::new(PlatformEntity::new(
-                BaseEntityState {
-                    id,
-                    position: platform.position.clone(),
-                    size: platform.size.clone(),
-                    ..Default::default()
-                },
-                vec![],
-            ));
+            let entity = Rc::new(
+                PlatformEntity::new(
+                    BaseEntityState {
+                        id,
+                        position: platform.position.clone(),
+                        size: platform.size.clone(),
+                        ..Default::default()
+                    },
+                    vec![],
+                )
+                .into(),
+            );
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {
@@ -91,7 +94,11 @@ impl EngineInit for MapData {
         for spawn in &self.mob_spawns {
             let drop_table = game_data.mob_drop_table(spawn.mob_type)?;
             let id = engine.generate_id();
-            let entity = Rc::new(MobSpawnEntity::new_data(id, spawn.clone(), drop_table));
+            let entity = Rc::new(EngineEntity::from(MobSpawnEntity::new_data(
+                id,
+                spawn.clone(),
+                drop_table,
+            )));
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {
@@ -112,7 +119,7 @@ impl EngineInit for MapData {
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {
-                    entity: Rc::new(portal_clone),
+                    entity: Rc::new(portal_clone.into()),
                     universal: true,
                 },
             );
@@ -127,7 +134,7 @@ impl EngineInit for MapData {
             npc.announcements
                 .append(&mut map_npc_data.announcements.clone());
             let id = engine.generate_id();
-            let entity = Rc::new(NpcEntity::new_data(id, map_npc_data.position, npc));
+            let entity = Rc::new(NpcEntity::new_data(id, map_npc_data.position, npc).into());
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {

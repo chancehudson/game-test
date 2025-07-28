@@ -6,7 +6,6 @@ pub mod attach;
 pub mod disappear;
 pub mod gravity;
 
-#[typetag::serde(tag = "type")]
 pub trait EEntitySystem: Any {
     /// Step the system, provided the engine, and the entity the system
     /// is attached to. Underlying entity type may be extracted with, for example,
@@ -15,11 +14,10 @@ pub trait EEntitySystem: Any {
     /// the system may freely mutate the entity. The entity step logic executes _after_
     /// all system steps. Oldest systems execute first (e.g.) system added at step 1 executes
     /// before system added at step 5.
-    fn step(
-        &self,
-        _engine: &GameEngine,
-        _entity: &mut dyn SEEntity,
-    ) -> Option<Box<dyn EEntitySystem>> {
+    fn step(&self, _engine: &GameEngine, _entity: &mut EngineEntity) -> Option<Self>
+    where
+        Self: Sized,
+    {
         None
     }
 
@@ -27,12 +25,86 @@ pub trait EEntitySystem: Any {
     /// is needed.
     /// Return true to mutate self or entity
     /// Engine events may be sent here
-    fn prestep(&self, _engine: &GameEngine, _entity: &Rc<dyn SEEntity>) -> bool {
+    fn prestep(&self, _engine: &GameEngine, _entity: &EngineEntity) -> bool {
         false
     }
-
-    fn clone_box(&self) -> Box<dyn EEntitySystem>;
-    fn clone_arc(&self) -> Rc<dyn EEntitySystem> {
-        Rc::from(self.clone_box())
-    }
 }
+
+#[macro_export]
+macro_rules! engine_entity_system_enum {
+    (
+        $(#[$struct_attr:meta])*
+        $vis:vis enum $name:ident {
+            $(
+                $variant_name:ident($variant_type:ty)
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$struct_attr])*
+        $vis enum $name {
+            $(
+                $variant_name($variant_type),
+            )*
+        }
+
+        impl $name {
+            /// Retrieve a runtime TypeId for an instance.
+            pub fn type_id(&self) -> std::any::TypeId {
+                match self {
+                    $(
+                        $name::$variant_name(_) => std::any::TypeId::of::<$variant_type>(),
+                    )*
+                }
+            }
+
+            pub fn as_any(&self) -> &dyn Any {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity,
+                    )*
+                }
+            }
+
+            pub fn get_ref<T: 'static>(&self) -> Option<&T> {
+                self.as_any().downcast_ref::<T>()
+            }
+
+            pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => {
+                            let entity: &mut dyn Any = entity;
+                            return entity.downcast_mut::<T>();
+                        },
+                    )*
+                }
+            }
+        }
+
+        $(
+            impl From<$variant_type> for $name {
+                fn from(value: $variant_type) -> Self {
+                    $name::$variant_name(value)
+                }
+            }
+        )*
+
+        impl EEntitySystem for $name {
+            fn step(&self, engine: &GameEngine, entity: &mut EngineEntity) -> Option<Self> {
+                match self {
+                    $(
+                        $name::$variant_name(system) => system.step(engine, entity).map(|v| $name::from(v)),
+                    )*
+                }
+            }
+        }
+    };
+}
+
+engine_entity_system_enum!(
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+    pub enum EngineEntitySystem {
+        Attach(AttachSystem),
+        Disappear(DisappearSystem),
+    }
+);

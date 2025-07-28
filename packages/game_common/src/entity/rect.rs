@@ -9,16 +9,15 @@ entity_struct!(
     }
 );
 
-#[typetag::serde]
 impl SEEntity for RectEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, engine: &GameEngine) -> Option<Self> {
         let step_index = engine.step_index();
         if let Some(disappear_step) = self.disappears_at_step_index {
             if step_index >= &disappear_step {
                 let entity = engine
                     .entity_by_id_untyped(&self.id(), None)
                     .expect("rect entity did not exist");
-                engine.remove_entity(entity);
+                engine.remove_entity(entity.id());
                 return None;
             }
         }
@@ -28,6 +27,6 @@ impl SEEntity for RectEntity {
             self.state.velocity.x / STEPS_PER_SECOND_I32,
             engine,
         );
-        Some(Box::new(next_self))
+        Some(next_self)
     }
 }

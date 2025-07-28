@@ -36,7 +36,7 @@ pub enum Response {
         u128,
         u64,
         (u64, blake3::Hash),
-        Option<BTreeMap<u128, Rc<dyn SEEntity>>>,
+        Option<BTreeMap<u128, Rc<EngineEntity>>>,
     ),
     // engine id, game events <step_index, events>, server step
     RemoteEngineEvents(u128, BTreeMap<u64, Vec<EngineEvent>>, u64),

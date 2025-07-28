@@ -119,9 +119,8 @@ impl MobEntity {
     }
 }
 
-#[typetag::serde]
 impl SEEntity for MobEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, engine: &GameEngine) -> Option<Self> {
         let mut next_self = self.clone();
         let step_index = engine.step_index();
         // render a single frame with is_dead=true to trigger frontend animations
@@ -130,7 +129,7 @@ impl SEEntity for MobEntity {
             let entity_rc = engine
                 .entity_by_id_untyped(&self.id(), None)
                 .expect("mob entity not in engine during step");
-            engine.remove_entity(entity_rc);
+            engine.remove_entity(entity_rc.id());
             return None;
         }
         next_self.received_damage_this_step = vec![];
@@ -199,14 +198,14 @@ impl SEEntity for MobEntity {
                         .collect::<Vec<_>>()
                     {
                         // drop an item
-                        engine.spawn_entity(Rc::new(ItemEntity::new_item(
+                        engine.spawn_entity(Rc::new(EngineEntity::from(ItemEntity::new_item(
                             rng.random(),
                             self.center() + IVec2::new(x_offset, 0),
                             drop.0, // item type
                             drop.1, // amount
                             player_entity_id,
                             *step_index,
-                        )));
+                        ))));
                         x_offset += 10;
                     }
                     break;
@@ -277,6 +276,6 @@ impl SEEntity for MobEntity {
         next_self.state.position.y = y_pos;
         next_self.state.velocity = velocity;
 
-        Some(Box::new(next_self))
+        Some(next_self)
     }
 }
