@@ -48,9 +48,8 @@ impl PlayerEntity {
     }
 }
 
-#[typetag::serde]
 impl SEEntity for PlayerEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, engine: &GameEngine) -> Option<Self> {
         let step_index = engine.step_index();
         let mut rng = self.rng(step_index);
         let mut next_self = self.clone();
@@ -65,7 +64,7 @@ impl SEEntity for PlayerEntity {
                     new_health,
                 ));
                 next_self.record.current_health = new_health;
-                return Some(Box::new(next_self));
+                return Some(next_self);
             } else {
                 return None;
             }
@@ -139,16 +138,16 @@ impl SEEntity for PlayerEntity {
                     ..Default::default()
                 },
                 vec![
-                    Rc::new(AttachSystem {
+                    Rc::new(EngineEntitySystem::from(AttachSystem {
                         attached_to: self.id(),
                         offset: self.size() + IVec2::new(-self.size().x / 2, 5),
-                    }),
-                    Rc::new(DisappearSystem {
+                    })),
+                    Rc::new(EngineEntitySystem::from(DisappearSystem {
                         at_step: show_until,
-                    }),
+                    })),
                 ],
             );
-            engine.spawn_entity(Rc::new(emoji));
+            engine.spawn_entity(Rc::new(EngineEntity::from(emoji)));
         }
 
         if let Some((direction, until)) = self.knockback_until {
@@ -232,14 +231,11 @@ impl SEEntity for PlayerEntity {
                 vec![],
             );
             projectile.disappears_at_step_index = Some(step_index + 30);
-            let projectile = Rc::new(projectile);
-            let damage = MobDamageEntity::new_with_entity(
-                rng.random(),
-                projectile.clone(),
-                Ability::Strength,
-            );
+            let projectile = Rc::new(EngineEntity::from(projectile));
+            let damage =
+                MobDamageEntity::new_with_entity(rng.random(), &projectile, Ability::Strength);
             engine.spawn_entity(projectile);
-            engine.spawn_entity(Rc::new(damage));
+            engine.spawn_entity(Rc::new(EngineEntity::from(damage)));
         }
 
         let lower_speed_limit = IVec2::new(-250, -350);
@@ -250,7 +246,7 @@ impl SEEntity for PlayerEntity {
 
         if jump_down {
             next_self.state.position.y = (self.position().y - 4).max(0);
-            Some(Box::new(next_self))
+            Some(next_self)
         } else {
             let x_pos = actor::move_x(
                 self.rect(),
@@ -266,7 +262,7 @@ impl SEEntity for PlayerEntity {
             );
             next_self.state.position.x = x_pos;
             next_self.state.position.y = y_pos;
-            Some(Box::new(next_self))
+            Some(next_self)
         }
     }
 }

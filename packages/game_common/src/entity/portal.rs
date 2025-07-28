@@ -17,5 +17,4 @@ impl PortalEntity {
     }
 }
 
-#[typetag::serde]
 impl SEEntity for PortalEntity {}

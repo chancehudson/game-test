@@ -16,7 +16,7 @@ crate::entity_struct!(
 );
 
 impl MobDamageEntity {
-    pub fn new_with_entity(id: u128, entity: Rc<dyn EEntity>, ability: Ability) -> Self {
+    pub fn new_with_entity(id: u128, entity: &EngineEntity, ability: Ability) -> Self {
         let mut out = Self::new(
             BaseEntityState {
                 id,
@@ -25,10 +25,10 @@ impl MobDamageEntity {
                 player_creator_id: entity.player_creator_id(),
                 ..Default::default()
             },
-            vec![Rc::new(AttachSystem {
+            vec![Rc::new(EngineEntitySystem::from(AttachSystem {
                 attached_to: entity.id(),
                 offset: IVec2::ZERO,
-            })],
+            }))],
         );
         out.attached_to = entity.id();
         out.ability = ability;
@@ -36,20 +36,19 @@ impl MobDamageEntity {
     }
 }
 
-#[typetag::serde]
 impl SEEntity for MobDamageEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, engine: &GameEngine) -> Option<Self> {
         assert!(self.has_system::<AttachSystem>());
         if self.has_despawned || self.contacted_mob_id.is_some() {
             // despawn the mob damage entity
             let entity = engine
                 .entity_by_id_untyped(&self.id(), None)
                 .expect("mob_damage entity did not exist");
-            engine.remove_entity(entity);
+            engine.remove_entity(entity.id());
             return None;
         }
+        let mut next_self = self.clone();
         if let Some(attached_entity) = engine.entity_by_id_untyped(&self.attached_to, None) {
-            let mut next_self = self.clone();
             next_self.state.player_creator_id = attached_entity.player_creator_id();
             next_self.state.size = attached_entity.size();
             next_self.state.position = attached_entity.position();
@@ -63,15 +62,13 @@ impl SEEntity for MobDamageEntity {
                     next_self.contacted_mob_id = Some(entity.id());
 
                     // despawn whatever it's attached to
-                    engine.remove_entity(entity);
+                    engine.remove_entity(entity.id());
                     break;
                 }
             }
-            Some(Box::new(next_self))
         } else {
-            let mut next_self = self.clone();
             next_self.has_despawned = true;
-            Some(Box::new(next_self))
         }
+        Some(next_self)
     }
 }

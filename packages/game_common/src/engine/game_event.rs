@@ -36,11 +36,11 @@ pub enum GameEvent {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EngineEvent {
     RemoveEntity {
-        entity: Rc<dyn SEEntity>,
+        entity_id: u128,
         universal: bool,
     },
     SpawnEntity {
-        entity: Rc<dyn SEEntity>,
+        entity: Rc<EngineEntity>,
         universal: bool,
     },
     Input {

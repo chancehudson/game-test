@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 risc0-zkvm = "2.3.1"
-game_common = { path = "../../../game_common" }
+game_common = { path = "../../../game_common", features = ["zk"], default-features = false }
 bevy_math = { version = "0.16.0", features = ["std", "rand", "curve", "serialize"] }
 
 [patch.crates-io]

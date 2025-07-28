@@ -38,7 +38,14 @@ pub struct EntityInput {
     pub pick_up: bool,
 }
 
-pub trait EEntityManager: EEntity {
+/// An entity that exists inside the engine.
+pub trait EEntity: Debug + Any + Clone {
+    fn systems(&self) -> &Vec<Rc<EngineEntitySystem>>;
+    fn systems_mut(&mut self) -> &mut Vec<std::rc::Rc<EngineEntitySystem>>;
+
+    fn state(&self) -> &BaseEntityState;
+    fn state_mut(&mut self) -> &mut BaseEntityState;
+
     fn systems_by_type<T: EEntitySystem + 'static>(&self) -> Vec<Rc<T>> {
         self.systems()
             .iter()
@@ -49,15 +56,6 @@ pub trait EEntityManager: EEntity {
     fn has_system<T: EEntitySystem + 'static>(&self) -> bool {
         !self.systems_by_type::<T>().is_empty()
     }
-}
-
-/// An entity that exists inside the engine.
-#[typetag::serde(tag = "type")]
-pub trait EEntity: Debug + Any {
-    fn systems(&self) -> &Vec<Rc<dyn EEntitySystem>>;
-
-    fn state(&self) -> &BaseEntityState;
-    fn state_mut(&mut self) -> &mut BaseEntityState;
 
     fn id(&self) -> u128 {
         self.state().id
@@ -108,24 +106,11 @@ pub trait EEntity: Debug + Any {
         IRect::new(pos.x, pos.y, pos.x + size.x, pos.y + size.y)
     }
 
-    /// Get a unique owned reference to an EEntity.
-    /// Convert to an `Rc<dyn EEntity>` for use with an engine.
-    /// e.g. get cloned box, mutate box, returnRc
-    fn clone_box(&self) -> Box<dyn EEntity>;
-    fn clone_se_box(&self) -> Box<dyn SEEntity>;
-
-    fn clone_arc(&self) -> Rc<dyn EEntity> {
-        Rc::from(self.clone_box())
-    }
-
-    fn step_systems(&self, engine: &GameEngine, next_self_maybe: &mut Option<Box<dyn SEEntity>>);
+    fn step_systems(&self, engine: &GameEngine, next_self_maybe: &mut Option<EngineEntity>);
 }
 
-impl<T> EEntityManager for T where T: SEEntity {}
-
-#[typetag::serde(tag = "type")]
 pub trait SEEntity: EEntity {
-    fn step(&self, _engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, _engine: &GameEngine) -> Option<Self> {
         None
     }
 }
@@ -142,22 +127,6 @@ pub struct BaseEntityState {
     pub velocity: bevy_math::IVec2,
     #[serde(default)]
     pub player_creator_id: Option<u128>,
-}
-
-#[derive(Default, Serialize, Deserialize)]
-pub struct EntitySystemsVec(Vec<Rc<dyn EEntitySystem>>);
-
-impl Debug for EntitySystemsVec {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO
-        Ok(())
-    }
-}
-
-impl Clone for EntitySystemsVec {
-    fn clone(&self) -> Self {
-        Self(self.0.iter().map(|v| v.clone_arc()).collect::<Vec<_>>())
-    }
 }
 
 /// Properties that all engine entities have. This macro is optional, you may
@@ -181,7 +150,7 @@ macro_rules! entity_struct {
         $vis struct $name {
             #[serde(default)]
             pub state: BaseEntityState,
-            pub systems: EntitySystemsVec,
+            pub systems: Vec<std::rc::Rc<EngineEntitySystem>>,
             $(
                 $(#[$field_attr])*
                 $field_vis $field_name: $field_type,
@@ -190,19 +159,22 @@ macro_rules! entity_struct {
 
 
         impl $name {
-            pub fn new(state: BaseEntityState, systems: Vec<std::rc::Rc<dyn EEntitySystem>>) -> Self {
+            pub fn new(state: BaseEntityState, systems: Vec<std::rc::Rc<EngineEntitySystem>>) -> Self {
                 Self {
                     state,
-                    systems: crate::entity::EntitySystemsVec(systems),
+                    systems,
                     ..Default::default()
                 }
             }
         }
 
-        #[typetag::serde]
         impl EEntity for $name {
-            fn systems(&self) -> &Vec<std::rc::Rc<dyn EEntitySystem>> {
-                &self.systems.0
+            fn systems(&self) -> &Vec<std::rc::Rc<EngineEntitySystem>> {
+                &self.systems
+            }
+
+            fn systems_mut(&mut self) -> &mut Vec<std::rc::Rc<EngineEntitySystem>> {
+                &mut self.systems
             }
 
             fn state(&self) -> &BaseEntityState {
@@ -213,9 +185,9 @@ macro_rules! entity_struct {
                 &mut self.state
             }
 
-            fn step_systems(&self, engine: &GameEngine, next_self_maybe: &mut Option<Box<dyn SEEntity>>) {
-                let mut next_systems: Vec<std::rc::Rc<dyn EEntitySystem>> = Vec::new();
-                for system in &self.systems.0 {
+            fn step_systems(&self, engine: &GameEngine, next_self_maybe: &mut Option<EngineEntity>) {
+                let mut next_systems: Vec<std::rc::Rc<EngineEntitySystem>> = Vec::new();
+                for system in self.systems() {
                     let entity_rc = engine
                         .entity_by_id_untyped(&self.id(), None)
                         .expect("entity being stepped but not in engine");
@@ -226,11 +198,11 @@ macro_rules! entity_struct {
                     // the system has requested a clone, we need to clone the parent entity
                     // as well
                     if next_self_maybe.is_none() {
-                        *next_self_maybe = Some(self.clone_se_box());
+                        *next_self_maybe = Some(EngineEntity::from(self.clone()));
                     }
                     let next_self = next_self_maybe.as_mut().unwrap();
                     // systems determine whether a clone is necessary
-                    if let Some(next_system) = system.step(engine, &mut **next_self) {
+                    if let Some(next_system) = system.step(engine, &mut *next_self) {
                         next_systems.push(std::rc::Rc::from(next_system));
                     } else {
                         next_systems.push(system.clone());
@@ -238,19 +210,139 @@ macro_rules! entity_struct {
                 }
                 // if we did a clone, insert next_systems into clone
                 if let Some(next_self) = next_self_maybe.as_mut() {
-                    let any_ref: &mut dyn std::any::Any = &mut **next_self;
-                    let next_self_concrete = any_ref.downcast_mut::<Self>().expect("downcast into self failed");
-                    next_self_concrete.systems = crate::entity::EntitySystemsVec(next_systems);
+                    let any_ref: &mut dyn std::any::Any = &mut *next_self;
+                    let next_self_concrete = any_ref
+                        .downcast_mut::<Self>()
+                        .expect("downcast into self failed");
+                    *next_self_concrete.systems_mut() = next_systems;
                 }
             }
 
-            fn clone_se_box(&self) -> Box<dyn SEEntity> {
-                Box::new(self.clone())
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! engine_entity_enum {
+    (
+        $(#[$struct_attr:meta])*
+        $vis:vis enum $name:ident {
+            $(
+                $variant_name:ident($variant_type:ty)
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$struct_attr])*
+        $vis enum $name {
+            $(
+                $variant_name($variant_type),
+            )*
+        }
+
+        impl $name {
+            /// Retrieve a runtime TypeId for an instance.
+            pub fn type_id(&self) -> std::any::TypeId {
+                match self {
+                    $(
+                        $name::$variant_name(_) => std::any::TypeId::of::<$variant_type>(),
+                    )*
+                }
             }
 
-            fn clone_box(&self) -> Box<dyn EEntity> {
-                Box::new(self.clone())
+            pub fn as_any(&self) -> &dyn Any {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity,
+                    )*
+                }
+            }
+
+            pub fn get_ref<T: 'static>(&self) -> Option<&T> {
+                self.as_any().downcast_ref::<T>()
+            }
+
+            pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => {
+                            let entity: &mut dyn Any = entity;
+                            entity.downcast_mut::<T>()
+                        },
+                    )*
+                }
+            }
+        }
+
+        $(
+            impl From<$variant_type> for $name {
+                fn from(value: $variant_type) -> Self {
+                    $name::$variant_name(value)
+                }
+            }
+        )*
+
+        impl SEEntity for $name {}
+
+        impl EEntity for $name {
+            fn systems(&self) -> &Vec<Rc<EngineEntitySystem>> {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity.systems(),
+                    )*
+                }
+            }
+
+            fn systems_mut(&mut self) -> &mut Vec<Rc<EngineEntitySystem>> {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity.systems_mut(),
+                    )*
+                }
+            }
+
+            fn state(&self) -> &BaseEntityState {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity.state(),
+                    )*
+                }
+            }
+
+            fn state_mut(&mut self) -> &mut BaseEntityState {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity.state_mut(),
+                    )*
+                }
+            }
+
+            fn step_systems(&self, engine: &GameEngine, next_self_maybe: &mut Option<$name>) {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => {
+                            entity.step_systems(engine, next_self_maybe);
+                        },
+                    )*
+                }
             }
         }
     };
 }
+
+engine_entity_enum!(
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub enum EngineEntity {
+        Emoji(EmojiEntity),
+        Item(ItemEntity),
+        Message(MessageEntity),
+        Mob(MobEntity),
+        MobDamage(MobDamageEntity),
+        MobSpawn(MobSpawnEntity),
+        Npc(NpcEntity),
+        Platform(PlatformEntity),
+        Player(PlayerEntity),
+        Portal(PortalEntity),
+        Rect(RectEntity),
+        Text(TextEntity),
+    }
+);

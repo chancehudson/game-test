@@ -26,9 +26,8 @@ pub use crate::engine::rewindable::RewindableGameEngine;
 // Entities
 pub use crate::entity::BaseEntityState;
 pub use crate::entity::EEntity;
-pub use crate::entity::EEntityManager;
+pub use crate::entity::EngineEntity;
 pub use crate::entity::EntityInput;
-pub use crate::entity::EntitySystemsVec;
 pub use crate::entity::SEEntity;
 
 pub use crate::entity::emoji::EmojiEntity;
@@ -46,6 +45,7 @@ pub use crate::entity::text::TextEntity;
 
 // Systems
 pub use crate::system::EEntitySystem;
+pub use crate::system::EngineEntitySystem;
 pub use crate::system::attach::AttachSystem;
 pub use crate::system::disappear::DisappearSystem;
 pub use crate::system::gravity::GravitySystem;
