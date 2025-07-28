@@ -15,7 +15,6 @@
 ///   removal: entities pending removal are removed
 ///
 use std::any::Any;
-use std::cell::LazyCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::mem;
@@ -79,6 +78,12 @@ pub struct RewindableGameEngine {
     rng_state: (u64, Xoroshiro64StarStar),
     #[cfg(not(feature = "zk"))]
     start_timestamp: f64,
+    #[serde(default = "default_trailing_state_len")]
+    trailing_state_len: u64,
+}
+
+fn default_trailing_state_len() -> u64 {
+    360
 }
 
 fn default_rng() -> (u64, Xoroshiro64StarStar) {
@@ -98,7 +103,28 @@ fn default_engine_events() -> (
 
 impl Default for RewindableGameEngine {
     fn default() -> Self {
-        Self::new(IVec2 { x: 1000, y: 1000 }, 1)
+        let seed = 1;
+        let mut out = Self {
+            id: 0,
+            seed,
+            size: IVec2::new(1000, 1000),
+            step_index: 0,
+            entities: BTreeMap::default(),
+            empty_entities: BTreeMap::default(),
+            entities_by_step: BTreeMap::default(),
+            inputs: HashMap::default(),
+            inputs_by_step: BTreeMap::default(),
+            game_events_by_step: BTreeMap::default(),
+            engine_events_by_step: BTreeMap::default(),
+            game_events: default_game_events(),
+            engine_events: default_engine_events(),
+            rng_state: (0, Xoroshiro64StarStar::seed_from_u64(seed)),
+            #[cfg(not(feature = "zk"))]
+            start_timestamp: timestamp(),
+            trailing_state_len: default_trailing_state_len(),
+        };
+        out.id = out.generate_id();
+        out
     }
 }
 
@@ -200,10 +226,12 @@ impl RewindableGameEngine {
 
     /// A step is considered complete at the _end_ of this function
     pub fn step(&mut self) -> Vec<GameEvent> {
-        self.entities_by_step
-            .insert(self.step_index, self.entities.clone());
-        self.inputs_by_step
-            .insert(self.step_index, self.inputs.clone());
+        if self.trailing_state_len != 0 {
+            self.entities_by_step
+                .insert(self.step_index, self.entities.clone());
+            self.inputs_by_step
+                .insert(self.step_index, self.inputs.clone());
+        }
 
         // Execute the modification phase of the step
         // When an entity is stepped we keep the next version in a Box
@@ -287,8 +315,8 @@ impl RewindableGameEngine {
         }
 
         // Do some engine housekeeping
-        if self.step_index >= TRAILING_STATE_COUNT {
-            let step_to_remove = self.step_index - TRAILING_STATE_COUNT;
+        if self.trailing_state_len != 0 && self.step_index >= self.trailing_state_len {
+            let step_to_remove = self.step_index - self.trailing_state_len;
             self.entities_by_step.retain(|k, _v| k > &step_to_remove);
             self.engine_events_by_step
                 .retain(|k, _v| k > &step_to_remove);
@@ -385,22 +413,26 @@ impl RewindableGameEngine {
 
     pub fn new(size: IVec2, seed: u64) -> Self {
         let mut out = Self {
-            id: 0,
             size,
             rng_state: (0, Xoroshiro64StarStar::seed_from_u64(seed)),
-            game_events: default_game_events(),
-            engine_events: default_engine_events(),
             seed,
-            step_index: 0,
-            entities: BTreeMap::new(),
-            entities_by_step: BTreeMap::new(),
-            inputs: HashMap::new(),
-            inputs_by_step: BTreeMap::new(),
-            engine_events_by_step: BTreeMap::new(),
-            game_events_by_step: BTreeMap::new(),
             #[cfg(not(feature = "zk"))]
             start_timestamp: timestamp(),
-            empty_entities: BTreeMap::default(),
+            ..Default::default()
+        };
+        out.id = out.generate_id();
+        out
+    }
+
+    pub fn new_simple(size: IVec2, seed: u64) -> Self {
+        let mut out = Self {
+            size,
+            rng_state: (0, Xoroshiro64StarStar::seed_from_u64(seed)),
+            seed,
+            #[cfg(not(feature = "zk"))]
+            start_timestamp: timestamp(),
+            trailing_state_len: 0,
+            ..Default::default()
         };
         out.id = out.generate_id();
         out
@@ -629,59 +661,5 @@ mod tests {
             engine.generate_id()
         };
         assert_ne!(id0, id1);
-    }
-
-    #[test]
-    #[ignore]
-    fn should_be_constant_size() -> Result<()> {
-        let mut engine = test_engine();
-        engine.step_to(&TRAILING_STATE_COUNT);
-
-        let mut total_events = 0;
-        for v in engine.engine_events_by_step.values() {
-            total_events += v.len();
-        }
-        for event in engine
-            .engine_events_by_step
-            .get(&(engine.step_index - 1))
-            .cloned()
-            .unwrap_or_default()
-        {
-            println!("{:?}", event);
-        }
-        println!(
-            "{} {} {} {}",
-            engine.engine_events_by_step.len(),
-            engine.game_events_by_step.len(),
-            engine.entities_by_step.len(),
-            total_events
-        );
-        let bytes_start =
-            bincode::serialize(&engine.engine_at_step(&(engine.step_index - 1), false)?)?;
-        engine.step_to(&100000);
-
-        let mut total_events = 0;
-        for v in engine.engine_events_by_step.values() {
-            total_events += v.len();
-        }
-        println!(
-            "{} {} {} {}",
-            engine.engine_events_by_step.len(),
-            engine.game_events_by_step.len(),
-            engine.entities_by_step.len(),
-            total_events
-        );
-        for event in engine
-            .engine_events_by_step
-            .get(&(engine.step_index - 1))
-            .cloned()
-            .unwrap_or_default()
-        {
-            println!("{:?}", event);
-        }
-        let bytes_end =
-            bincode::serialize(&engine.engine_at_step(&(engine.step_index - 1), false)?)?;
-        assert_eq!(bytes_start.len(), bytes_end.len());
-        Ok(())
     }
 }
