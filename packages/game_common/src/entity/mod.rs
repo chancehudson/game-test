@@ -254,3 +254,96 @@ macro_rules! entity_struct {
         }
     };
 }
+
+#[macro_export]
+macro_rules! engine_entity_enum {
+    (
+        $(#[$struct_attr:meta])*
+        $vis:vis enum $name:ident {
+            $(
+                $variant_name:ident($variant_type:ty),
+            )*
+        }
+    ) => {
+        $(#[$struct_attr])*
+        $vis enum $name {
+            $(
+                $variant_name($variant_type),
+            )*
+        }
+
+        impl $name {
+            /// Retrieve a runtime TypeId for an instance.
+            pub fn type_id(&self) -> std::any::TypeId {
+                match self {
+                    $(
+                        $variant_name(_) => std::any::TypeId::of::<$variant_type>(),
+                    )*
+                }
+            }
+
+            pub fn extract_ref<T: 'static>(&self) -> Option<&T> {
+                use std::any::{Any, TypeId};
+                $(
+                    if TypeId::of::<T>() == TypeId::of::<$variant_type>() {
+                        let $name::$variant_name(inner) = self;
+                        return (inner as &dyn Any).downcast_ref::<T>();
+                    }
+                )*
+                None
+            }
+        }
+
+        #[typetag::serde]
+        impl SEEntity for $name {}
+
+        #[typetag::serde]
+        impl EEntity for $name {
+            fn systems(&self) -> &Vec<Rc<dyn EEntitySystem>> {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity.systems(),
+                    )*
+                }
+            }
+
+            fn state(&self) -> &BaseEntityState {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity.state(),
+                    )*
+                }
+            }
+
+            fn state_mut(&mut self) -> &mut BaseEntityState {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity.state_mut(),
+                    )*
+                }
+            }
+
+            fn clone_box(&self) -> Box<dyn EEntity> {
+                panic!();
+            }
+            fn clone_se_box(&self) -> Box<dyn SEEntity> {
+                panic!();
+            }
+
+            fn step_systems(&self, engine: &GameEngine, next_self_maybe: &mut Option<$name>) {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity.step_systems(engine, next_self_maybe),
+                    )*
+                }
+            }
+        }
+    };
+}
+
+engine_entity_enum!(
+    #[derive(Debug, Serialize, Deserialize)]
+    pub enum EngineEntity {
+        Player(PlayerEntity),
+    }
+);

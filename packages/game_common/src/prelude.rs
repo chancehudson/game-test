@@ -27,6 +27,7 @@ pub use crate::engine::rewindable::RewindableGameEngine;
 pub use crate::entity::BaseEntityState;
 pub use crate::entity::EEntity;
 pub use crate::entity::EEntityManager;
+pub use crate::entity::EngineEntity;
 pub use crate::entity::EntityInput;
 pub use crate::entity::EntitySystemsVec;
 pub use crate::entity::SEEntity;

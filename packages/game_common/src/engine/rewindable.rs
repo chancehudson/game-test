@@ -37,6 +37,7 @@ pub fn timestamp() -> f64 {
     Instant::now().duration_since(*START_INSTANT).as_secs_f64()
 }
 
+// TODO: make EntityInput and GameEvent generic?
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RewindableGameEngine {
     pub id: u128,
@@ -48,9 +49,9 @@ pub struct RewindableGameEngine {
 
     // pub systems: HashMap<u128, &dyn EEntitySystem>,
     // entity type, id keyed to struct
-    pub entities: BTreeMap<u128, Rc<dyn SEEntity>>,
+    pub entities: BTreeMap<u128, Rc<EngineEntity>>,
     // step index keyed to entity id to struct
-    entities_by_step: BTreeMap<u64, BTreeMap<u128, Rc<dyn SEEntity>>>,
+    entities_by_step: BTreeMap<u64, BTreeMap<u128, Rc<EngineEntity>>>,
 
     inputs: HashMap<u128, EntityInput>,
     inputs_by_step: BTreeMap<u64, HashMap<u128, EntityInput>>,
@@ -90,13 +91,13 @@ fn default_engine_events() -> (
     flume::unbounded()
 }
 
-impl Default for RewindableGameEngine {
+impl<T: SEEntity> Default for RewindableGameEngine<T> {
     fn default() -> Self {
         Self::new(IVec2 { x: 1000, y: 1000 }, 1)
     }
 }
 
-impl RewindableGameEngine {
+impl<T: SEEntity> RewindableGameEngine<T> {
     pub fn id(&self) -> &u128 {
         &self.id
     }
