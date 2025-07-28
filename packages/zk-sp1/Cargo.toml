@@ -16,4 +16,4 @@ sp1-sdk = { version = "4.0.0", optional = true }
 
 bevy_math = { workspace = true }
 
-game_common = { path = "../game_common" }
+game_common = { path = "../game_common", features = ["zk"], default-features = false }

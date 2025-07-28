@@ -34,14 +34,14 @@ fn main() {
     engine.register_event(
         None,
         EngineEvent::SpawnEntity {
-            entity: Rc::new(platform),
+            entity: Rc::new(platform.into()),
             universal: true,
         },
     );
     engine.register_event(
         None,
         EngineEvent::SpawnEntity {
-            entity: Rc::new(mob_spawner),
+            entity: Rc::new(mob_spawner.into()),
             universal: true,
         },
     );

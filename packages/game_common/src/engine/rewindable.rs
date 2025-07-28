@@ -1,4 +1,4 @@
-/// A game engine instance for a single map.
+// A game engine instance for a single map.
 /// Handles the "physics" of players, mobs, items.
 ///
 /// This engine must allow stepping forward and backward.
@@ -20,7 +20,6 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::LazyLock;
-use std::time::Instant;
 
 use bevy_math::IVec2;
 use once_cell::sync::Lazy;
@@ -32,11 +31,16 @@ use serde::Serialize;
 
 use crate::prelude::*;
 
-pub static START_INSTANT: Lazy<Instant> = Lazy::new(|| Instant::now());
+#[cfg(not(feature = "zk"))]
+pub static START_INSTANT: Lazy<std::time::Instant> = Lazy::new(|| std::time::Instant::now());
+#[cfg(not(feature = "zk"))]
 pub fn timestamp() -> f64 {
-    Instant::now().duration_since(*START_INSTANT).as_secs_f64()
+    std::time::Instant::now()
+        .duration_since(*START_INSTANT)
+        .as_secs_f64()
 }
 
+// TODO: make EntityInput and GameEvent generic?
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RewindableGameEngine {
     pub id: u128,
@@ -48,9 +52,10 @@ pub struct RewindableGameEngine {
 
     // pub systems: HashMap<u128, &dyn EEntitySystem>,
     // entity type, id keyed to struct
-    pub entities: BTreeMap<u128, Rc<dyn SEEntity>>,
+    pub entities: BTreeMap<u128, Rc<EngineEntity>>,
+    empty_entities: BTreeMap<u128, Rc<EngineEntity>>,
     // step index keyed to entity id to struct
-    entities_by_step: BTreeMap<u64, BTreeMap<u128, Rc<dyn SEEntity>>>,
+    entities_by_step: BTreeMap<u64, BTreeMap<u128, Rc<EngineEntity>>>,
 
     inputs: HashMap<u128, EntityInput>,
     inputs_by_step: BTreeMap<u64, HashMap<u128, EntityInput>>,
@@ -72,6 +77,7 @@ pub struct RewindableGameEngine {
     /// rng state (aside from seed) when rolling back.
     #[serde(skip, default = "default_rng")]
     rng_state: (u64, Xoroshiro64StarStar),
+    #[cfg(not(feature = "zk"))]
     start_timestamp: f64,
 }
 
@@ -130,7 +136,7 @@ impl RewindableGameEngine {
         &self.step_index
     }
 
-    pub fn spawn_entity(&self, entity: Rc<dyn SEEntity>) {
+    pub fn spawn_entity(&self, entity: Rc<EngineEntity>) {
         self.register_event(
             Some(self.step_index),
             EngineEvent::SpawnEntity {
@@ -140,11 +146,11 @@ impl RewindableGameEngine {
         );
     }
 
-    pub fn remove_entity(&self, entity: Rc<dyn SEEntity>) {
+    pub fn remove_entity(&self, entity_id: u128) {
         self.register_event(
             Some(self.step_index),
             EngineEvent::RemoveEntity {
-                entity,
+                entity_id,
                 universal: false,
             },
         );
@@ -165,18 +171,18 @@ impl RewindableGameEngine {
         &self,
         id: &u128,
         step_index: Option<u64>,
-    ) -> Option<Rc<dyn SEEntity>> {
+    ) -> Option<&Rc<EngineEntity>> {
         let step_index = step_index.unwrap_or(self.step_index);
-        self.entities_at_step(step_index).get(id).cloned()
+        self.entities_at_step(step_index).get(id)
     }
 
-    pub fn entity_by_id<T: EEntity + 'static>(
+    pub fn entity_by_id<T: SEEntity + 'static>(
         &self,
         id: &u128,
         step_index: Option<u64>,
-    ) -> Option<Rc<T>> {
+    ) -> Option<&T> {
         self.entity_by_id_untyped(id, step_index)
-            .map(|entity| (entity as Rc<dyn Any>).downcast::<T>().ok())
+            .map(|entity| entity.get_ref::<T>())
             .flatten()
     }
 
@@ -246,10 +252,10 @@ impl RewindableGameEngine {
                     }
                 }
                 EngineEvent::RemoveEntity {
-                    entity,
+                    entity_id,
                     universal: _,
                 } => {
-                    self.entities.remove(&entity.id());
+                    self.entities.remove(entity_id);
                 }
                 EngineEvent::Input {
                     input,
@@ -264,16 +270,15 @@ impl RewindableGameEngine {
                     universal: _,
                 } => {
                     if let Some(entity) = self.entities.get(entity_id) {
-                        let is_player = (entity as &dyn Any)
-                            .downcast_ref::<PlayerEntity>()
-                            .is_some();
+                        let is_player = entity.get_ref::<PlayerEntity>().is_some();
                         let msg_entity = MessageEntity::new_text(
                             text.clone(),
                             self.step_index,
                             entity.id(),
                             is_player,
                         );
-                        self.entities.insert(msg_entity.id(), Rc::new(msg_entity));
+                        self.entities
+                            .insert(msg_entity.id(), Rc::new(EngineEntity::from(msg_entity)));
                     } else {
                         println!("WARNING: sending message from non-existent entity")
                     }
@@ -393,7 +398,9 @@ impl RewindableGameEngine {
             inputs_by_step: BTreeMap::new(),
             engine_events_by_step: BTreeMap::new(),
             game_events_by_step: BTreeMap::new(),
+            #[cfg(not(feature = "zk"))]
             start_timestamp: timestamp(),
+            empty_entities: BTreeMap::default(),
         };
         out.id = out.generate_id();
         out
@@ -525,7 +532,7 @@ impl RewindableGameEngine {
         }
     }
 
-    pub fn entities_at_step(&self, step_index: u64) -> &BTreeMap<u128, Rc<dyn SEEntity>> {
+    pub fn entities_at_step(&self, step_index: u64) -> &BTreeMap<u128, Rc<EngineEntity>> {
         if step_index == self.step_index {
             &self.entities
         } else {
@@ -537,14 +544,13 @@ impl RewindableGameEngine {
                         "requested entities for an unknown step {step_index}, current step {}",
                         self.step_index
                     );
-                    const EMPTY_ENTITIES: LazyCell<BTreeMap<u128, Rc<dyn SEEntity>>> =
-                        LazyCell::new(|| BTreeMap::new());
-                    &EMPTY_ENTITIES
+                    &self.empty_entities
                 }
             }
         }
     }
 
+    #[cfg(not(feature = "zk"))]
     pub fn expected_step_index(&self) -> u64 {
         let now = timestamp();
         assert!(now >= self.start_timestamp, "GameEngine time ran backward");
@@ -554,6 +560,7 @@ impl RewindableGameEngine {
     }
 
     /// Automatically step forward in time as much as needed
+    #[cfg(not(feature = "zk"))]
     pub fn tick(&mut self) -> Vec<GameEvent> {
         let expected = self.expected_step_index();
         if expected <= self.step_index {
@@ -563,7 +570,7 @@ impl RewindableGameEngine {
         self.step_to(&expected)
     }
 
-    fn step_to(&mut self, to_step: &u64) -> Vec<GameEvent> {
+    pub fn step_to(&mut self, to_step: &u64) -> Vec<GameEvent> {
         assert!(to_step > self.step_index());
         let mut out = vec![];
         for _ in 0..(to_step - self.step_index()) {
@@ -584,13 +591,13 @@ mod tests {
         engine.seed = rand::random();
         {
             let id = engine.generate_id();
-            engine.spawn_entity(Rc::new(PlatformEntity::new(
+            engine.spawn_entity(Rc::new(EngineEntity::from(PlatformEntity::new(
                 BaseEntityState {
                     id,
                     ..Default::default()
                 },
                 vec![],
-            )));
+            ))));
         }
         // {
         //     engine.spawn_entity(

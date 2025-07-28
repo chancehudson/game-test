@@ -30,9 +30,9 @@ impl ItemEntity {
                 velocity: IVec2 { x: 0, y: 350 },
                 player_creator_id: Some(player_creator_id),
             },
-            systems: crate::entity::EntitySystemsVec(vec![Rc::new(DisappearSystem {
+            systems: vec![Rc::new(EngineEntitySystem::from(DisappearSystem {
                 at_step: current_step + 7200,
-            })]),
+            }))],
             item_type,
             count,
             // becomes_public_at_step: current_step + 3600,
@@ -41,9 +41,8 @@ impl ItemEntity {
     }
 }
 
-#[typetag::serde]
 impl SEEntity for ItemEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Box<dyn SEEntity>> {
+    fn step(&self, engine: &GameEngine) -> Option<Self> {
         assert!(self.has_system::<DisappearSystem>());
         let mut next_self = self.clone();
         let step_index = engine.step_index();
@@ -75,6 +74,6 @@ impl SEEntity for ItemEntity {
             );
             next_self.state.position.y = y_pos;
         }
-        Some(Box::new(next_self))
+        Some(next_self)
     }
 }
