@@ -15,6 +15,10 @@ In 2 separate windows:
 - Start the client: `cargo run --bin=client`
 - (optional) Start the wasm client: `WASM_SERVER_RUNNER_ADDRESS=0.0.0.0 cargo run --target wasm32-unknown-unknown --bin=client`
 
+### On linux
+
+Specify a custom GPU backend using `WGPU_BACKEND=vulkan cargo run --bin=client`
+
 <!--
 
 ## Game ideas
