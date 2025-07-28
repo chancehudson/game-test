@@ -9,7 +9,7 @@ risc0_zkvm::guest::entry!(main);
 fn main() {
     let engine_seed: u64 = env::read();
 
-    let mut engine = GameEngine::new(IVec2 { x: 1000, y: 1000 }, engine_seed);
+    let mut engine = GameEngine::new_simple(IVec2 { x: 1000, y: 1000 }, engine_seed);
 
     let platform = PlatformEntity::new(
         BaseEntityState {
