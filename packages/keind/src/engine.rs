@@ -14,6 +14,8 @@
 ///   creation: entities scheduled for creation are created
 ///   removal: entities pending removal are removed
 ///
+use std::any::Any;
+use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::mem;
@@ -47,7 +49,6 @@ pub struct GameEngine<G: GameLogic> {
 
     pub step_index: u64,
 
-    // pub systems: HashMap<u128, &dyn EEntitySystem>,
     // entity type, id keyed to struct
     entities: BTreeMap<u128, RefPointer<G::Entity>>,
     empty_entities: BTreeMap<u128, RefPointer<G::Entity>>,
@@ -212,14 +213,20 @@ impl<G: GameLogic> GameEngine<G> {
         step_index: Option<u64>,
     ) -> Option<&T> {
         self.entity_by_id_untyped(id, step_index)
-            .map(|entity| (&*entity).get_ref::<T>())
+            .map(|entity| (&*entity as &dyn Any).downcast_ref::<T>())
             .flatten()
     }
 
     pub fn entities_by_type<T: SEEntity<G> + 'static>(&self) -> Vec<&T> {
         self.entities
             .iter()
-            .filter_map(|(_id, entity)| (&*entity).get_ref::<T>())
+            .filter_map(|(_id, entity)| {
+                if TypeId::of::<T>() == entity.type_id() {
+                    (&*entity as &dyn Any).downcast_ref::<T>()
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 

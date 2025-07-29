@@ -50,7 +50,7 @@ macro_rules! engine_entity_system_enum {
             )*
         }
 
-        impl $crate::prelude::KPoly for $name {
+        impl $name {
             /// Retrieve a runtime TypeId for an instance.
             fn type_id(&self) -> std::any::TypeId {
                 match self {
@@ -64,21 +64,6 @@ macro_rules! engine_entity_system_enum {
                 match self {
                     $(
                         $name::$variant_name(entity) => entity,
-                    )*
-                }
-            }
-
-            fn get_ref<T: 'static>(&self) -> Option<&T> {
-                self.as_any().downcast_ref::<T>()
-            }
-
-            fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => {
-                            let entity: &mut dyn Any = entity;
-                            return entity.downcast_mut::<T>();
-                        },
                     )*
                 }
             }

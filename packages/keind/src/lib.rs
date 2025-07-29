@@ -31,8 +31,8 @@ use serde::Deserialize;
 use serde::Serialize;
 
 pub trait GameLogic: Clone + Serialize + for<'de> Deserialize<'de> + 'static {
-    type Entity: Clone + entity::SEEntity<Self> + KPoly + Serialize + for<'de> Deserialize<'de>; // Enum wrapping all possible entities
-    type System: Clone + KPoly + Serialize + for<'de> Deserialize<'de>; // Enum wrapping all possible systems
+    type Entity: Clone + entity::SEEntity<Self> + Serialize + for<'de> Deserialize<'de>; // Enum wrapping all possible entities
+    type System: Clone + Serialize + for<'de> Deserialize<'de>; // Enum wrapping all possible systems
     type Input: Default + Clone + Serialize + for<'de> Deserialize<'de>; // User input
     type Event: Clone + Serialize + for<'de> Deserialize<'de>; // Game event, distinct from Engine event, which is internal to keind
 }
