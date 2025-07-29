@@ -31,7 +31,7 @@ entity_struct!(
 
 impl MobEntity {
     // handle movement calculations
-    fn prestep<R: RngCore>(&mut self, engine: &GameEngine<KeindGameLogic>, rng: &mut R) {
+    fn movement<R: RngCore>(&mut self, engine: &GameEngine<KeindGameLogic>, rng: &mut R) {
         let step_index = engine.step_index();
         if let Some((aggro_to, _last_hit_step)) = self.aggro_to {
             if let Some(aggro_to_entity) = engine.entity_by_id_untyped(&aggro_to, None) {
@@ -122,8 +122,11 @@ impl MobEntity {
 }
 
 impl SEEntity<KeindGameLogic> for MobEntity {
-    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
-        let mut next_self = self.clone();
+    fn prestep(&self, _engine: &GameEngine<KeindGameLogic>) -> bool {
+        true
+    }
+
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         let step_index = engine.step_index();
         // render a single frame with is_dead=true to trigger frontend animations
         if self.is_dead {
@@ -132,11 +135,11 @@ impl SEEntity<KeindGameLogic> for MobEntity {
                 .entity_by_id_untyped(&self.id(), None)
                 .expect("mob entity not in engine during step");
             engine.remove_entity(entity_rc.id());
-            return None;
+            return;
         }
         next_self.received_damage_this_step = vec![];
         let mut rng = self.rng(step_index);
-        next_self.prestep(engine, &mut rng);
+        next_self.movement(engine, &mut rng);
         // velocity in the last frame based on movement
         let last_velocity = self.velocity().clone();
         let body = self.rect();
@@ -283,7 +286,5 @@ impl SEEntity<KeindGameLogic> for MobEntity {
         next_self.state.position.x = x_pos;
         next_self.state.position.y = y_pos;
         next_self.state.velocity = velocity;
-
-        Some(next_self)
     }
 }

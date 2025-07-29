@@ -10,20 +10,21 @@ use std::time::Instant;
 use dashmap::DashMap;
 use tokio::sync::RwLock;
 
-use game_common::prelude::*;
 use db::DEFAULT_MAP;
 use db::PlayerInventory;
 use db::PlayerStats;
+use game_common::prelude::*;
+use keind::prelude::*;
 
 use super::MapInstance;
-use super::network;
 use super::PlayerRecord;
+use super::network;
 
 #[derive(Clone, Debug)]
 pub struct RemoteEngineEvent {
     pub player_id: String,
     pub engine_id: u128,
-    pub event: EngineEvent,
+    pub event: EngineEvent<KeindGameLogic>,
     pub step_index: u64,
 }
 
@@ -155,7 +156,8 @@ impl Game {
             let (_, current_instance) = entry.value();
             let instance = current_instance.read().await;
             if let Some(player) = instance.player_engines.get(&record.id) {
-                if player.last_input_step_index > instance.engine.step_index - 10 * STEPS_PER_SECOND
+                if player.last_input_step_index
+                    > instance.engine.step_index - 10 * STEPS_PER_SECOND as u64
                 {
                     anyhow::bail!("A player with this name is already logged in!");
                 }

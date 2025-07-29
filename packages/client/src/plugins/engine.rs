@@ -7,8 +7,8 @@ use bevy::text::TextBounds;
 use bevy::text::TextLayoutInfo;
 
 use db::PlayerRecord;
-use game_common::AnimationData;
 use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::GameState;
 use crate::NetworkMessage;
@@ -28,7 +28,7 @@ use crate::plugins::info_text::InfoMessage;
 /// Engine tracking resources/components
 ///
 #[derive(Resource, Default)]
-pub struct ActiveGameEngine(pub RewindableGameEngine);
+pub struct ActiveGameEngine(pub GameEngine<KeindGameLogic>);
 
 #[derive(Component, Default)]
 pub struct GameEntityComponent {

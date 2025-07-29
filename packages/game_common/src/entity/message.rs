@@ -56,9 +56,12 @@ impl MessageEntity {
 }
 
 impl SEEntity<KeindGameLogic> for MessageEntity {
-    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
+    fn prestep(&self, _engine: &GameEngine<KeindGameLogic>) -> bool {
         assert!(self.has_system::<DisappearSystem>());
-        let mut next_self = self.clone();
+        true
+    }
+
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         // Some custom attachment logic
         if let Some(entity) = engine.entity_by_id_untyped(&self.creator_id, None) {
             next_self.state.position = (entity.center()
@@ -79,6 +82,5 @@ impl SEEntity<KeindGameLogic> for MessageEntity {
         {
             engine.remove_entity(entity_arc.id());
         }
-        Some(next_self)
     }
 }

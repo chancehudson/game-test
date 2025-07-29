@@ -13,7 +13,7 @@ entity_struct!(
 );
 
 impl SEEntity<KeindGameLogic> for RectEntity {
-    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
+    fn prestep(&self, engine: &GameEngine<KeindGameLogic>) -> bool {
         let step_index = engine.step_index();
         if let Some(disappear_step) = self.disappears_at_step_index {
             if step_index >= &disappear_step {
@@ -21,15 +21,17 @@ impl SEEntity<KeindGameLogic> for RectEntity {
                     .entity_by_id_untyped(&self.id(), None)
                     .expect("rect entity did not exist");
                 engine.remove_entity(entity.id());
-                return None;
+                return false;
             }
         }
-        let mut next_self = self.clone();
+        true
+    }
+
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         next_self.state.position.x = actor::move_x(
             self.rect(),
             self.state.velocity.x / STEPS_PER_SECOND as i32,
             engine,
         );
-        Some(next_self)
     }
 }

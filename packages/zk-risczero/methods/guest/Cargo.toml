@@ -7,8 +7,10 @@ edition = "2024"
 
 [dependencies]
 risc0-zkvm = "2.3.1"
-game_common = { path = "../../../game_common", features = ["zk"], default-features = false }
 bevy_math = { version = "0.16.0", features = ["std", "rand", "curve", "serialize"] }
+
+game_common = { workspace = true, features = ["zk"], default-features = false }
+keind = { workspace = true, features = ["zk"], default-features = false }
 
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
