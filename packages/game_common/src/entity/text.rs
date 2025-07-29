@@ -1,9 +1,12 @@
 use bevy_math::IVec2;
 use bevy_math::Vec3;
 
+use keind::prelude::*;
+
 use crate::prelude::*;
 
 entity_struct!(
+    KeindGameLogic,
     pub struct TextEntity {
         // entity id, relative position
         pub attached_to: Option<(u128, IVec2)>,
@@ -15,8 +18,8 @@ entity_struct!(
     }
 );
 
-impl SEEntity for TextEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Self> {
+impl SEEntity<KeindGameLogic> for TextEntity {
+    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
         let step_index = engine.step_index();
         if step_index >= &self.disappears_at_step_index {
             let entity = engine

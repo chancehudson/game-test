@@ -1,6 +1,7 @@
 use std::io::Write;
 
 use bevy_math::IVec2;
+use keind::prelude::*;
 
 use crate::prelude::*;
 
@@ -8,6 +9,7 @@ const MESSAGE_WIDTH: i32 = 100;
 const MESSAGE_TOP_PADDING: i32 = 10;
 
 entity_struct!(
+    KeindGameLogic,
     pub struct MessageEntity {
         pub text: String,
         disappears_at_step: u64,
@@ -40,7 +42,7 @@ impl MessageEntity {
                 size: IVec2::new(MESSAGE_WIDTH, 0),
                 ..Default::default()
             },
-            vec![Rc::new(EngineEntitySystem::from(DisappearSystem {
+            vec![RefPointer::new(EngineEntitySystem::from(DisappearSystem {
                 at_step: step_index + 180,
             }))],
         );
@@ -53,8 +55,8 @@ impl MessageEntity {
     }
 }
 
-impl SEEntity for MessageEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Self> {
+impl SEEntity<KeindGameLogic> for MessageEntity {
+    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
         assert!(self.has_system::<DisappearSystem>());
         let mut next_self = self.clone();
         // Some custom attachment logic

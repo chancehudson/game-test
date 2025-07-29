@@ -1,5 +1,5 @@
 [package]
-name = "game_common"
+name = "keind"
 version = "0.1.0"
 edition = "2024"
 
@@ -9,12 +9,6 @@ edition = "2024"
 default = ["web-time"]
 zk = []
 
-[build-dependencies]
-anyhow = { workspace = true }
-json5 = { workspace = true }
-
-serde_json = "1.0.140"
-
 [dependencies]
 anyhow = { workspace = true }
 bincode = { workspace = true }
@@ -23,7 +17,6 @@ bevy_math = { workspace = true }
 serde = { workspace = true }
 json5 = { workspace = true }
 rand = { workspace = true }
-rand_chacha = { workspace = true }
 rand_xoshiro = { workspace = true }
 once_cell = { workspace = true }
 web-time = { workspace = true, optional = true }
@@ -32,5 +25,3 @@ flume = { workspace = true }
 
 serde_json = "1.0.140"
 
-db = { path = "../db" }
-keind = { path = "../keind" }

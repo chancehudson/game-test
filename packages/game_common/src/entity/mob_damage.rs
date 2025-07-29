@@ -1,12 +1,14 @@
 /// An entity that causes damage to a mob
 /// on behalf of a player
 use bevy_math::IVec2;
+use keind::prelude::*;
 
 use db::Ability;
 
 use crate::prelude::*;
 
-crate::entity_struct!(
+entity_struct!(
+    KeindGameLogic,
     pub struct MobDamageEntity {
         pub attached_to: u128,
         pub contacted_mob_id: Option<u128>,
@@ -25,7 +27,7 @@ impl MobDamageEntity {
                 player_creator_id: entity.player_creator_id(),
                 ..Default::default()
             },
-            vec![Rc::new(EngineEntitySystem::from(AttachSystem {
+            vec![RefPointer::new(EngineEntitySystem::from(AttachSystem {
                 attached_to: entity.id(),
                 offset: IVec2::ZERO,
             }))],
@@ -36,8 +38,8 @@ impl MobDamageEntity {
     }
 }
 
-impl SEEntity for MobDamageEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Self> {
+impl SEEntity<KeindGameLogic> for MobDamageEntity {
+    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
         assert!(self.has_system::<AttachSystem>());
         if self.has_despawned || self.contacted_mob_id.is_some() {
             // despawn the mob damage entity

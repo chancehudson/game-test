@@ -3,6 +3,8 @@ use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
+use keind::prelude::*;
+
 use crate::prelude::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -65,12 +67,16 @@ pub struct MapData {
     pub mob_spawns: Vec<MobSpawnData>,
 }
 
-impl EngineInit for MapData {
-    fn init(&self, game_data: &GameData, engine: &mut GameEngine) -> anyhow::Result<()> {
+impl MapData {
+    fn init(
+        &self,
+        game_data: &GameData,
+        engine: &mut GameEngine<KeindGameLogic>,
+    ) -> anyhow::Result<()> {
         // spawn the map components as needed
         for platform in &self.platforms {
             let id = engine.generate_id();
-            let entity = Rc::new(
+            let entity = RefPointer::new(
                 PlatformEntity::new(
                     BaseEntityState {
                         id,
@@ -86,7 +92,7 @@ impl EngineInit for MapData {
                 None,
                 EngineEvent::SpawnEntity {
                     entity,
-                    universal: true,
+                    is_non_determinism: true,
                 },
             );
         }
@@ -94,7 +100,7 @@ impl EngineInit for MapData {
         for spawn in &self.mob_spawns {
             let drop_table = game_data.mob_drop_table(spawn.mob_type)?;
             let id = engine.generate_id();
-            let entity = Rc::new(EngineEntity::from(MobSpawnEntity::new_data(
+            let entity = RefPointer::new(EngineEntity::from(MobSpawnEntity::new_data(
                 id,
                 spawn.clone(),
                 drop_table,
@@ -103,7 +109,7 @@ impl EngineInit for MapData {
                 None,
                 EngineEvent::SpawnEntity {
                     entity,
-                    universal: true,
+                    is_non_determinism: true,
                 },
             );
         }
@@ -119,8 +125,8 @@ impl EngineInit for MapData {
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {
-                    entity: Rc::new(portal_clone.into()),
-                    universal: true,
+                    entity: RefPointer::new(portal_clone.into()),
+                    is_non_determinism: true,
                 },
             );
         }
@@ -134,12 +140,13 @@ impl EngineInit for MapData {
             npc.announcements
                 .append(&mut map_npc_data.announcements.clone());
             let id = engine.generate_id();
-            let entity = Rc::new(NpcEntity::new_data(id, map_npc_data.position, npc).into());
+            let entity =
+                RefPointer::new(NpcEntity::new_data(id, map_npc_data.position, npc).into());
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {
                     entity,
-                    universal: true,
+                    is_non_determinism: true,
                 },
             );
         }
