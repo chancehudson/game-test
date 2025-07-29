@@ -1,8 +1,11 @@
 use bevy_math::IVec2;
 
+use keind::prelude::*;
+
 use crate::prelude::*;
 
 entity_struct!(
+    KeindGameLogic,
     pub struct ItemEntity {
         pub item_type: u64,
         pub count: u32,
@@ -30,7 +33,7 @@ impl ItemEntity {
                 velocity: IVec2 { x: 0, y: 350 },
                 player_creator_id: Some(player_creator_id),
             },
-            systems: vec![Rc::new(EngineEntitySystem::from(DisappearSystem {
+            systems: vec![RefPointer::new(EngineEntitySystem::from(DisappearSystem {
                 at_step: current_step + 7200,
             }))],
             item_type,
@@ -41,8 +44,8 @@ impl ItemEntity {
     }
 }
 
-impl SEEntity for ItemEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Self> {
+impl SEEntity<KeindGameLogic> for ItemEntity {
+    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
         assert!(self.has_system::<DisappearSystem>());
         let mut next_self = self.clone();
         let step_index = engine.step_index();
@@ -68,7 +71,7 @@ impl SEEntity for ItemEntity {
             let map_size = engine.size().clone();
             let y_pos = actor::move_y(
                 self_rect,
-                next_self.velocity().y / STEPS_PER_SECOND_I32,
+                next_self.velocity().y / STEPS_PER_SECOND as i32,
                 &engine.entities_by_type::<PlatformEntity>(),
                 map_size,
             );

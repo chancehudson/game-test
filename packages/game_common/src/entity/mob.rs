@@ -3,6 +3,7 @@ use rand::Rng;
 
 use db::Ability;
 use db::PlayerStats;
+use keind::prelude::*;
 use rand::RngCore;
 
 use crate::prelude::*;
@@ -10,6 +11,7 @@ use crate::prelude::*;
 const KNOCKBACK_STEPS: u64 = 20;
 
 entity_struct!(
+    KeindGameLogic,
     pub struct MobEntity {
         pub mob_type: u64,
         pub drop_table: Vec<DropTableData>,
@@ -29,7 +31,7 @@ entity_struct!(
 
 impl MobEntity {
     // handle movement calculations
-    fn prestep<R: RngCore>(&mut self, engine: &GameEngine, rng: &mut R) {
+    fn prestep<R: RngCore>(&mut self, engine: &GameEngine<KeindGameLogic>, rng: &mut R) {
         let step_index = engine.step_index();
         if let Some((aggro_to, _last_hit_step)) = self.aggro_to {
             if let Some(aggro_to_entity) = engine.entity_by_id_untyped(&aggro_to, None) {
@@ -49,7 +51,7 @@ impl MobEntity {
                     EngineEvent::Input {
                         input: new_input,
                         entity_id: self.id(),
-                        universal: false,
+                        is_non_determinism: false,
                     },
                 );
             } else {
@@ -65,7 +67,7 @@ impl MobEntity {
                     EngineEvent::Input {
                         input: EntityInput::default(),
                         entity_id: self.id(),
-                        universal: false,
+                        is_non_determinism: false,
                     },
                 );
             } else {
@@ -88,7 +90,7 @@ impl MobEntity {
                         EngineEvent::Input {
                             input: new_input,
                             entity_id: self.id(),
-                            universal: false,
+                            is_non_determinism: false,
                         },
                     );
                     self.moving_sign = self.moving_sign * -1;
@@ -98,7 +100,7 @@ impl MobEntity {
             // start moving every so often
             let sign = if rng.random_bool(0.5) { 1 } else { -1 };
             let move_len_s: u64 = rng.random_range(3..10);
-            let move_len_steps = move_len_s * STEPS_PER_SECOND;
+            let move_len_steps = move_len_s * STEPS_PER_SECOND as u64;
             self.moving_until = Some(step_index + move_len_steps);
             self.moving_sign = sign;
             let mut new_input = EntityInput::default();
@@ -109,7 +111,7 @@ impl MobEntity {
                 EngineEvent::Input {
                     input: new_input,
                     entity_id: self.id(),
-                    universal: false,
+                    is_non_determinism: false,
                 },
             );
         }
@@ -119,8 +121,8 @@ impl MobEntity {
     }
 }
 
-impl SEEntity for MobEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Self> {
+impl SEEntity<KeindGameLogic> for MobEntity {
+    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
         let mut next_self = self.clone();
         let step_index = engine.step_index();
         // render a single frame with is_dead=true to trigger frontend animations
@@ -198,14 +200,16 @@ impl SEEntity for MobEntity {
                         .collect::<Vec<_>>()
                     {
                         // drop an item
-                        engine.spawn_entity(Rc::new(EngineEntity::from(ItemEntity::new_item(
-                            rng.random(),
-                            self.center() + IVec2::new(x_offset, 0),
-                            drop.0, // item type
-                            drop.1, // amount
-                            player_entity_id,
-                            *step_index,
-                        ))));
+                        engine.spawn_entity(RefPointer::new(EngineEntity::from(
+                            ItemEntity::new_item(
+                                rng.random(),
+                                self.center() + IVec2::new(x_offset, 0),
+                                drop.0, // item type
+                                drop.1, // amount
+                                player_entity_id,
+                                *step_index,
+                            ),
+                        )));
                         x_offset += 10;
                     }
                     break;
@@ -264,11 +268,15 @@ impl SEEntity for MobEntity {
         let lower_speed_limit = IVec2::new(-150, -350);
         let upper_speed_limit = IVec2::new(150, 700);
         velocity = velocity.clamp(lower_speed_limit, upper_speed_limit);
-        let x_pos = actor::move_x(self.rect(), last_velocity.x / STEPS_PER_SECOND_I32, engine);
+        let x_pos = actor::move_x(
+            self.rect(),
+            last_velocity.x / STEPS_PER_SECOND as i32,
+            engine,
+        );
         let map_size = engine.size().clone();
         let y_pos = actor::move_y(
             self.rect(),
-            last_velocity.y / STEPS_PER_SECOND_I32,
+            last_velocity.y / STEPS_PER_SECOND as i32,
             &engine.entities_by_type::<PlatformEntity>(),
             map_size,
         );

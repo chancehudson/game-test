@@ -3,9 +3,12 @@
 use bevy_math::IVec2;
 use rand::Rng;
 
+use keind::prelude::*;
+
 use crate::prelude::*;
 
 entity_struct!(
+    KeindGameLogic,
     pub struct NpcEntity {
         pub data: NpcData,
         last_message_step: u64,
@@ -29,8 +32,8 @@ impl NpcEntity {
     }
 }
 
-impl SEEntity for NpcEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Self> {
+impl SEEntity<KeindGameLogic> for NpcEntity {
+    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
         if self.data.announcements.is_empty() {
             return None;
         }
@@ -39,14 +42,10 @@ impl SEEntity for NpcEntity {
         let mut rng = self.rng(step_index);
         if &(self.last_message_step + 360) <= step_index && rng.random_bool(0.001) {
             let announcement_index = rng.random_range(0..self.data.announcements.len());
-            engine.register_event(
-                None,
-                EngineEvent::Message {
-                    text: self.data.announcements[announcement_index].clone(),
-                    entity_id: self.id(),
-                    universal: false,
-                },
-            );
+            engine.register_game_event(GameEvent::Message(
+                self.id(),
+                self.data.announcements[announcement_index].clone(),
+            ));
             next_self.last_message_step = *step_index;
         }
         Some(next_self)

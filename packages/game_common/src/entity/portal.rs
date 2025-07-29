@@ -1,8 +1,9 @@
-use crate::entity_struct;
+use keind::prelude::*;
 
 use crate::prelude::*;
 
 entity_struct!(
+    KeindGameLogic,
     pub struct PortalEntity {
         // destination map name
         #[serde(skip)]
@@ -17,4 +18,4 @@ impl PortalEntity {
     }
 }
 
-impl SEEntity for PortalEntity {}
+impl SEEntity<KeindGameLogic> for PortalEntity {}
