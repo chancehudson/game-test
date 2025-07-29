@@ -51,10 +51,13 @@ impl PlayerEntity {
 }
 
 impl SEEntity<KeindGameLogic> for PlayerEntity {
-    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
+    fn prestep(&self, _engine: &GameEngine<KeindGameLogic>) -> bool {
+        true
+    }
+
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         let step_index = engine.step_index();
         let mut rng = self.rng(step_index);
-        let mut next_self = self.clone();
         let input = engine.input_for_entity(&self.id());
         next_self.received_damage_this_step = (false, 0);
         if self.is_dead() {
@@ -66,10 +69,8 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                     new_health,
                 ));
                 next_self.record.current_health = new_health;
-                return Some(next_self);
-            } else {
-                return None;
             }
+            return;
         }
         // velocity in the last frame based on movement
         let last_velocity = self.velocity().clone();
@@ -248,7 +249,6 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
 
         if jump_down {
             next_self.state.position.y = (self.position().y - 4).max(0);
-            Some(next_self)
         } else {
             let x_pos = actor::move_x(
                 self.rect(),
@@ -264,7 +264,6 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
             );
             next_self.state.position.x = x_pos;
             next_self.state.position.y = y_pos;
-            Some(next_self)
         }
     }
 }

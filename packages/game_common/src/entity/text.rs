@@ -19,15 +19,19 @@ entity_struct!(
 );
 
 impl SEEntity<KeindGameLogic> for TextEntity {
-    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
+    fn prestep(&self, engine: &GameEngine<KeindGameLogic>) -> bool {
         let step_index = engine.step_index();
         if step_index >= &self.disappears_at_step_index {
             let entity = engine
                 .entity_by_id_untyped(&self.id(), None)
                 .expect("text entity did not exist");
             engine.remove_entity(entity.id());
+            return false;
         }
-        let mut next_self = self.clone();
+        true
+    }
+
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         if let Some((attached_id, relative_pos)) = self.attached_to {
             if let Some(entity) = engine.entity_by_id_untyped(&attached_id, None) {
                 next_self.state.position = entity.position() + relative_pos;
@@ -35,6 +39,5 @@ impl SEEntity<KeindGameLogic> for TextEntity {
                 println!("WARNING: TextEntity attached to non-existent entity");
             }
         }
-        Some(next_self)
     }
 }

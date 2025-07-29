@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::any::TypeId;
 use std::fmt::Debug;
 
 use bevy_math::IRect;
@@ -27,9 +28,14 @@ pub struct BaseEntityState {
 
 /// A _steppable_ entity that exists in the engine.
 pub trait SEEntity<G: GameLogic + 'static>: EEntity<G> {
-    fn step(&self, _engine: &GameEngine<G>) -> Option<Self> {
-        None
+    /// Return a boolean indicating whether the entity needs to mutate.
+    /// Returning false means `step` will not be called on the
+    /// entity (though it may be called on attached systems).
+    fn prestep(&self, _engine: &GameEngine<G>) -> bool {
+        false
     }
+
+    fn step(&self, _engine: &GameEngine<G>, _next_self: &mut Self) {}
 }
 
 /// An entity that exists inside the engine.
@@ -43,7 +49,13 @@ pub trait EEntity<G: GameLogic + 'static>: Debug + Any + Clone {
     fn systems_by_type<T: EEntitySystem<G> + 'static>(&self) -> Vec<&T> {
         self.systems()
             .iter()
-            .filter_map(|system| (system as &dyn Any).downcast_ref::<T>())
+            .filter_map(|system| {
+                if TypeId::of::<T>() == system.type_id() {
+                    (system as &dyn Any).downcast_ref::<T>()
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
@@ -120,7 +132,7 @@ macro_rules! engine_entity_enum {
             )*
         }
 
-        impl $crate::prelude::KPoly for $name {
+        impl $name {
             /// Retrieve a runtime TypeId for an instance.
             fn type_id(&self) -> std::any::TypeId {
                 match self {
@@ -137,21 +149,6 @@ macro_rules! engine_entity_enum {
                     )*
                 }
             }
-
-            fn get_ref<T: 'static>(&self) -> Option<&T> {
-                self.as_any().downcast_ref::<T>()
-            }
-
-            fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => {
-                            let entity: &mut dyn Any = entity;
-                            entity.downcast_mut::<T>()
-                        },
-                    )*
-                }
-            }
         }
 
         $(
@@ -163,10 +160,13 @@ macro_rules! engine_entity_enum {
         )*
 
         impl $crate::prelude::SEEntity<$game_logic> for $name {
-            fn step(&self, engine: &$crate::prelude::GameEngine<$game_logic>) -> Option<Self> {
+            fn step(&self, engine: &$crate::prelude::GameEngine<$game_logic>, next_self: &mut Self) {
                 match self {
                     $(
-                        $name::$variant_name(entity) => entity.step(engine).map(|out| $name::$variant_name(out)),
+                        $name::$variant_name(entity) => entity.step(engine, match *next_self {
+                            $name::$variant_name(ref mut next_self) => next_self,
+                            _ => panic!("received a mismatched next_self in engine entity wrapper step"),
+                        }),
                     )*
                 }
             }
@@ -300,11 +300,7 @@ macro_rules! entity_struct {
                 }
                 // if we did a clone, insert next_systems into clone
                 if let Some(next_self) = next_self_maybe.as_mut() {
-                    let any_ref: &mut dyn std::any::Any = &mut *next_self;
-                    let next_self_concrete = any_ref
-                        .downcast_mut::<Self>()
-                        .expect("downcast into self failed");
-                    *next_self_concrete.systems_mut() = next_systems;
+                    *next_self.systems_mut() = next_systems;
                 }
             }
 

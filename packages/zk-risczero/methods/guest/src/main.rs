@@ -1,15 +1,18 @@
 #![no_main]
 
 use bevy_math::IVec2;
-use game_common::prelude::*;
 use risc0_zkvm::guest::env;
+
+use game_common::prelude::*;
+use keind::prelude::*;
 
 risc0_zkvm::guest::entry!(main);
 
 fn main() {
     let engine_seed: u64 = env::read();
 
-    let mut engine = GameEngine::new_simple(IVec2 { x: 1000, y: 1000 }, engine_seed);
+    let mut engine =
+        GameEngine::<KeindGameLogic>::new_simple(IVec2 { x: 1000, y: 1000 }, engine_seed);
 
     let platform = PlatformEntity::new(
         BaseEntityState {
@@ -34,16 +37,16 @@ fn main() {
     engine.register_event(
         None,
         EngineEvent::SpawnEntity {
-            entity: Rc::new(platform.into()),
-            universal: true,
+            entity: RefPointer::new(platform.into()),
+            is_non_determinism: true,
         },
     );
     engine.register_event(
         None,
         EngineEvent::SpawnEntity {
-            entity: Rc::new(mob_spawner.into()),
-            universal: true,
+            entity: RefPointer::new(mob_spawner.into()),
+            is_non_determinism: true,
         },
     );
-    engine.step_to(&1000);
+    engine.step_to(&1000, |_| {});
 }

@@ -1,8 +1,9 @@
 pub use crate::GameLogic;
-pub use crate::KPoly;
 pub use crate::RefPointer;
 
 pub use crate::engine::GameEngine;
+#[cfg(not(feature = "zk"))]
+pub use crate::engine::timestamp;
 
 pub use crate::entity::BaseEntityState;
 pub use crate::entity::EEntity;
