@@ -2,6 +2,8 @@ use bevy_math::IVec2;
 use serde::Deserialize;
 use serde::Serialize;
 
+use keind::prelude::*;
+
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -10,18 +12,18 @@ pub struct AttachSystem {
     pub offset: IVec2,
 }
 
-impl EEntitySystem for AttachSystem {
-    fn prestep(&self, engine: &GameEngine, entity: &EngineEntity) -> bool {
+impl EEntitySystem<KeindGameLogic> for AttachSystem {
+    fn prestep(&self, engine: &GameEngine<KeindGameLogic>, entity: &EngineEntity) -> bool {
         // only allow one of these per entity
         assert_eq!(
             entity
                 .systems()
                 .iter()
-                .filter_map(|system| (system.clone() as Rc<dyn Any>).downcast::<Self>().ok())
+                .filter_map(|system| (&*system as &dyn Any).downcast_ref::<Self>())
                 .collect::<Vec<_>>()
                 .len(),
             1,
-            "multiple attach systems"
+            "multiple attach systems on entity"
         );
 
         // TODO: assert no duplicate system on entity
@@ -36,7 +38,7 @@ impl EEntitySystem for AttachSystem {
         }
     }
 
-    fn step(&self, engine: &GameEngine, entity: &mut EngineEntity) -> Option<Self> {
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, entity: &mut EngineEntity) -> Option<Self> {
         if let Some(attached_entity) = engine.entity_by_id_untyped(&self.attached_to, None) {
             entity.state_mut().position = attached_entity.state().position + self.offset
         } else {

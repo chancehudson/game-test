@@ -1,4 +1,5 @@
 use bevy_math::IVec2;
+use keind::prelude::*;
 use rand::Rng;
 
 use db::Ability;
@@ -11,6 +12,7 @@ const DAMAGE_IFRAME_STEPS: u64 = 120;
 const KNOCKBACK_STEPS: u64 = 10;
 
 entity_struct!(
+    KeindGameLogic,
     pub struct PlayerEntity {
         pub player_id: String, // the game id, not entity id
         pub record: PlayerRecord,
@@ -48,8 +50,8 @@ impl PlayerEntity {
     }
 }
 
-impl SEEntity for PlayerEntity {
-    fn step(&self, engine: &GameEngine) -> Option<Self> {
+impl SEEntity<KeindGameLogic> for PlayerEntity {
+    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
         let step_index = engine.step_index();
         let mut rng = self.rng(step_index);
         let mut next_self = self.clone();
@@ -138,16 +140,16 @@ impl SEEntity for PlayerEntity {
                     ..Default::default()
                 },
                 vec![
-                    Rc::new(EngineEntitySystem::from(AttachSystem {
+                    RefPointer::new(EngineEntitySystem::from(AttachSystem {
                         attached_to: self.id(),
                         offset: self.size() + IVec2::new(-self.size().x / 2, 5),
                     })),
-                    Rc::new(EngineEntitySystem::from(DisappearSystem {
+                    RefPointer::new(EngineEntitySystem::from(DisappearSystem {
                         at_step: show_until,
                     })),
                 ],
             );
-            engine.spawn_entity(Rc::new(EngineEntity::from(emoji)));
+            engine.spawn_entity(RefPointer::new(EngineEntity::from(emoji)));
         }
 
         if let Some((direction, until)) = self.knockback_until {
@@ -231,11 +233,11 @@ impl SEEntity for PlayerEntity {
                 vec![],
             );
             projectile.disappears_at_step_index = Some(step_index + 30);
-            let projectile = Rc::new(EngineEntity::from(projectile));
+            let projectile = RefPointer::new(EngineEntity::from(projectile));
             let damage =
                 MobDamageEntity::new_with_entity(rng.random(), &projectile, Ability::Strength);
             engine.spawn_entity(projectile);
-            engine.spawn_entity(Rc::new(EngineEntity::from(damage)));
+            engine.spawn_entity(RefPointer::new(EngineEntity::from(damage)));
         }
 
         let lower_speed_limit = IVec2::new(-250, -350);
@@ -250,13 +252,13 @@ impl SEEntity for PlayerEntity {
         } else {
             let x_pos = actor::move_x(
                 self.rect(),
-                next_self.velocity().x / STEPS_PER_SECOND_I32,
+                next_self.velocity().x / STEPS_PER_SECOND as i32,
                 engine,
             );
             let map_size = engine.size().clone();
             let y_pos = actor::move_y(
                 self.rect(),
-                next_self.velocity().y / STEPS_PER_SECOND_I32,
+                next_self.velocity().y / STEPS_PER_SECOND as i32,
                 &engine.entities_by_type::<PlatformEntity>(),
                 map_size,
             );

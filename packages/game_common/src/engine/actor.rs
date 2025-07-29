@@ -3,9 +3,11 @@
 use bevy_math::IRect;
 use bevy_math::IVec2;
 
+use keind::prelude::*;
+
 use crate::prelude::*;
 
-pub fn contains_platform(engine: &GameEngine, rect: IRect) -> bool {
+pub fn contains_platform(engine: &GameEngine<KeindGameLogic>, rect: IRect) -> bool {
     for platform in engine.entities_by_type::<PlatformEntity>() {
         let intersection = rect.intersect(platform.rect());
         if intersection.width() >= 1 && intersection.height() >= 1 {
@@ -16,14 +18,14 @@ pub fn contains_platform(engine: &GameEngine, rect: IRect) -> bool {
 }
 
 /// Are we standing with a platform beneath us, without a platform immediately above it?
-pub fn on_platform(body: IRect, engine: &GameEngine) -> bool {
+pub fn on_platform(body: IRect, engine: &GameEngine<KeindGameLogic>) -> bool {
     // check if the intersection is underneath the player
     let launch_rect = IRect::new(body.min.x, body.min.y - 2, body.max.x, body.min.y - 1);
     let not_launch_rect = IRect::new(body.min.x, body.min.y + 1, body.max.x, body.min.y + 3);
     return contains_platform(engine, launch_rect) && !contains_platform(engine, not_launch_rect);
 }
 
-pub fn can_move_left_right(body: IRect, engine: &GameEngine) -> (bool, bool) {
+pub fn can_move_left_right(body: IRect, engine: &GameEngine<KeindGameLogic>) -> (bool, bool) {
     (
         body.min.x > 2,
         body.max.x + body.width() < engine.size().x - 2,
@@ -31,7 +33,10 @@ pub fn can_move_left_right(body: IRect, engine: &GameEngine) -> (bool, bool) {
 }
 
 // returns if we can move left or right
-pub fn can_move_left_right_without_falling(body: IRect, engine: &GameEngine) -> (bool, bool) {
+pub fn can_move_left_right_without_falling(
+    body: IRect,
+    engine: &GameEngine<KeindGameLogic>,
+) -> (bool, bool) {
     let dist = 2;
     let left_check = IRect::new(
         body.min.x - (2 * dist),
@@ -53,7 +58,7 @@ pub fn can_move_left_right_without_falling(body: IRect, engine: &GameEngine) -> 
     )
 }
 
-pub fn move_x(body: IRect, dx: i32, engine: &GameEngine) -> i32 {
+pub fn move_x<G: GameLogic>(body: IRect, dx: i32, engine: &GameEngine<G>) -> i32 {
     if dx == 0 {
         return body.min.x;
     }
@@ -70,7 +75,12 @@ pub fn move_x(body: IRect, dx: i32, engine: &GameEngine) -> i32 {
     body.min.x
 }
 
-pub fn move_y<T: EEntity>(body: IRect, dy: i32, platforms: &[Rc<T>], map_size: IVec2) -> i32 {
+pub fn move_y<G: GameLogic, T: SEEntity<G>>(
+    body: IRect,
+    dy: i32,
+    platforms: &[&T],
+    map_size: IVec2,
+) -> i32 {
     if dy == 0 {
         return body.min.y;
     }

@@ -1,7 +1,7 @@
+use keind::prelude::*;
+
 use crate::prelude::*;
 
-entity_struct!(
-    pub struct PlatformEntity {}
-);
+entity_struct!(KeindGameLogic, pub struct PlatformEntity {});
 
-impl SEEntity for PlatformEntity {}
+impl SEEntity<KeindGameLogic> for PlatformEntity {}
