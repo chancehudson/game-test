@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use crate::prelude::*;
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct BaseEntityState {
     #[serde(default)]
     pub id: u128,
@@ -23,6 +23,18 @@ pub struct BaseEntityState {
     pub velocity: IVec2,
     #[serde(default)]
     pub player_creator_id: Option<u128>,
+}
+
+impl Default for BaseEntityState {
+    fn default() -> Self {
+        Self {
+            id: rand::random(),
+            position: IVec2::default(),
+            size: IVec2::default(),
+            velocity: IVec2::default(),
+            player_creator_id: None,
+        }
+    }
 }
 
 /// A _steppable_ entity that exists in the engine.
@@ -292,10 +304,10 @@ macro_rules! entity_struct {
                 type EngineEntity = <$game_logic as keind::prelude::GameLogic>::Entity;
                 type EngineSystem = <$game_logic as keind::prelude::GameLogic>::System;
                 let mut next_systems: Vec<$crate::RefPointer<EngineSystem>> = Vec::new();
+                let entity_rc = engine
+                    .entity_by_id_untyped(&self.id(), None)
+                    .expect("entity being stepped but not in engine");
                 for system in self.systems() {
-                    let entity_rc = engine
-                        .entity_by_id_untyped(&self.id(), None)
-                        .expect("entity being stepped but not in engine");
                     if !system.prestep(engine, &entity_rc) {
                         next_systems.push(system.clone());
                         continue;

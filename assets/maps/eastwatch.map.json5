@@ -13,7 +13,7 @@
         { npc_id: 1, position: [750, 150] }
     ],
     mob_spawns: [
-        { position: [0, 80], size: [1000, 10], mob_type: 1, max_count: 10 },
+        { position: [0, 80], size: [1000, 10], mob_type: 1, max_count: 1 },
     ],
     platforms: [
         // the platform for the flower npc

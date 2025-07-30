@@ -133,6 +133,8 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
             let emoji = EmojiEntity::new(
                 BaseEntityState {
                     id,
+                    position: IVec2::MAX,
+                    size: IVec2::new(80, 80),
                     player_creator_id: Some(self.id()),
                     ..Default::default()
                 },
