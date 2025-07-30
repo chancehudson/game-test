@@ -2,9 +2,6 @@ use bevy::input::keyboard::Key;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
 
-use game_common::prelude::*;
-use keind::prelude::*;
-
 use crate::GameState;
 use crate::map::MapEntity;
 use crate::network::NetworkAction;
@@ -117,8 +114,8 @@ fn handle_text_input_keyboard(
     active_player_entity_id: Res<ActivePlayerEntityId>,
     mut action_events: EventWriter<NetworkAction>,
 ) {
-    let engine = &mut active_game_engine.0;
-    let entity_id = active_player_entity_id.0.unwrap_or_default();
+    let _engine = &mut active_game_engine.0;
+    let _entity_id = active_player_entity_id.0.unwrap_or_default();
     if let Ok((entity, mut input)) = text_inputs.single_mut() {
         for event in keyboard_events.read() {
             if !event.state.is_pressed() {

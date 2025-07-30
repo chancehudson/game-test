@@ -17,12 +17,4 @@ impl EEntitySystem<KeindGameLogic> for DisappearSystem {
         }
         false
     }
-
-    fn step(
-        &self,
-        _engine: &GameEngine<KeindGameLogic>,
-        _entity: &mut EngineEntity,
-    ) -> Option<Self> {
-        None
-    }
 }

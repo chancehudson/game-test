@@ -14,7 +14,7 @@ pub trait EEntitySystem<G: GameLogic>: Any {
     /// Return true to mutate self or entity
     /// Engine events may be sent here.
     fn prestep(&self, _engine: &GameEngine<G>, _entity: &G::Entity) -> bool {
-        false
+        true
     }
 
     /// Step the system, provided the engine, and the entity the system
@@ -71,6 +71,14 @@ macro_rules! engine_entity_system_enum {
             fn extract_ref<T: 'static>(&self) -> Option<&T> {
                 self.as_any().downcast_ref::<T>()
             }
+
+            fn extract_mut<T: 'static>(&mut self) -> Option<&mut T> {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => (entity as &mut dyn Any).downcast_mut::<T>(),
+                    )*
+                }
+            }
         }
 
         $(
@@ -82,6 +90,14 @@ macro_rules! engine_entity_system_enum {
         )*
 
         impl keind::prelude::EEntitySystem<$game_logic> for $name {
+            fn prestep(&self, engine: &GameEngine<$game_logic>, entity: &<$game_logic as keind::prelude::GameLogic>::Entity) -> bool {
+                match self {
+                    $(
+                        $name::$variant_name(system) => system.prestep(engine, entity),
+                    )*
+                }
+            }
+
             fn step(&self, engine: &keind::prelude::GameEngine<$game_logic>, entity: &mut <$game_logic as keind::prelude::GameLogic>::Entity) -> Option<Self> {
                 match self {
                     $(

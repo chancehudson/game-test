@@ -181,7 +181,7 @@ impl SEEntity<KeindGameLogic> for MobEntity {
                 next_self.weightless_until = Some(step_index + (KNOCKBACK_STEPS / 2));
                 let damage_amount = damage_calc::compute_damage(
                     &Ability::Strength,
-                    &player_entity.stats,
+                    &player_entity.stats_ptr,
                     &PlayerStats::default(),
                     &mut rng,
                 );
@@ -203,7 +203,7 @@ impl SEEntity<KeindGameLogic> for MobEntity {
                         .collect::<Vec<_>>()
                     {
                         // drop an item
-                        engine.spawn_entity(RefPointer::new(EngineEntity::from(
+                        engine.spawn_entity(RefPointer::new(
                             ItemEntity::new_item(
                                 rng.random(),
                                 self.center() + IVec2::new(x_offset, 0),
@@ -211,8 +211,9 @@ impl SEEntity<KeindGameLogic> for MobEntity {
                                 drop.1, // amount
                                 player_entity_id,
                                 *step_index,
-                            ),
-                        )));
+                            )
+                            .into(),
+                        ));
                         x_offset += 10;
                     }
                     break;

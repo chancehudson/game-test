@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use db::Ability;
+use db::AbilityExpRecord;
 
 pub mod prelude;
 
@@ -56,6 +57,7 @@ keind::engine_entity_system_enum!(
     pub enum EngineEntitySystem {
         Attach(AttachSystem),
         Disappear(DisappearSystem),
+        PlayerExp(PlayerExpSystem),
     }
 );
 
@@ -87,10 +89,85 @@ impl GameLogic for KeindGameLogic {
     type Event = GameEvent;
     type Input = EntityInput;
 
-    fn handle_game_events(_engine: &GameEngine<Self>, game_events: &Vec<Self::Event>) {
+    fn handle_game_events(engine: &GameEngine<Self>, game_events: &Vec<RefPointer<Self::Event>>) {
         for event in game_events {
-            match event {
-                _ => {}
+            match &**event {
+                GameEvent::PlayerEnterPortal {
+                    player_id: _,
+                    entity_id,
+                    from_map: _,
+                    to_map: _,
+                    requested_spawn_pos: _,
+                } => {
+                    engine.remove_entity(*entity_id);
+                }
+                GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {
+                    // here we'll apply the change to our player entity ASAP
+                    // the server will write state to the database at a lagged
+                    // rate to account for user input delay
+                    if let Some(player_entity) =
+                        engine.entity_by_id::<PlayerEntity>(&player_entity_id, None)
+                    {
+                        engine.register_event(
+                            None,
+                            EngineEvent::SpawnSystem {
+                                entity_id: *player_entity_id,
+                                system_ptr: RefPointer::from(EngineEntitySystem::from(
+                                    PlayerExpSystem {
+                                        record: AbilityExpRecord {
+                                            player_id: player_entity.player_id.clone(),
+                                            amount: *amount,
+                                            ability: ability.clone(),
+                                        },
+                                    },
+                                )),
+                                is_non_determinism: false,
+                            },
+                        );
+                    } else {
+                        println!("WARNING: received player exp event for non-existent entity");
+                    }
+                }
+                GameEvent::PlayerPickUpRequest(player_entity_id) => {
+                    // if let Some(player_entity) = engine.entities.get(player_entity_id).cloned() {
+                    //     let game_events_sender = engine.game_events.0.clone();
+                    //     // there are quirks with using entities_by_type in the default handler
+                    //     // see GameEngine::step
+                    //     for item in engine
+                    //         .entities_by_type::<ItemEntity>()
+                    //         .cloned()
+                    //         .collect::<Vec<_>>()
+                    //     {
+                    //         if engine.entity_by_id_untyped(&item.id, None).is_none() {
+                    //             continue;
+                    //         }
+                    //         if item.rect().intersect(player_entity.rect()).is_empty() {
+                    //             continue;
+                    //         }
+                    //         // otherwise pick up the item
+                    //         engine.entities.remove(&item.id);
+                    //
+                    //         // mark user as having object
+                    //         game_events_sender
+                    //             .send(GameEvent::PlayerPickUp(
+                    //                 player_entity
+                    //                     .extract_ref::<PlayerEntity>()
+                    //                     .unwrap()
+                    //                     .player_id
+                    //                     .clone(),
+                    //                 item.item_type,
+                    //                 item.count,
+                    //             ))
+                    //             .unwrap();
+                    //         return;
+                    //     }
+                    // }
+                }
+                GameEvent::PlayerPickUp(_, _, _) => {
+                    // update the inventory
+                }
+                GameEvent::PlayerHealth(_, _) => {}
+                GameEvent::Message(_, _) => {}
             }
         }
     }
