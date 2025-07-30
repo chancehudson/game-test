@@ -68,7 +68,7 @@ pub struct MapData {
 }
 
 impl MapData {
-    fn init(
+    pub fn init(
         &self,
         game_data: &GameData,
         engine: &mut GameEngine<KeindGameLogic>,

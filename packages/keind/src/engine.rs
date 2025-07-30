@@ -81,7 +81,7 @@ pub struct GameEngine<G: GameLogic> {
     #[cfg(not(feature = "zk"))]
     step_len: f64,
     #[serde(default = "default_trailing_state_len")]
-    trailing_state_len: u64,
+    pub trailing_state_len: u64,
 }
 
 fn default_engine_events<G: GameLogic>() -> (
@@ -242,6 +242,23 @@ impl<G: GameLogic> GameEngine<G> {
             self.inputs_by_step
                 .insert(self.step_index, self.inputs.clone());
         }
+        let mut mutated_entities = HashMap::new();
+        for event in self
+            .engine_events_by_step
+            .entry(self.step_index)
+            .or_default()
+        {
+            match event {
+                EngineEvent::RequestCopy { mutated_entity, .. } => {
+                    if let Some(existing) =
+                        mutated_entities.insert(mutated_entity.id(), mutated_entity.clone())
+                    {
+                        println!("WARNING: duplicate copy request for entity {:?}", existing);
+                    }
+                }
+                _ => {}
+            }
+        }
 
         // Execute the modification phase of the step
         // When an entity is stepped we get a mutable next version
@@ -249,7 +266,12 @@ impl<G: GameLogic> GameEngine<G> {
         // systems. Once this is complete it is put in a RefPointer
         // and stored.
         for (id, entity) in mem::take(&mut self.entities) {
-            let mut next_self_maybe = entity.step(self);
+            let mut next_self_maybe = mutated_entities.remove(&id);
+            if entity.prestep(self) {
+                let mut next_self = next_self_maybe.unwrap_or_else(|| (*entity).clone());
+                entity.step(self, &mut next_self);
+                next_self_maybe = Some(next_self);
+            }
             entity.step_systems(self, &mut next_self_maybe);
             // insert the next_self, if it exists
             // otherwise copy the existingRefPointer
@@ -279,6 +301,7 @@ impl<G: GameLogic> GameEngine<G> {
             .or_default()
         {
             match event {
+                EngineEvent::RequestCopy { .. } => { /* handled above */ }
                 EngineEvent::SpawnEntity {
                     entity,
                     is_non_determinism: _,
@@ -303,30 +326,28 @@ impl<G: GameLogic> GameEngine<G> {
                     is_non_determinism: _,
                 } => {
                     self.inputs.insert(*entity_id, input.clone());
-                }
-                // This should be a GameEvent
-                // EngineEvent::Message {
-                //     text,
-                //     entity_id,
-                //     is_non_determinism: _,
-                // } => {
-                //     if let Some(entity) = self.entities.get(entity_id) {
-                //         let is_player = entity.get_ref::<PlayerEntity>().is_some();
-                //         let msg_entity = MessageEntity::new_text(
-                //             text.clone(),
-                //             self.step_index,
-                //             entity.id(),
-                //             is_player,
-                //         );
-                //         self.entities.insert(
-                //             msg_entity.id(),
-                //             RefPointer::new(G::Entity::from(msg_entity)),
-                //         );
-                //     } else {
-                //         println!("WARNING: sending message from non-existent entity")
-                //     }
-                // }
-                EngineEvent::Noop {} => { /* boop */ }
+                } // This should be a GameEvent
+                  // EngineEvent::Message {
+                  //     text,
+                  //     entity_id,
+                  //     is_non_determinism: _,
+                  // } => {
+                  //     if let Some(entity) = self.entities.get(entity_id) {
+                  //         let is_player = entity.get_ref::<PlayerEntity>().is_some();
+                  //         let msg_entity = MessageEntity::new_text(
+                  //             text.clone(),
+                  //             self.step_index,
+                  //             entity.id(),
+                  //             is_player,
+                  //         );
+                  //         self.entities.insert(
+                  //             msg_entity.id(),
+                  //             RefPointer::new(G::Entity::from(msg_entity)),
+                  //         );
+                  //     } else {
+                  //         println!("WARNING: sending message from non-existent entity")
+                  //     }
+                  // }
             }
         }
 

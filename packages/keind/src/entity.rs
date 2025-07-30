@@ -28,9 +28,14 @@ pub struct BaseEntityState {
 
 /// A _steppable_ entity that exists in the engine.
 pub trait SEEntity<G: GameLogic + 'static>: EEntity<G> {
-    fn step(&self, _engine: &GameEngine<G>) -> Option<Self> {
-        None
+    /// Return a boolean indicating whether the entity needs to mutate.
+    /// Returning false means `step` will not be called on the
+    /// entity (though it may be called on attached systems).
+    fn prestep(&self, _engine: &GameEngine<G>) -> bool {
+        false
     }
+
+    fn step(&self, _engine: &GameEngine<G>, _next_self: &mut Self) {}
 }
 
 /// An entity that exists inside the engine.
@@ -155,10 +160,13 @@ macro_rules! engine_entity_enum {
         )*
 
         impl $crate::prelude::SEEntity<$game_logic> for $name {
-            fn step(&self, engine: &$crate::prelude::GameEngine<$game_logic>) -> Option<Self> {
+            fn step(&self, engine: &$crate::prelude::GameEngine<$game_logic>, next_self: &mut Self) {
                 match self {
                     $(
-                        $name::$variant_name(entity) => entity.step(engine).map(|out| $name::$variant_name(out)),
+                        $name::$variant_name(entity) => entity.step(engine, match *next_self {
+                            $name::$variant_name(ref mut next_self) => next_self,
+                            _ => panic!("received a mismatched next_self in engine entity wrapper step"),
+                        }),
                     )*
                 }
             }

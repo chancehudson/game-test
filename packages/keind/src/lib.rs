@@ -15,18 +15,6 @@ pub use std::rc::Rc as RefPointer;
 #[cfg(not(feature = "zk"))]
 pub use std::sync::Arc as RefPointer;
 
-/// A helper trait for polymorphism in the keind game engine.
-pub trait KPoly {
-    /// Retrieve a runtime TypeId for an instance.
-    fn type_id(&self) -> std::any::TypeId;
-
-    fn as_any(&self) -> &dyn std::any::Any;
-
-    fn get_ref<T: 'static>(&self) -> Option<&T>;
-
-    fn get_mut<T: 'static>(&mut self) -> Option<&mut T>;
-}
-
 use serde::Deserialize;
 use serde::Serialize;
 

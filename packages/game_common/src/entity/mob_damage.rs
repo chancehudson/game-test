@@ -39,7 +39,7 @@ impl MobDamageEntity {
 }
 
 impl SEEntity<KeindGameLogic> for MobDamageEntity {
-    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
+    fn prestep(&self, engine: &GameEngine<KeindGameLogic>) -> bool {
         assert!(self.has_system::<AttachSystem>());
         if self.has_despawned || self.contacted_mob_id.is_some() {
             // despawn the mob damage entity
@@ -47,9 +47,13 @@ impl SEEntity<KeindGameLogic> for MobDamageEntity {
                 .entity_by_id_untyped(&self.id(), None)
                 .expect("mob_damage entity did not exist");
             engine.remove_entity(entity.id());
-            return None;
+            false
+        } else {
+            true
         }
-        let mut next_self = self.clone();
+    }
+
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         if let Some(attached_entity) = engine.entity_by_id_untyped(&self.attached_to, None) {
             next_self.state.player_creator_id = attached_entity.player_creator_id();
             next_self.state.size = attached_entity.size();
@@ -71,6 +75,5 @@ impl SEEntity<KeindGameLogic> for MobDamageEntity {
         } else {
             next_self.has_despawned = true;
         }
-        Some(next_self)
     }
 }

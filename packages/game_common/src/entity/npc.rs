@@ -33,11 +33,11 @@ impl NpcEntity {
 }
 
 impl SEEntity<KeindGameLogic> for NpcEntity {
-    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
-        if self.data.announcements.is_empty() {
-            return None;
-        }
-        let mut next_self = self.clone();
+    fn prestep(&self, _engine: &GameEngine<KeindGameLogic>) -> bool {
+        !self.data.announcements.is_empty()
+    }
+
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         let step_index = engine.step_index();
         let mut rng = self.rng(step_index);
         if &(self.last_message_step + 360) <= step_index && rng.random_bool(0.001) {
@@ -48,6 +48,5 @@ impl SEEntity<KeindGameLogic> for NpcEntity {
             ));
             next_self.last_message_step = *step_index;
         }
-        Some(next_self)
     }
 }

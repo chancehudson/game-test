@@ -1,6 +1,9 @@
 pub use std::any::Any;
 pub use std::any::TypeId;
 
+#[cfg(not(feature = "zk"))]
+pub use keind::prelude::timestamp;
+
 pub use crate::STEP_DELAY;
 pub use crate::STEPS_PER_SECOND;
 pub use crate::network::*;
@@ -17,11 +20,8 @@ pub use crate::deserialize_vec2;
 // Engine
 pub use crate::engine::actor;
 pub use crate::engine::damage_calc;
-// pub use crate::engine::rewindable::timestamp;
-// pub use crate::engine::simple::SimpleGameEngine;
 
 // Entities
-
 pub use crate::entity::emoji::EmojiEntity;
 pub use crate::entity::item::ItemEntity;
 pub use crate::entity::message::MessageEntity;

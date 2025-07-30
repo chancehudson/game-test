@@ -9,7 +9,6 @@ edition = "2024"
 [dependencies]
 bevy_math = { workspace = true }
 
-game_common = { path = "../game_common", features = ["zk"], default-features = false }
 zk-risczero-methods = { path = "methods" }
 
 risc0-zkvm = "2.3.1"

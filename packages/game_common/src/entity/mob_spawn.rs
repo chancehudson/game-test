@@ -34,7 +34,11 @@ impl MobSpawnEntity {
 }
 
 impl SEEntity<KeindGameLogic> for MobSpawnEntity {
-    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
+    fn prestep(&self, _engine: &GameEngine<KeindGameLogic>) -> bool {
+        true
+    }
+
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         let step_index = engine.step_index();
         let mut next_self = self.clone();
         let current_spawn_count = self.owned_mob_ids.len();
@@ -45,10 +49,10 @@ impl SEEntity<KeindGameLogic> for MobSpawnEntity {
         }
 
         if current_spawn_count >= self.spawn_data.max_count {
-            return None;
+            return;
         }
         if step_index - self.last_spawn_step < 10 {
-            return None;
+            return;
         }
         let mut rng = self.rng(&step_index);
         let max_spawn_count = self.spawn_data.max_count - current_spawn_count;
@@ -70,6 +74,5 @@ impl SEEntity<KeindGameLogic> for MobSpawnEntity {
             engine.spawn_entity(RefPointer::new(EngineEntity::from(mob_entity)));
         }
         next_self.last_spawn_step = *step_index;
-        Some(next_self)
     }
 }

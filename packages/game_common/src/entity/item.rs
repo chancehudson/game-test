@@ -45,9 +45,12 @@ impl ItemEntity {
 }
 
 impl SEEntity<KeindGameLogic> for ItemEntity {
-    fn step(&self, engine: &GameEngine<KeindGameLogic>) -> Option<Self> {
+    fn prestep(&self, _engine: &GameEngine<KeindGameLogic>) -> bool {
         assert!(self.has_system::<DisappearSystem>());
-        let mut next_self = self.clone();
+        true
+    }
+
+    fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         let step_index = engine.step_index();
         let self_rect = self.rect();
         if self.velocity().y <= 0 && actor::on_platform(self_rect, engine) {
@@ -77,6 +80,5 @@ impl SEEntity<KeindGameLogic> for ItemEntity {
             );
             next_self.state.position.y = y_pos;
         }
-        Some(next_self)
     }
 }

@@ -7,7 +7,7 @@ edition = "2024"
 
 [features]
 default = ["web-time"]
-zk = []
+zk = ["keind/zk"]
 
 [build-dependencies]
 anyhow = { workspace = true }
