@@ -153,7 +153,7 @@ fn input_system(
     // request engine reload if p key is pressed
     if keyboard.just_pressed(KeyCode::KeyP) {
         action_events.write(NetworkAction(Action::RequestEngineReload(
-            engine.id,
+            *engine.id(),
             engine.step_index,
         )));
         return;
@@ -201,11 +201,12 @@ fn input_system(
         // register here, will get confirmation with an id change?
         // for now, no
         engine.register_event(None, input_event.clone());
+        println!("input at step {}", engine.step_index + 1);
         // send the new input to the server
         action_events.write(NetworkAction(Action::RemoteEngineEvent(
-            engine.id,
+            *engine.id(),
             input_event,
-            engine.step_index + 1,
+            engine.step_index,
         )));
     }
 }

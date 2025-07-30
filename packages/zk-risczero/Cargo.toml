@@ -7,8 +7,6 @@ edition = "2024"
 [features]
 
 [dependencies]
-bevy_math = { workspace = true }
-
 zk-risczero-methods = { path = "methods" }
 
 risc0-zkvm = "2.3.1"

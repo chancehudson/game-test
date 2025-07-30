@@ -102,9 +102,6 @@ impl GameLogic for KeindGameLogic {
                     engine.remove_entity(*entity_id);
                 }
                 GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {
-                    // here we'll apply the change to our player entity ASAP
-                    // the server will write state to the database at a lagged
-                    // rate to account for user input delay
                     if let Some(player_entity) =
                         engine.entity_by_id::<PlayerEntity>(&player_entity_id, None)
                     {
