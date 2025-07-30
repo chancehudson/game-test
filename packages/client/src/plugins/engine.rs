@@ -122,9 +122,9 @@ fn step_game_engine(
             &engine.step_to(&(engine.step_index() + (steps / 2)))
         } else if steps >= 10 {
             // execute a double step
-            &vec![engine.step().clone(), engine.step().clone()].concat()
+            &vec![engine.step(), engine.step()].concat()
         } else {
-            engine.step()
+            &engine.step()
         }
     } else {
         println!("skipped step");
@@ -132,7 +132,7 @@ fn step_game_engine(
         // local engine is ahead of server, skip a step
     };
     for event in game_events {
-        match event {
+        match &**event {
             GameEvent::Message(_, _) => {
                 // spawn a message in bevy
             }

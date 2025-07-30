@@ -81,11 +81,11 @@ impl MapInstance {
                 .entity_by_id_untyped(&player_engine.entity_id, None)
                 .cloned()
             {
-                let new_entity_id = self.engine.generate_id();
+                // let new_entity_id = self.engine.generate_id();
                 let event = EngineEvent::SpawnEntity {
                     entity: RefPointer::new(
                         ItemEntity::new_item(
-                            new_entity_id,
+                            rand::random(),
                             entity.center(),
                             item.0,
                             item.1,
@@ -98,9 +98,8 @@ impl MapInstance {
                 };
                 self.pending_events
                     .0
-                    .send((self.engine.step_index, event.clone()))?;
-                self.engine
-                    .register_event(Some(self.engine.step_index), event);
+                    .send((self.engine.step_index + 1, event.clone()))?;
+                self.engine.register_event(None, event);
             }
         }
         Ok(())
@@ -137,7 +136,7 @@ impl MapInstance {
             self.engine.register_event(None, remove.clone());
             self.pending_events
                 .0
-                .send((self.engine.step_index, remove))?;
+                .send((self.engine.step_index + 1, remove))?;
         }
         let add_event = EngineEvent::SpawnEntity {
             entity: RefPointer::new(entity),
@@ -146,7 +145,7 @@ impl MapInstance {
         self.engine.register_event(None, add_event.clone());
         self.pending_events
             .0
-            .send((self.engine.step_index, add_event))?;
+            .send((self.engine.step_index + 1, add_event))?;
         Ok(())
     }
 
@@ -159,7 +158,7 @@ impl MapInstance {
             self.engine.register_event(None, event.clone());
             self.pending_events
                 .0
-                .send((self.engine.step_index, event))?;
+                .send((self.engine.step_index + 1, event))?;
         } else {
             println!(
                 "WARNING: attempted to remove {player_id} from {} instance",
@@ -205,10 +204,11 @@ impl MapInstance {
         if let Some(player) = self.player_engines.get_mut(player_id) {
             // check that we're syncing with the correct engine
             if &player.engine_id != engine_id {
-                anyhow::bail!("event from incorrect engine_id for player");
+                // we discard without erroring
+                return Ok(None);
             }
             // Structure for validity checks
-            match event {
+            match &*event {
                 EngineEvent::Input {
                     is_non_determinism: _,
                     input: _,
@@ -221,15 +221,7 @@ impl MapInstance {
                     player.last_input_step_index = *step_index;
                     return Ok(Some((*step_index, event.clone())));
                 }
-                EngineEvent::SpawnEntity {
-                    entity: _,
-                    is_non_determinism: _,
-                } => {}
-                EngineEvent::RemoveEntity {
-                    entity_id: _,
-                    is_non_determinism: _,
-                } => {}
-                EngineEvent::RequestCopy { .. } => {}
+                _ => {} // disallow all others
             }
         } else {
             anyhow::bail!("unknown player id, discarding game event");
@@ -284,12 +276,12 @@ impl MapInstance {
         self.latest_processed_game_events = latest_step;
         for game_event in game_events {
             // handle game events that occurred during a step
-            match game_event {
+            match &*game_event {
                 GameEvent::Message(_, _) => {}
                 GameEvent::PlayerPickUpRequest(_) => {}
                 GameEvent::PlayerPickUp(player_id, item_type, count) => {
                     let mut inventory = PlayerInventory::new(player_id.to_string());
-                    match inventory.player_picked_up(self.db.clone(), item_type, count)? {
+                    match inventory.player_picked_up(self.db.clone(), *item_type, *count)? {
                         Some((slot_index, new_record)) => {
                             self.network_server
                                 .send_to_player(
@@ -311,31 +303,11 @@ impl MapInstance {
                     requested_spawn_pos: _,
                 } => {
                     // we'll send this up to game.rs
-                    self.game_events.send(game_event).unwrap();
+                    self.game_events.send((*game_event).clone()).unwrap();
                 }
-                GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {
-                    // if let Some(player_entity) = self
-                    //     .engine
-                    //     .entity_by_id_mut::<PlayerEntity>(&player_entity_id)
-                    // {
-                    //     // we don't want to modify the entities here, this is purely synchronizing the server
-                    //     // and db with the engine
-                    //     player_entity.stats.clone().increment_db(
-                    //         &self.db,
-                    //         &AbilityExpRecord {
-                    //             player_id: player_entity.player_id.clone(),
-                    //             amount,
-                    //             ability,
-                    //         },
-                    //     )?;
-                    // } else {
-                    //     println!(
-                    //         "WARNING: player entity does not exist in engine, xp not persisted to db!"
-                    //     );
-                    // }
-                }
+                GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {}
                 GameEvent::PlayerHealth(player_id, new_health) => {
-                    PlayerRecord::set_health(&self.db, &player_id, new_health)?;
+                    PlayerRecord::set_health(&self.db, &player_id, *new_health)?;
                 }
             }
         }
@@ -370,7 +342,7 @@ impl MapInstance {
                 self.engine.register_event(None, removal_event.clone());
                 self.pending_events
                     .0
-                    .send((self.engine.step_index, removal_event))?;
+                    .send((self.engine.step_index + 1, removal_event))?;
                 ids_to_remove.push(id.clone());
                 continue;
             }
@@ -450,7 +422,7 @@ impl MapInstance {
             self.player_engines.remove(&player_id);
             self.pending_events
                 .0
-                .send((self.engine.step_index, e.clone()))?;
+                .send((self.engine.step_index + 1, e.clone()))?;
             self.engine.register_event(None, e);
         }
 

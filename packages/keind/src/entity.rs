@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::any::TypeId;
 use std::fmt::Debug;
 
 use bevy_math::IRect;
@@ -32,7 +31,7 @@ pub trait SEEntity<G: GameLogic + 'static>: EEntity<G> {
     /// Returning false means `step` will not be called on the
     /// entity (though it may be called on attached systems).
     fn prestep(&self, _engine: &GameEngine<G>) -> bool {
-        false
+        true
     }
 
     /// Mutate the next version of the entity.
@@ -147,6 +146,14 @@ macro_rules! engine_entity_enum {
 
             fn extract_ref<T: 'static>(&self) -> Option<&T> {
                 self.as_any().downcast_ref::<T>()
+            }
+
+            fn extract_mut<T: 'static>(&mut self) -> Option<&mut T> {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => (entity as &mut dyn Any).downcast_mut::<T>(),
+                    )*
+                }
             }
         }
 
@@ -303,7 +310,7 @@ macro_rules! entity_struct {
                     if let Some(next_system) = system.step(engine, &mut *next_self) {
                         next_systems.push($crate::RefPointer::from(next_system));
                     } else {
-                        next_systems.push(system.clone());
+                        // No new value was returned, the system is removed
                     }
                 }
                 // if we did a clone, insert next_systems into clone
