@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use bevy_math::IVec2;
 
-use db::AbilityExpRecord;
 use db::PlayerInventory;
 use db::PlayerRecord;
 use db::PlayerStats;
@@ -81,7 +80,6 @@ impl MapInstance {
                 .entity_by_id_untyped(&player_engine.entity_id, None)
                 .cloned()
             {
-                // let new_entity_id = self.engine.generate_id();
                 let event = EngineEvent::SpawnEntity {
                     entity: RefPointer::new(
                         ItemEntity::new_item(
@@ -98,7 +96,7 @@ impl MapInstance {
                 };
                 self.pending_events
                     .0
-                    .send((self.engine.step_index + 1, event.clone()))?;
+                    .send((self.engine.step_index, event.clone()))?;
                 self.engine.register_event(None, event);
             }
         }
@@ -113,11 +111,8 @@ impl MapInstance {
         player_stats: &PlayerStats,
         requested_spawn_pos: Option<IVec2>,
     ) -> anyhow::Result<()> {
-        let entity = EngineEntity::Player(PlayerEntity::new_with_ids(
-            rand::random(),
-            player_record.clone(),
-            player_stats.clone(),
-        ));
+        let entity =
+            PlayerEntity::new_with_ids(rand::random(), player_record.clone(), player_stats.clone());
         let player = RemotePlayerEngine {
             socket_id,
             engine_id: rand::random(),
@@ -136,16 +131,16 @@ impl MapInstance {
             self.engine.register_event(None, remove.clone());
             self.pending_events
                 .0
-                .send((self.engine.step_index + 1, remove))?;
+                .send((self.engine.step_index, remove))?;
         }
         let add_event = EngineEvent::SpawnEntity {
-            entity: RefPointer::new(entity),
+            entity: RefPointer::new(entity.into()),
             is_non_determinism: true,
         };
         self.engine.register_event(None, add_event.clone());
         self.pending_events
             .0
-            .send((self.engine.step_index + 1, add_event))?;
+            .send((self.engine.step_index, add_event))?;
         Ok(())
     }
 
@@ -158,7 +153,7 @@ impl MapInstance {
             self.engine.register_event(None, event.clone());
             self.pending_events
                 .0
-                .send((self.engine.step_index + 1, event))?;
+                .send((self.engine.step_index, event))?;
         } else {
             println!(
                 "WARNING: attempted to remove {player_id} from {} instance",
@@ -208,12 +203,8 @@ impl MapInstance {
                 return Ok(None);
             }
             // Structure for validity checks
-            match &*event {
-                EngineEvent::Input {
-                    is_non_determinism: _,
-                    input: _,
-                    entity_id,
-                } => {
+            match event {
+                EngineEvent::Input { entity_id, .. } => {
                     if entity_id != &player.entity_id {
                         anyhow::bail!("player tried to input for wrong entity");
                     }
@@ -342,7 +333,7 @@ impl MapInstance {
                 self.engine.register_event(None, removal_event.clone());
                 self.pending_events
                     .0
-                    .send((self.engine.step_index + 1, removal_event))?;
+                    .send((self.engine.step_index, removal_event))?;
                 ids_to_remove.push(id.clone());
                 continue;
             }
@@ -422,7 +413,7 @@ impl MapInstance {
             self.player_engines.remove(&player_id);
             self.pending_events
                 .0
-                .send((self.engine.step_index + 1, e.clone()))?;
+                .send((self.engine.step_index, e.clone()))?;
             self.engine.register_event(None, e);
         }
 
@@ -447,7 +438,7 @@ impl MapInstance {
         client_engine.id = rand::random();
 
         player.is_inited = true;
-        player.engine_id = client_engine.id;
+        player.engine_id = *client_engine.id();
 
         let response = Response::EngineState(
             client_engine,

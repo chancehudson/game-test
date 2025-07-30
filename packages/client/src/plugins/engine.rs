@@ -188,7 +188,7 @@ fn handle_engine_event(
         match &event.0 {
             Response::RemoteEngineEvents(engine_id, events, server_step_index) => {
                 let engine = &mut active_engine_state.0;
-                if engine.id != *engine_id || events.is_empty() {
+                if engine.id() != engine_id || events.is_empty() {
                     continue;
                 }
                 let player_entity_id = active_player_entity_id.0.unwrap_or_default();
@@ -228,10 +228,11 @@ fn handle_engine_stats(
             entities_maybe,
         ) = &event.0
         {
-            if engine_id != &active_engine_state.0.id {
+            if engine_id != active_engine_state.0.id() {
                 println!(
                     "WARNING: received engine stats for inactive engine, discarding  server: {} local: {}",
-                    engine_id, active_engine_state.0.id
+                    engine_id,
+                    active_engine_state.0.id()
                 );
                 return;
             }
@@ -247,7 +248,7 @@ fn handle_engine_stats(
                             active_engine_state.0.entities_at_step(*hash_step_index)
                         );
                         action_events_writer.write(NetworkAction(Action::RequestEngineReload(
-                            engine.id,
+                            *engine.id(),
                             *hash_step_index,
                         )));
                         engine_sync.requested_resync = true;
@@ -295,7 +296,7 @@ fn handle_engine_state(
             if server_step > &engine.step_index {
                 engine.step_to(&server_step);
             }
-            println!("INFO: Received engine with id: {}", engine.id);
+            println!("INFO: Received engine with id: {}", engine.id());
             // TODO: figure out how to get rid of this clone
             next_state.set(GameState::LoadingMap);
         }

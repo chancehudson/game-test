@@ -18,9 +18,6 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use bevy_math::IVec2;
-use rand::Rng;
-use rand::SeedableRng;
-use rand_xoshiro::Xoroshiro64StarStar;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -40,7 +37,6 @@ pub fn timestamp() -> f64 {
 #[serde(bound(deserialize = "G: for<'dee> serde::Deserialize<'dee>"))]
 pub struct GameEngine<G: GameLogic> {
     pub id: u128,
-    pub seed: u64,
 
     pub size: IVec2,
 
@@ -70,9 +66,6 @@ pub struct GameEngine<G: GameLogic> {
     ),
 
     /// Designed to be distinct for each step. e.g. we don't have to store
-    /// rng state (aside from seed) when rolling back.
-    #[serde(skip, default = "default_rng")]
-    rng_state: (u64, Xoroshiro64StarStar),
     #[cfg(not(feature = "zk"))]
     start_timestamp: f64,
     #[cfg(not(feature = "zk"))]
@@ -96,20 +89,14 @@ fn default_trailing_state_len() -> u64 {
     360
 }
 
-fn default_rng() -> (u64, Xoroshiro64StarStar) {
-    (u64::MAX, Xoroshiro64StarStar::seed_from_u64(0))
-}
-
 impl<G: GameLogic> Default for GameEngine<G> {
     fn default() -> Self {
-        let seed = 1;
         let mut inputs_by_step = BTreeMap::default();
         inputs_by_step.insert(0, HashMap::default());
         let mut entities_by_step = BTreeMap::default();
         entities_by_step.insert(0, BTreeMap::default());
-        let mut out = Self {
-            id: 0,
-            seed,
+        Self {
+            id: rand::random(),
             size: IVec2::new(1000, 1000),
             step_index: 0,
             entities: BTreeMap::default(),
@@ -122,42 +109,18 @@ impl<G: GameLogic> Default for GameEngine<G> {
             engine_events_by_step: BTreeMap::default(),
             game_events: flume::unbounded(),
             engine_events: flume::unbounded(),
-            rng_state: (0, Xoroshiro64StarStar::seed_from_u64(seed)),
             #[cfg(not(feature = "zk"))]
             start_timestamp: timestamp(),
             #[cfg(not(feature = "zk"))]
             step_len: 1.0 / 60.0,
             trailing_state_len: default_trailing_state_len(),
-        };
-        out.id = out.generate_id();
-        out
+        }
     }
 }
 
 impl<G: GameLogic> GameEngine<G> {
     pub fn id(&self) -> &u128 {
         &self.id
-    }
-
-    pub fn seed(&self) -> &u64 {
-        &self.seed
-    }
-
-    pub fn generate_id(&mut self) -> u128 {
-        loop {
-            let id = self.rng().random::<u128>();
-            if !self.entities.contains_key(&id) {
-                return id;
-            }
-        }
-    }
-
-    pub fn rng(&mut self) -> &mut Xoroshiro64StarStar {
-        if self.rng_state.0 != self.step_index {
-            self.rng_state.1 = Xoroshiro64StarStar::seed_from_u64(self.seed + self.step_index);
-            self.rng_state.0 = self.step_index;
-        }
-        &mut self.rng_state.1
     }
 
     pub fn size(&self) -> &IVec2 {
@@ -170,7 +133,7 @@ impl<G: GameLogic> GameEngine<G> {
 
     pub fn spawn_entity(&self, entity: RefPointer<G::Entity>) {
         self.register_event(
-            Some(self.step_index + 1),
+            Some(self.step_index),
             EngineEvent::SpawnEntity {
                 entity,
                 is_non_determinism: false,
@@ -180,7 +143,7 @@ impl<G: GameLogic> GameEngine<G> {
 
     pub fn remove_entity(&self, entity_id: u128) {
         self.register_event(
-            Some(self.step_index + 1),
+            Some(self.step_index),
             EngineEvent::RemoveEntity {
                 entity_id,
                 is_non_determinism: false,
@@ -190,7 +153,7 @@ impl<G: GameLogic> GameEngine<G> {
 
     pub fn spawn_system(&self, entity_id: u128, system_ptr: RefPointer<G::System>) {
         self.register_event(
-            Some(self.step_index + 1),
+            Some(self.step_index),
             EngineEvent::SpawnSystem {
                 entity_id,
                 system_ptr,
@@ -201,7 +164,7 @@ impl<G: GameLogic> GameEngine<G> {
 
     pub fn remove_system(&self, entity_id: u128, system_ptr: RefPointer<G::System>) {
         self.register_event(
-            Some(self.step_index + 1),
+            Some(self.step_index),
             EngineEvent::RemoveSystem {
                 entity_id,
                 system_ptr,
@@ -211,8 +174,7 @@ impl<G: GameLogic> GameEngine<G> {
     }
 
     pub fn register_event(&self, step_index: Option<u64>, event: EngineEvent<G>) {
-        let step_index = step_index.unwrap_or(self.step_index + 1);
-        assert_ne!(step_index, self.step_index);
+        let step_index = step_index.unwrap_or(self.step_index);
         self.engine_events.0.send((step_index, event)).unwrap();
     }
 
@@ -252,11 +214,37 @@ impl<G: GameLogic> GameEngine<G> {
 
     /// A step is considered complete at the _end_ of this function
     pub fn step(&mut self) -> Vec<RefPointer<G::Event>> {
-        // disallow same step event registration
-        self.step_index += 1;
+        // Execute the modification phase of the step
+        // When an entity is stepped we get a mutable next version
+        // as a clone of the current version, then apply all
+        // systems. Once this is complete it is put in a RefPointer
+        // and stored.
+        let mut next_entities = BTreeMap::default();
+        for (id, entity) in &self.entities {
+            let mut next_self_maybe = None;
+            if entity.prestep(self) {
+                let mut next_self = (**entity).clone();
+                entity.step(self, &mut next_self);
+                next_self_maybe = Some(next_self);
+            }
+            entity.step_systems(self, &mut next_self_maybe);
+            // insert the next_self, if it exists
+            // otherwise copy the existingRefPointer
+            let next_self_ptr = if let Some(next_self) = next_self_maybe {
+                RefPointer::from(next_self)
+            } else {
+                entity.clone()
+            };
+            if next_entities.insert(*id, next_self_ptr).is_some() {
+                println!("WARNING: stepped an entity that was not previously present!");
+            }
+        }
 
-        let mut mutated_entities = HashMap::new();
-        // collect engine events in the channel
+        self.entities = next_entities;
+
+        // our entities are stepped, now we have discrete
+        // engine events to apply to self.entities
+
         for (step_index, event) in self.engine_events.1.drain() {
             assert!(
                 step_index >= self.step_index,
@@ -267,6 +255,8 @@ impl<G: GameLogic> GameEngine<G> {
                 .or_default()
                 .push(event);
         }
+
+        // iterate over all events for the current step
         for event in self
             .engine_events_by_step
             .entry(self.step_index)
@@ -302,11 +292,14 @@ impl<G: GameLogic> GameEngine<G> {
                     system_ptr,
                     ..
                 } => {
-                    if let Some(entity) = self.entities.get(entity_id) {
-                        let next_entity = mutated_entities
-                            .entry(*entity_id)
-                            .or_insert((**entity).clone());
-                        next_entity.systems_mut().push(system_ptr.clone());
+                    if let Some(entity_ptr) = self.entities.get(entity_id) {
+                        let mut entity = (**entity_ptr).clone();
+                        entity.systems_mut().push(system_ptr.clone());
+                        assert!(
+                            self.entities
+                                .insert(entity.id(), RefPointer::new(entity))
+                                .is_some()
+                        );
                     } else {
                         println!("WARNING: attempting to spawn system for non-existent entity");
                     }
@@ -316,13 +309,16 @@ impl<G: GameLogic> GameEngine<G> {
                     system_ptr,
                     ..
                 } => {
-                    if let Some(entity) = self.entities.get(entity_id) {
-                        let next_entity = mutated_entities
-                            .entry(*entity_id)
-                            .or_insert((**entity).clone());
-                        next_entity
+                    if let Some(entity_ptr) = self.entities.get(entity_id) {
+                        let mut entity = (**entity_ptr).clone();
+                        entity
                             .systems_mut()
-                            .retain(|ptr| !RefPointer::ptr_eq(ptr, system_ptr));
+                            .retain(|ptr| !RefPointer::ptr_eq(ptr, &system_ptr));
+                        assert!(
+                            self.entities
+                                .insert(entity.id(), RefPointer::new(entity))
+                                .is_some()
+                        );
                     } else {
                         println!("WARNING: attempting to remove system for non-existent entity");
                     }
@@ -330,38 +326,18 @@ impl<G: GameLogic> GameEngine<G> {
             }
         }
 
-        // Execute the modification phase of the step
-        // When an entity is stepped we get a mutable next version
-        // as a clone of the current version, then apply all
-        // systems. Once this is complete it is put in a RefPointer
-        // and stored.
-        let mut next_entities = BTreeMap::default();
-        for (id, entity) in &self.entities {
-            let mut next_self_maybe = mutated_entities.remove(&id);
-            if entity.prestep(self) {
-                let mut next_self = next_self_maybe.unwrap_or_else(|| (**entity).clone());
-                entity.step(self, &mut next_self);
-                next_self_maybe = Some(next_self);
-            }
-            entity.step_systems(self, &mut next_self_maybe);
-            // insert the next_self, if it exists
-            // otherwise copy the existingRefPointer
-            let next_self_ptr = if let Some(next_self) = next_self_maybe {
-                RefPointer::from(next_self)
-            } else {
-                entity.clone()
-            };
-            if next_entities.insert(*id, next_self_ptr).is_some() {
-                println!("WARNING: stepped an entity that was not previously present!");
-            }
-        }
-        if !mutated_entities.is_empty() {
-            println!("WARNING: unused mutated entities");
-        }
-        self.entities = next_entities;
+        // record step change
+        // this changes the behavior of e.g. `GameEngine<G>::entity_by_id`
+        self.step_index += 1;
 
-        // Game logic gets the latest stepped entities
-        // Game logic schedules events for next step
+        // record state for rewind
+        if self.trailing_state_len != 0 {
+            self.entities_by_step
+                .insert(self.step_index, self.entities.clone());
+            self.inputs_by_step
+                .insert(self.step_index, self.inputs.clone());
+        }
+
         let game_events = self
             .game_events
             .1
@@ -369,19 +345,14 @@ impl<G: GameLogic> GameEngine<G> {
             .map(|event| RefPointer::from(event))
             .collect::<Vec<_>>();
 
+        // step 0 cannot have game events, because no entities or
+        // systems can be spawned in time to dispatch game events
         self.game_events_by_step
             .insert(self.step_index, game_events.clone());
 
-        // Allow game logic to schedule events same step, except for RequestCopy
-        // events, those will be scheduled next step.
+        // Game logic is the first invocation in a step. It's synchronous
+        // with the step change (~15 lines above here)
         G::handle_game_events(self, &game_events.clone());
-
-        if self.trailing_state_len != 0 {
-            self.entities_by_step
-                .insert(self.step_index, self.entities.clone());
-            self.inputs_by_step
-                .insert(self.step_index, self.inputs.clone());
-        }
 
         // Do some engine housekeeping
         if self.trailing_state_len != 0 && self.step_index >= self.trailing_state_len {
@@ -393,34 +364,29 @@ impl<G: GameLogic> GameEngine<G> {
             self.inputs_by_step.remove(&step_to_remove);
         }
 
+        // for exfil
         game_events
     }
 
-    pub fn new(size: IVec2, seed: u64) -> Self {
-        let mut out = Self {
+    pub fn new(size: IVec2, id: u128) -> Self {
+        Self {
+            id,
             size,
-            rng_state: (0, Xoroshiro64StarStar::seed_from_u64(seed)),
-            seed,
             #[cfg(not(feature = "zk"))]
             start_timestamp: timestamp(),
             ..Default::default()
-        };
-        out.id = out.generate_id();
-        out
+        }
     }
 
-    pub fn new_simple(size: IVec2, seed: u64) -> Self {
-        let mut out = Self {
+    pub fn new_simple(size: IVec2, id: u128) -> Self {
+        Self {
+            id,
             size,
-            rng_state: (0, Xoroshiro64StarStar::seed_from_u64(seed)),
-            seed,
             #[cfg(not(feature = "zk"))]
             start_timestamp: timestamp(),
             trailing_state_len: 0,
             ..Default::default()
-        };
-        out.id = out.generate_id();
-        out
+        }
     }
 
     pub fn step_hash(&self, step_index: &u64) -> anyhow::Result<blake3::Hash> {
@@ -468,7 +434,7 @@ impl<G: GameLogic> GameEngine<G> {
             // get all future events that areis_non_determinism
             out.engine_events_by_step = self
                 .engine_events_by_step
-                .range((*target_step_index + 1)..)
+                .range(target_step_index..)
                 .map(|(k, v)| {
                     (
                         *k,
@@ -483,7 +449,7 @@ impl<G: GameLogic> GameEngine<G> {
             if rewindable {
                 out.engine_events_by_step.extend(
                     self.engine_events_by_step
-                        .range(..=target_step_index)
+                        .range(..target_step_index)
                         .into_iter()
                         .map(|(k, v)| (*k, v.clone())),
                 );
@@ -505,7 +471,6 @@ impl<G: GameLogic> GameEngine<G> {
             }
             out.id = self.id;
             out.size = self.size.clone();
-            out.seed = self.seed;
             out.entities = entities.clone();
             out.inputs = inputs.clone();
 
@@ -527,10 +492,11 @@ impl<G: GameLogic> GameEngine<G> {
             return;
         }
         // go to the step before the first event
-        let from_step_index = *events.first_key_value().unwrap().0 - 1;
+        let from_step_index = *events.first_key_value().unwrap().0;
         if from_step_index >= self.step_index {
             for (step_index, events) in events {
                 for event in events {
+                    println!("integrating event at step {step_index}");
                     self.register_event(Some(step_index), event);
                 }
             }
@@ -602,8 +568,7 @@ impl<G: GameLogic> GameEngine<G> {
         assert!(to_step > self.step_index());
         let mut all_events = Vec::new();
         for _ in 0..(to_step - self.step_index()) {
-            let mut events = self.step().clone();
-            G::handle_game_events(self, &events);
+            let mut events = self.step();
             all_events.append(&mut events);
         }
         all_events

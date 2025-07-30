@@ -44,6 +44,12 @@ impl DropTableData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PortalData {
+    pub position: IVec2,
+    pub to: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MapNpcData {
     pub npc_id: u64,
     pub position: IVec2,
@@ -60,7 +66,7 @@ pub struct MapData {
     pub background: String,
     #[serde(deserialize_with = "deserialize_vec2")]
     pub size: IVec2,
-    pub portals: Vec<PortalEntity>,
+    pub portals: Vec<PortalData>,
     pub npc: Vec<MapNpcData>,
     pub platforms: Vec<Platform>,
     #[serde(default)]
@@ -75,11 +81,9 @@ impl MapData {
     ) -> anyhow::Result<()> {
         // spawn the map components as needed
         for platform in &self.platforms {
-            let id = engine.generate_id();
             let entity = RefPointer::new(
                 PlatformEntity::new(
                     BaseEntityState {
-                        id,
                         position: platform.position.clone(),
                         size: platform.size.clone(),
                         ..Default::default()
@@ -99,12 +103,9 @@ impl MapData {
         // mob spawns
         for spawn in &self.mob_spawns {
             let drop_table = game_data.mob_drop_table(spawn.mob_type)?;
-            let id = engine.generate_id();
-            let entity = RefPointer::new(EngineEntity::from(MobSpawnEntity::new_data(
-                id,
-                spawn.clone(),
-                drop_table,
-            )));
+            let entity = RefPointer::new(
+                MobSpawnEntity::new_data(rand::random(), spawn.clone(), drop_table).into(),
+            );
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {
@@ -114,18 +115,12 @@ impl MapData {
             );
         }
         // portal spawns
-        for portal in &self.portals {
-            let id = engine.generate_id();
-            let mut portal_clone = portal.clone();
-            if portal_clone.state.size.x == 0 {
-                portal_clone.state.size = IVec2::new(60, 60);
-            }
-            portal_clone.state.id = id;
-            portal_clone.from = self.name.clone();
+        for portal_data in &self.portals {
+            let portal = PortalEntity::new_data(rand::random(), self, portal_data);
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {
-                    entity: RefPointer::new(portal_clone.into()),
+                    entity: RefPointer::new(portal.into()),
                     is_non_determinism: true,
                 },
             );
@@ -139,13 +134,11 @@ impl MapData {
                 .clone();
             npc.announcements
                 .append(&mut map_npc_data.announcements.clone());
-            let id = engine.generate_id();
-            let entity =
-                RefPointer::new(NpcEntity::new_data(id, map_npc_data.position, npc).into());
+            let entity = NpcEntity::new_data(rand::random(), map_npc_data.position, npc);
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {
-                    entity,
+                    entity: RefPointer::new(entity.into()),
                     is_non_determinism: true,
                 },
             );
