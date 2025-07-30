@@ -38,7 +38,10 @@ pub use crate::entity::rect::RectEntity;
 pub use crate::entity::text::TextEntity;
 
 // Systems
+pub use crate::system::atomic_move_system::AtomicMoveSystem;
 pub use crate::system::attach::AttachSystem;
 pub use crate::system::disappear::DisappearSystem;
 pub use crate::system::gravity::GravitySystem;
+pub use crate::system::invincible::InvincibleSystem;
 pub use crate::system::player_exp::PlayerExpSystem;
+pub use crate::system::weightless::WeightlessSystem;

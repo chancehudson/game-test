@@ -7,6 +7,8 @@ use db::PlayerRecord;
 use db::PlayerStats;
 
 use crate::prelude::*;
+use crate::system::weightless::WeightlessSystem;
+use keind::prelude::*;
 
 const DAMAGE_IFRAME_STEPS: u64 = 120;
 const KNOCKBACK_STEPS: u64 = 10;
@@ -16,13 +18,11 @@ entity_struct!(
     pub struct PlayerEntity {
         pub player_id: String, // the game id, not entity id
         pub record: PlayerRecord,
-        weightless_until: Option<u64>,
         attacking_until: Option<u64>,
         pub facing_left: bool,
         pub showing_emoji_until: Option<u64>,
         pub stats_ptr: RefPointer<PlayerStats>,
         pub received_damage_this_step: (bool, u64),
-        pub receiving_damage_until: Option<u64>,
         // direction, until
         pub knockback_until: Option<(i32, u64)>,
     }
@@ -41,6 +41,10 @@ impl PlayerEntity {
             player_id: record.id.clone(),
             stats_ptr: RefPointer::from(stats),
             record,
+            systems: vec![
+                RefPointer::new(GravitySystem::default().into()),
+                RefPointer::new(AtomicMoveSystem::default().into()),
+            ],
             ..Default::default()
         }
     }
@@ -57,7 +61,6 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
         let input = engine.input_for_entity(&self.id());
         next_self.received_damage_this_step = (false, 0);
         if self.is_dead() {
-            next_self.receiving_damage_until = None;
             if input.respawn {
                 let new_health = self.stats_ptr.max_health();
                 engine.register_game_event(GameEvent::PlayerHealth(
@@ -73,11 +76,7 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
         let body = self.rect();
         let can_jump = actor::on_platform(body, engine);
 
-        if let Some(receiving_damage_until) = self.receiving_damage_until {
-            if step_index >= &receiving_damage_until {
-                next_self.receiving_damage_until = None;
-            }
-        } else {
+        if !self.has_system::<InvincibleSystem>() {
             for entity in engine.entities_by_type::<MobEntity>() {
                 if !entity.rect().intersect(self.rect()).is_empty() {
                     // receiving damage
@@ -87,8 +86,26 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                         1
                     };
                     next_self.knockback_until = Some((knockback_dir, step_index + KNOCKBACK_STEPS));
-                    next_self.receiving_damage_until = Some(step_index + DAMAGE_IFRAME_STEPS);
-                    next_self.weightless_until = Some(step_index + (KNOCKBACK_STEPS / 2));
+                    next_self.state.velocity.x += knockback_dir * 400;
+                    next_self.state.velocity.y += 100;
+                    engine.spawn_system(
+                        self.id(),
+                        RefPointer::new(
+                            InvincibleSystem {
+                                until_step: Some(step_index + DAMAGE_IFRAME_STEPS),
+                            }
+                            .into(),
+                        ),
+                    );
+                    // engine.spawn_system(
+                    //     self.id(),
+                    //     RefPointer::new(
+                    //         WeightlessSystem {
+                    //             until_step: Some(step_index + 3),
+                    //         }
+                    //         .into(),
+                    //     ),
+                    // );
                     let damage_amount = damage_calc::compute_damage(
                         &Ability::Strength,
                         &PlayerStats::default(),
@@ -158,24 +175,21 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
         }
 
         if let Some((direction, until)) = self.knockback_until {
-            next_self.state.velocity.x += direction * 100;
-            next_self.state.velocity.y = 200;
             if step_index >= &until {
                 next_self.knockback_until = None;
             }
         } else {
             if input.move_left {
-                next_self.state.velocity.x -= 100;
+                next_self.state.velocity.x -= if can_jump { 100 } else { 20 };
                 next_self.facing_left = true;
             }
             if input.move_right {
-                next_self.state.velocity.x += 100;
+                next_self.state.velocity.x += if can_jump { 100 } else { 20 };
                 next_self.facing_left = false;
             }
             if !input.move_left && !input.move_right {
                 // accelerate toward 0.0
-                next_self.state.velocity.x = last_velocity.x.signum()
-                    * (last_velocity.x.abs() - last_velocity.x.abs().min(100));
+                next_self.state.velocity.x -= next_self.state.velocity.x / 4;
             }
         }
         if input.enter_portal {
@@ -195,14 +209,6 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
         if input.pick_up {
             engine.register_game_event(GameEvent::PlayerPickUpRequest(self.id()));
         }
-        if let Some(weightless_until) = self.weightless_until {
-            if step_index >= &weightless_until {
-                next_self.weightless_until = None;
-            }
-            next_self.state.velocity.y += -20;
-        } else {
-            next_self.state.velocity.y += -20;
-        }
         if let Some(attacking_until) = self.attacking_until {
             if step_index >= &attacking_until {
                 next_self.attacking_until = None;
@@ -213,17 +219,26 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
         let jump = input.jump && can_jump && last_velocity.y == 0;
         let jump_down = input.jump_down && can_jump && last_velocity.y == 0;
         if jump {
-            next_self.state.velocity.y = 380;
-            next_self.weightless_until = Some(step_index + 4);
-        } else if can_jump && last_velocity.y <= 0 {
-            next_self.state.velocity.y = 0;
+            next_self.state.velocity.y += 340;
+            engine.spawn_system(
+                self.id(),
+                RefPointer::new(
+                    WeightlessSystem {
+                        until_step: Some(step_index + 2),
+                    }
+                    .into(),
+                ),
+            );
+        }
+        if jump_down {
+            next_self.state.position.y = (next_self.state.position.y - 4).max(0);
         }
         if input.attack && self.attacking_until.is_none() {
             // 15 is the step length of the attack animation
             next_self.attacking_until = Some(step_index + 10);
             let id = rng.random();
             let move_sign = if self.facing_left { -1 } else { 1 };
-            let mut projectile = RectEntity::new(
+            let projectile = RectEntity::new(
                 BaseEntityState {
                     id,
                     position: IVec2::new(
@@ -235,39 +250,21 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                     velocity: IVec2::new(800 * move_sign, 0),
                     ..Default::default()
                 },
-                vec![],
+                vec![
+                    RefPointer::new(
+                        DisappearSystem {
+                            at_step: step_index + 30,
+                        }
+                        .into(),
+                    ),
+                    RefPointer::new(AtomicMoveSystem::default().into()),
+                ],
             );
-            projectile.disappears_at_step_index = Some(step_index + 30);
             let projectile = EngineEntity::from(projectile);
             let damage =
                 MobDamageEntity::new_with_entity(rng.random(), &projectile, Ability::Strength);
             engine.spawn_entity(RefPointer::new(projectile));
             engine.spawn_entity(RefPointer::new(damage.into()));
-        }
-
-        let lower_speed_limit = IVec2::new(-250, -350);
-        let upper_speed_limit = IVec2::new(250, 700);
-        next_self.state.velocity = next_self
-            .velocity()
-            .clamp(lower_speed_limit, upper_speed_limit);
-
-        if jump_down {
-            next_self.state.position.y = (self.position().y - 4).max(0);
-        } else {
-            let x_pos = actor::move_x(
-                self.rect(),
-                next_self.velocity().x / STEPS_PER_SECOND as i32,
-                engine,
-            );
-            let map_size = engine.size().clone();
-            let y_pos = actor::move_y(
-                self.rect(),
-                next_self.velocity().y / STEPS_PER_SECOND as i32,
-                &engine.entities_by_type::<PlatformEntity>(),
-                map_size,
-            );
-            next_self.state.position.x = x_pos;
-            next_self.state.position.y = y_pos;
         }
     }
 }
