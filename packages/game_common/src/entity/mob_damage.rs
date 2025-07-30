@@ -27,10 +27,13 @@ impl MobDamageEntity {
                 player_creator_id: entity.player_creator_id(),
                 ..Default::default()
             },
-            vec![RefPointer::new(EngineEntitySystem::from(AttachSystem {
-                attached_to: entity.id(),
-                offset: IVec2::ZERO,
-            }))],
+            vec![RefPointer::new(
+                AttachSystem {
+                    attached_to: entity.id(),
+                    offset: IVec2::ZERO,
+                }
+                .into(),
+            )],
         );
         out.attached_to = entity.id();
         out.ability = ability;

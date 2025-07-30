@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use game_common::prelude::*;
-use game_common::AnimationData;
+use keind::prelude::*;
 
 use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;
@@ -196,7 +196,7 @@ fn input_system(
         let input_event = EngineEvent::Input {
             input: input.clone(),
             entity_id,
-            universal: true,
+            is_non_determinism: true,
         };
         // register here, will get confirmation with an id change?
         // for now, no

@@ -50,7 +50,7 @@ macro_rules! engine_entity_system_enum {
             )*
         }
 
-        impl $name {
+        impl KPoly for $name {
             /// Retrieve a runtime TypeId for an instance.
             fn type_id(&self) -> std::any::TypeId {
                 match self {
@@ -66,6 +66,10 @@ macro_rules! engine_entity_system_enum {
                         $name::$variant_name(entity) => entity,
                     )*
                 }
+            }
+
+            fn extract_ref<T: 'static>(&self) -> Option<&T> {
+                self.as_any().downcast_ref::<T>()
             }
         }
 

@@ -1,5 +1,5 @@
 use bevy_math::IVec2;
-use keind::GameLogic;
+use keind::prelude::*;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -86,6 +86,14 @@ impl GameLogic for KeindGameLogic {
     type System = EngineEntitySystem;
     type Event = GameEvent;
     type Input = EntityInput;
+
+    fn handle_game_events(_engine: &GameEngine<Self>, game_events: &Vec<Self::Event>) {
+        for event in game_events {
+            match event {
+                _ => {}
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -116,6 +124,7 @@ impl AnimationData {
 // how many steps each client is behind the server
 pub static STEP_DELAY: u64 = 60;
 pub static STEPS_PER_SECOND: u32 = 60;
+pub static STEP_LEN_S: f32 = 1.0 / STEPS_PER_SECOND as f32;
 
 // Custom deserializer for Vec2
 pub fn deserialize_vec2<'de, D>(deserializer: D) -> Result<bevy_math::IVec2, D::Error>

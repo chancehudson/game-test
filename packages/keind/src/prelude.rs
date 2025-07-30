@@ -1,4 +1,5 @@
 pub use crate::GameLogic;
+pub use crate::KPoly;
 pub use crate::RefPointer;
 
 pub use crate::engine::GameEngine;

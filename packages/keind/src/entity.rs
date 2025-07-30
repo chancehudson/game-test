@@ -35,6 +35,7 @@ pub trait SEEntity<G: GameLogic + 'static>: EEntity<G> {
         false
     }
 
+    /// Mutate the next version of the entity.
     fn step(&self, _engine: &GameEngine<G>, _next_self: &mut Self) {}
 }
 
@@ -49,13 +50,7 @@ pub trait EEntity<G: GameLogic + 'static>: Debug + Any + Clone {
     fn systems_by_type<T: EEntitySystem<G> + 'static>(&self) -> Vec<&T> {
         self.systems()
             .iter()
-            .filter_map(|system| {
-                if TypeId::of::<T>() == system.type_id() {
-                    (system as &dyn Any).downcast_ref::<T>()
-                } else {
-                    None
-                }
-            })
+            .filter_map(|system| system.extract_ref::<T>())
             .collect()
     }
 
@@ -132,7 +127,7 @@ macro_rules! engine_entity_enum {
             )*
         }
 
-        impl $name {
+        impl KPoly for $name {
             /// Retrieve a runtime TypeId for an instance.
             fn type_id(&self) -> std::any::TypeId {
                 match self {
@@ -149,6 +144,10 @@ macro_rules! engine_entity_enum {
                     )*
                 }
             }
+
+            fn extract_ref<T: 'static>(&self) -> Option<&T> {
+                self.as_any().downcast_ref::<T>()
+            }
         }
 
         $(
@@ -160,6 +159,14 @@ macro_rules! engine_entity_enum {
         )*
 
         impl $crate::prelude::SEEntity<$game_logic> for $name {
+            fn prestep(&self, engine: &$crate::prelude::GameEngine<$game_logic>) -> bool {
+                match self {
+                    $(
+                        $name::$variant_name(entity) => entity.prestep(engine),
+                    )*
+                }
+            }
+
             fn step(&self, engine: &$crate::prelude::GameEngine<$game_logic>, next_self: &mut Self) {
                 match self {
                     $(
@@ -238,6 +245,7 @@ macro_rules! entity_struct {
         $vis struct $name {
             #[serde(default)]
             pub state: keind::prelude::BaseEntityState,
+            #[serde(default)]
             pub systems: Vec<$crate::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>>,
             $(
                 $(#[$field_attr])*

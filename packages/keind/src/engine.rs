@@ -213,21 +213,15 @@ impl<G: GameLogic> GameEngine<G> {
         step_index: Option<u64>,
     ) -> Option<&T> {
         self.entity_by_id_untyped(id, step_index)
-            .map(|entity| (&*entity as &dyn Any).downcast_ref::<T>())
+            .map(|entity| entity.extract_ref::<T>())
             .flatten()
     }
 
-    pub fn entities_by_type<T: SEEntity<G> + 'static>(&self) -> Vec<&T> {
+    pub fn entities_by_type<T: SEEntity<G> + Send + Sync + 'static>(&self) -> Vec<&T> {
         self.entities
             .iter()
-            .filter_map(|(_id, entity)| {
-                if TypeId::of::<T>() == entity.type_id() {
-                    (&*entity as &dyn Any).downcast_ref::<T>()
-                } else {
-                    None
-                }
-            })
-            .collect()
+            .filter_map(|(_id, entity)| entity.extract_ref::<T>())
+            .collect::<Vec<_>>()
     }
 
     pub fn input_for_entity(&self, id: &u128) -> &G::Input {
@@ -235,7 +229,7 @@ impl<G: GameLogic> GameEngine<G> {
     }
 
     /// A step is considered complete at the _end_ of this function
-    pub fn step(&mut self) -> Vec<G::Event> {
+    pub fn step(&mut self) -> &Vec<G::Event> {
         if self.trailing_state_len != 0 {
             self.entities_by_step
                 .insert(self.step_index, self.entities.clone());
@@ -265,7 +259,8 @@ impl<G: GameLogic> GameEngine<G> {
         // as a clone of the current version, then apply all
         // systems. Once this is complete it is put in a RefPointer
         // and stored.
-        for (id, entity) in mem::take(&mut self.entities) {
+        let mut next_entities = self.entities.clone();
+        for (id, entity) in self.entities.clone() {
             let mut next_self_maybe = mutated_entities.remove(&id);
             if entity.prestep(self) {
                 let mut next_self = next_self_maybe.unwrap_or_else(|| (*entity).clone());
@@ -275,13 +270,14 @@ impl<G: GameLogic> GameEngine<G> {
             entity.step_systems(self, &mut next_self_maybe);
             // insert the next_self, if it exists
             // otherwise copy the existingRefPointer
-            self.entities.insert(
+            next_entities.insert(
                 id,
                 next_self_maybe
                     .map(|entity| RefPointer::from(entity))
                     .unwrap_or(entity),
             );
         }
+        self.entities = next_entities;
 
         // collect engine events in the channel
         for (step_index, event) in self.engine_events.1.drain() {
@@ -367,7 +363,9 @@ impl<G: GameLogic> GameEngine<G> {
         // need to store them like this
         self.game_events_by_step
             .insert(self.step_index, game_events.clone());
+        let game_events = self.game_events_by_step.get(&self.step_index).unwrap();
 
+        G::handle_game_events(self, game_events);
         // Officially move to the next step
         self.step_index += 1;
 
@@ -513,7 +511,7 @@ impl<G: GameLogic> GameEngine<G> {
             // we receive an event from the past, rewind and replay
             if let Ok(mut past_engine) = self.engine_at_step(&from_step_index, true) {
                 past_engine.integrate_events(events);
-                past_engine.step_to(&self.step_index, |_| {});
+                past_engine.step_to(&self.step_index);
 
                 self.game_events_by_step = past_engine.game_events_by_step;
                 self.entities = past_engine.entities;
@@ -556,26 +554,24 @@ impl<G: GameLogic> GameEngine<G> {
 
     /// Automatically step forward in time as much as needed
     #[cfg(not(feature = "zk"))]
-    pub fn tick<F>(&mut self, handle_game_events: F)
-    where
-        F: Fn(Vec<G::Event>),
-    {
+    pub fn tick(&mut self) {
         let expected = self.expected_step_index();
         if expected <= self.step_index {
             println!("noop tick: your tick rate is too high!");
             return;
         }
-        self.step_to(&expected, handle_game_events);
+        self.step_to(&expected);
     }
 
-    pub fn step_to<F>(&mut self, to_step: &u64, handle_game_events: F)
-    where
-        F: Fn(Vec<G::Event>),
-    {
+    pub fn step_to(&mut self, to_step: &u64) -> Vec<G::Event> {
         assert!(to_step > self.step_index());
+        let mut all_events = Vec::new();
         for _ in 0..(to_step - self.step_index()) {
-            handle_game_events(self.step());
+            let mut events = self.step().clone();
+            G::handle_game_events(self, &events);
+            all_events.append(&mut events);
         }
+        all_events
     }
 }
 

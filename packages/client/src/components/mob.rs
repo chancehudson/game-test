@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;
@@ -80,7 +81,7 @@ fn animate_mobs(
         }
         let entity = entity.unwrap();
         let data = game_data.mobs.get(&entity.mob_type).unwrap();
-        if entity.velocity.x.abs() < 1 {
+        if entity.velocity().x.abs() < 1 {
             if sprite.image != mob.standing_texture {
                 sprite.image = mob.standing_texture.clone();
                 sprite.texture_atlas = Some(TextureAtlas {

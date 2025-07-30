@@ -3,6 +3,7 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
 
 use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::GameState;
 use crate::map::MapEntity;
@@ -143,18 +144,18 @@ fn handle_text_input_keyboard(
                 }
                 Key::Enter => {
                     // send
-                    let event = EngineEvent::Message {
-                        text: input.text.clone(),
-                        entity_id,
-                        universal: true,
-                    };
-                    engine.register_event(None, event.clone());
-                    // send the new input to the server
-                    action_events.write(NetworkAction(Action::RemoteEngineEvent(
-                        engine.id,
-                        event,
-                        engine.step_index,
-                    )));
+                    // let event = EngineEvent::Message {
+                    //     text: input.text.clone(),
+                    //     entity_id,
+                    //     universal: true,
+                    // };
+                    // engine.register_event(None, event.clone());
+                    // // send the new input to the server
+                    // action_events.write(NetworkAction(Action::RemoteEngineEvent(
+                    //     engine.id,
+                    //     event,
+                    //     engine.step_index,
+                    // )));
                     commands.entity(entity).despawn();
                 }
                 Key::Escape => {

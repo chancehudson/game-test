@@ -114,22 +114,21 @@ fn step_game_engine(
     let game_data = &game_data.0;
     let engine = &mut active_game_engine.0;
     let target_step = sync_info.server_step
-        + (((timestamp() - sync_info.server_step_timestamp) / STEP_LEN_S).ceil() as u64);
+        + (((timestamp() - sync_info.server_step_timestamp) / STEP_LEN_S as f64).ceil() as u64);
     let game_events = if target_step > engine.step_index {
         let steps = target_step - engine.step_index;
         if steps >= 30 {
             println!("skipping forward {} steps", steps / 2);
-            engine.step_to(&(engine.step_index + (steps / 2)))
+            &engine.step_to(&(engine.step_index() + (steps / 2)))
         } else if steps >= 10 {
-            let mut out = engine.step();
-            out.append(&mut engine.step());
-            out
+            // execute a double step
+            &vec![engine.step().clone(), engine.step().clone()].concat()
         } else {
             engine.step()
         }
     } else {
         println!("skipped step");
-        vec![]
+        &vec![]
         // local engine is ahead of server, skip a step
     };
     for event in game_events {
@@ -145,7 +144,7 @@ fn step_game_engine(
             }
             GameEvent::PlayerAbilityExp(entity_id, ability, amount) => {
                 if let Some(player_entity_id) = active_player_entity_id.0
-                    && player_entity_id == entity_id
+                    && &player_entity_id == entity_id
                 {
                     let ability_str: &'static str = ability.into();
                     info_event_writer
@@ -172,7 +171,7 @@ fn handle_exit_map(
                 commands.entity(entity).despawn();
             }
             active_player_entity_id.0 = None;
-            active_game_engine.0 = RewindableGameEngine::default();
+            active_game_engine.0 = GameEngine::<KeindGameLogic>::default();
             next_state.set(GameState::Waiting);
         }
     }
@@ -198,8 +197,9 @@ fn handle_engine_event(
                 // these are the mobs we were seeing before
                 let last_mobs = engine
                     .entities_by_type::<MobEntity>()
-                    .cloned()
-                    .collect::<Vec<_>>();
+                    .iter()
+                    .map(|v| (*v).clone())
+                    .collect::<Vec<MobEntity>>();
                 engine.integrate_events(events.clone());
                 interpolate_mobs(
                     last_mobs,
@@ -327,11 +327,11 @@ pub fn sync_engine_components(
         .entities_at_step(engine.step_index)
         .iter()
         .filter(|(_id, entity)| {
-            match entity {
+            match entity.as_ref() {
                 EngineEntity::Mob(p) => {
                     if let Some(aggro_to) = p.aggro_to {
                         if aggro_to.0 != player_entity_id {
-                            aggrod_mobs.insert(p.id, true);
+                            aggrod_mobs.insert(p.id(), true);
                             return false;
                         }
                     }
@@ -519,7 +519,7 @@ pub fn spawn_bevy_entity(
                     linebreak: LineBreak::WordOrCharacter,
                 },
                 TextBounds {
-                    width: Some(p.size.x as f32),
+                    width: Some(p.size().x as f32),
                     ..default()
                 },
             ));
@@ -541,13 +541,13 @@ pub fn spawn_bevy_entity(
                 ))
                 .with_children(|parent| {
                     parent.spawn((
-                        Transform::from_translation(Vec3::new(p.size.x as f32 / 2., -10., 100.)),
+                        Transform::from_translation(Vec3::new(p.size().x as f32 / 2., -10., 100.)),
                         Text2d::new(p.record.username.clone()),
                         TextFont::from_font_size(10.0),
                     ));
                 });
         }
-        EngineEntity::MobSpawner(_) => {}
+        EngineEntity::MobSpawn(_) => {}
         EngineEntity::Mob(p) => {
             let mob_data = if let Some(mob_data) = game_data.0.mobs.get(&p.mob_type) {
                 mob_data

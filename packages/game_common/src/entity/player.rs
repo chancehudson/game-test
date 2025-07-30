@@ -234,11 +234,11 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                 vec![],
             );
             projectile.disappears_at_step_index = Some(step_index + 30);
-            let projectile = RefPointer::new(EngineEntity::from(projectile));
+            let projectile = EngineEntity::from(projectile);
             let damage =
                 MobDamageEntity::new_with_entity(rng.random(), &projectile, Ability::Strength);
-            engine.spawn_entity(projectile);
-            engine.spawn_entity(RefPointer::new(EngineEntity::from(damage)));
+            engine.spawn_entity(RefPointer::new(projectile));
+            engine.spawn_entity(RefPointer::new(damage.into()));
         }
 
         let lower_speed_limit = IVec2::new(-250, -350);

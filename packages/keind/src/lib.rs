@@ -18,9 +18,25 @@ pub use std::sync::Arc as RefPointer;
 use serde::Deserialize;
 use serde::Serialize;
 
+pub trait KPoly {
+    /// Retrieve a runtime TypeId for an instance.
+    fn type_id(&self) -> std::any::TypeId;
+
+    fn as_any(&self) -> &dyn std::any::Any;
+    fn extract_ref<T: 'static>(&self) -> Option<&T>;
+}
+
 pub trait GameLogic: Clone + Serialize + for<'de> Deserialize<'de> + 'static {
-    type Entity: Clone + entity::SEEntity<Self> + Serialize + for<'de> Deserialize<'de>; // Enum wrapping all possible entities
-    type System: Clone + Serialize + for<'de> Deserialize<'de>; // Enum wrapping all possible systems
+    type Entity: Send
+        + Sync
+        + Clone
+        + KPoly
+        + entity::SEEntity<Self>
+        + Serialize
+        + for<'de> Deserialize<'de>; // Enum wrapping all possible entities
+    type System: KPoly + Clone + Serialize + for<'de> Deserialize<'de>; // Enum wrapping all possible systems
     type Input: Default + Clone + Serialize + for<'de> Deserialize<'de>; // User input
     type Event: Clone + Serialize + for<'de> Deserialize<'de>; // Game event, distinct from Engine event, which is internal to keind
+
+    fn handle_game_events(engine: &engine::GameEngine<Self>, game_events: &Vec<Self::Event>);
 }
