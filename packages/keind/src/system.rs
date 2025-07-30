@@ -24,7 +24,12 @@ pub trait EEntitySystem<G: GameLogic>: Any {
     /// the system may freely mutate the entity. The entity step logic executes _after_
     /// all system steps. Oldest systems execute first (e.g.) system added at step 1 executes
     /// before system added at step 5.
-    fn step(&self, _engine: &GameEngine<G>, _entity: &mut G::Entity) -> Option<Self>
+    fn step(
+        &self,
+        _engine: &GameEngine<G>,
+        _entity: &G::Entity,
+        _next_entity: &mut G::Entity,
+    ) -> Option<Self>
     where
         Self: Sized,
     {
@@ -98,10 +103,15 @@ macro_rules! engine_entity_system_enum {
                 }
             }
 
-            fn step(&self, engine: &keind::prelude::GameEngine<$game_logic>, entity: &mut <$game_logic as keind::prelude::GameLogic>::Entity) -> Option<Self> {
+            fn step(
+                &self,
+                engine: &keind::prelude::GameEngine<$game_logic>,
+                entity: &<$game_logic as keind::prelude::GameLogic>::Entity,
+                next_entity: &mut <$game_logic as keind::prelude::GameLogic>::Entity
+            ) -> Option<Self> {
                 match self {
                     $(
-                        $name::$variant_name(system) => system.step(engine, entity).map(|v| $name::from(v)),
+                        $name::$variant_name(system) => system.step(engine, entity, next_entity).map(|v| $name::from(v)),
                     )*
                 }
             }

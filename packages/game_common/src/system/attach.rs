@@ -38,9 +38,14 @@ impl EEntitySystem<KeindGameLogic> for AttachSystem {
         }
     }
 
-    fn step(&self, engine: &GameEngine<KeindGameLogic>, entity: &mut EngineEntity) -> Option<Self> {
+    fn step(
+        &self,
+        engine: &GameEngine<KeindGameLogic>,
+        _entity: &EngineEntity,
+        next_entity: &mut EngineEntity,
+    ) -> Option<Self> {
         if let Some(attached_entity) = engine.entity_by_id_untyped(&self.attached_to, None) {
-            entity.state_mut().position = attached_entity.state().position + self.offset
+            next_entity.state_mut().position = attached_entity.state().position + self.offset
         } else {
             unreachable!("entities changed existence during step");
         }

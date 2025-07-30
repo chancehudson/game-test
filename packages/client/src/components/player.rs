@@ -115,7 +115,7 @@ fn iframe_blink_system(
     let blink = (engine.step_index / blink_step_interval) % 2 == 0;
     for (entity, mut sprite) in entity_query.iter_mut() {
         if let Some(entity) = engine.entity_by_id::<PlayerEntity>(&entity.entity_id, None) {
-            if entity.receiving_damage_until.is_some() {
+            if entity.has_system::<InvincibleSystem>() {
                 let alpha = if blink { 0.4 } else { 1.0 };
                 sprite.color.set_alpha(alpha);
             } else {
@@ -201,7 +201,6 @@ fn input_system(
         // register here, will get confirmation with an id change?
         // for now, no
         engine.register_event(None, input_event.clone());
-        println!("input at step {}", engine.step_index + 1);
         // send the new input to the server
         action_events.write(NetworkAction(Action::RemoteEngineEvent(
             *engine.id(),

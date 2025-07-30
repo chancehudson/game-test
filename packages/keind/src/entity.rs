@@ -304,11 +304,11 @@ macro_rules! entity_struct {
                 type EngineEntity = <$game_logic as keind::prelude::GameLogic>::Entity;
                 type EngineSystem = <$game_logic as keind::prelude::GameLogic>::System;
                 let mut next_systems: Vec<$crate::RefPointer<EngineSystem>> = Vec::new();
-                let entity_rc = engine
+                let entity_ptr = engine
                     .entity_by_id_untyped(&self.id(), None)
                     .expect("entity being stepped but not in engine");
                 for system in self.systems() {
-                    if !system.prestep(engine, &entity_rc) {
+                    if !system.prestep(engine, &entity_ptr) {
                         next_systems.push(system.clone());
                         continue;
                     }
@@ -319,7 +319,7 @@ macro_rules! entity_struct {
                     }
                     let next_self = next_self_maybe.as_mut().unwrap();
                     // systems determine whether a clone is necessary
-                    if let Some(next_system) = system.step(engine, &mut *next_self) {
+                    if let Some(next_system) = system.step(engine, entity_ptr, &mut *next_self) {
                         next_systems.push($crate::RefPointer::from(next_system));
                     } else {
                         // No new value was returned, the system is removed

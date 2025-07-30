@@ -8,6 +8,8 @@ use keind::prelude::*;
 
 use crate::prelude::*;
 
+/// Give some experience to a player. Uses
+/// `db::PlayerStats` and `db::AbilityExpRecord`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerExpSystem {
     pub record: AbilityExpRecord,
@@ -17,6 +19,7 @@ impl EEntitySystem<KeindGameLogic> for PlayerExpSystem {
     fn step(
         &self,
         _engine: &GameEngine<KeindGameLogic>,
+        _entity: &EngineEntity,
         next_entity: &mut EngineEntity,
     ) -> Option<Self> {
         // update the stats pointer on a player entity

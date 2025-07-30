@@ -33,9 +33,16 @@ impl ItemEntity {
                 velocity: IVec2 { x: 0, y: 350 },
                 player_creator_id: Some(player_creator_id),
             },
-            systems: vec![RefPointer::new(EngineEntitySystem::from(DisappearSystem {
-                at_step: current_step + 7200,
-            }))],
+            systems: vec![
+                RefPointer::new(
+                    DisappearSystem {
+                        at_step: current_step + 7200,
+                    }
+                    .into(),
+                ),
+                RefPointer::new(GravitySystem::default().into()),
+                RefPointer::new(AtomicMoveSystem::default().into()),
+            ],
             item_type,
             count,
             // becomes_public_at_step: current_step + 3600,
@@ -62,23 +69,8 @@ impl SEEntity<KeindGameLogic> for ItemEntity {
             if (step_index / ANIMATION_STEP_LEN as u64) % 2 == 0 {
                 next_self.position_offset_y = ANIMATION_FRAME_COUNT - next_self.position_offset_y;
             }
-            next_self.state.velocity = IVec2::ZERO;
         } else {
             next_self.position_offset_y = 0;
-            next_self.state.velocity.y += -20;
-            let lower_speed_limit = IVec2::new(-250, -350);
-            let upper_speed_limit = IVec2::new(250, 700);
-            next_self.state.velocity = next_self
-                .velocity()
-                .clamp(lower_speed_limit, upper_speed_limit);
-            let map_size = engine.size().clone();
-            let y_pos = actor::move_y(
-                self_rect,
-                next_self.velocity().y / STEPS_PER_SECOND as i32,
-                &engine.entities_by_type::<PlatformEntity>(),
-                map_size,
-            );
-            next_self.state.position.y = y_pos;
         }
     }
 }
