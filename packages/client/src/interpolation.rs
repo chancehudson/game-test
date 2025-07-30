@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use game_common::prelude::*;
+use keind::prelude::*;
 
 pub struct Interpolation {
     pub from_step: u64,
@@ -18,7 +19,7 @@ pub struct InterpolatingEntities(pub HashMap<u128, Interpolation>);
 /// Update the InterpolatingEntities resource as needed
 pub fn interpolate_mobs(
     last_mobs: Vec<MobEntity>,
-    engine: &RewindableGameEngine,
+    engine: &GameEngine<KeindGameLogic>,
     player_entity_id: u128,
     interpolating_entities: &mut ResMut<InterpolatingEntities>,
 ) {
@@ -26,9 +27,9 @@ pub fn interpolate_mobs(
     // a different player
     // if so we need to start showing that mob in the past
     for mob in last_mobs {
-        if let Some(current_mob_entity) = engine.entity_by_id::<MobEntity>(&mob.id, None) {
-            if let Some(past_entity) =
-                engine.entity_by_id::<MobEntity>(&mob.id, Some(engine.step_index - STEP_DELAY / 2))
+        if let Some(current_mob_entity) = engine.entity_by_id::<MobEntity>(&mob.id(), None) {
+            if let Some(past_entity) = engine
+                .entity_by_id::<MobEntity>(&mob.id(), Some(engine.step_index - STEP_DELAY / 2))
             {
                 // interpolate position over N steps
                 if current_mob_entity.aggro_to.is_none()
@@ -44,12 +45,12 @@ pub fn interpolate_mobs(
                 {
                     let interp_steps = STEP_DELAY / 2;
                     // handle aggro to another player
-                    let current_position = current_mob_entity.position;
+                    let current_position = current_mob_entity.position();
                     let past_position = past_entity.position();
                     let step_amount =
                         (past_position - current_position) / IVec2::splat(interp_steps as i32);
                     interpolating_entities.0.insert(
-                        mob.id,
+                        mob.id(),
                         Interpolation {
                             from_step: engine.step_index,
                             to_step: engine.step_index + interp_steps,

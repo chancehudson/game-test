@@ -14,6 +14,7 @@ use bevy_egui::egui::Vec2;
 
 use db::Ability;
 use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::GameState;
 use crate::plugins::engine::ActiveGameEngine;
@@ -103,7 +104,7 @@ fn show_bottom_info_bar(
     if player_entity.is_none() {
         return;
     }
-    let player_entity = match player_entity.unwrap() {
+    let player_entity = match &**player_entity.unwrap() {
         EngineEntity::Player(p) => p,
         _ => unreachable!(),
     };
