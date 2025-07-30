@@ -20,7 +20,7 @@ entity_struct!(
         attacking_until: Option<u64>,
         pub facing_left: bool,
         pub showing_emoji_until: Option<u64>,
-        pub stats: PlayerStats,
+        pub stats_ptr: RefPointer<PlayerStats>,
         pub received_damage_this_step: (bool, u64),
         pub receiving_damage_until: Option<u64>,
         // direction, until
@@ -39,7 +39,7 @@ impl PlayerEntity {
                 ..Default::default()
             },
             player_id: record.id.clone(),
-            stats,
+            stats_ptr: RefPointer::from(stats),
             record,
             ..Default::default()
         }
@@ -51,10 +51,6 @@ impl PlayerEntity {
 }
 
 impl SEEntity<KeindGameLogic> for PlayerEntity {
-    fn prestep(&self, _engine: &GameEngine<KeindGameLogic>) -> bool {
-        true
-    }
-
     fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         let step_index = engine.step_index();
         let mut rng = self.rng(step_index);
@@ -63,7 +59,7 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
         if self.is_dead() {
             next_self.receiving_damage_until = None;
             if input.respawn {
-                let new_health = self.stats.max_health();
+                let new_health = self.stats_ptr.max_health();
                 engine.register_game_event(GameEvent::PlayerHealth(
                     self.player_id.clone(),
                     new_health,
@@ -96,7 +92,7 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                     let damage_amount = damage_calc::compute_damage(
                         &Ability::Strength,
                         &PlayerStats::default(),
-                        &self.stats,
+                        &*self.stats_ptr,
                         &mut rng,
                     );
                     next_self.received_damage_this_step = (true, damage_amount);
@@ -141,16 +137,22 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                     ..Default::default()
                 },
                 vec![
-                    RefPointer::new(EngineEntitySystem::from(AttachSystem {
-                        attached_to: self.id(),
-                        offset: self.size() + IVec2::new(-self.size().x / 2, 5),
-                    })),
-                    RefPointer::new(EngineEntitySystem::from(DisappearSystem {
-                        at_step: show_until,
-                    })),
+                    RefPointer::new(
+                        AttachSystem {
+                            attached_to: self.id(),
+                            offset: self.size() + IVec2::new(-self.size().x / 2, 5),
+                        }
+                        .into(),
+                    ),
+                    RefPointer::new(
+                        DisappearSystem {
+                            at_step: show_until,
+                        }
+                        .into(),
+                    ),
                 ],
             );
-            engine.spawn_entity(RefPointer::new(EngineEntity::from(emoji)));
+            engine.spawn_entity(RefPointer::new(emoji.into()));
         }
 
         if let Some((direction, until)) = self.knockback_until {

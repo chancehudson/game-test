@@ -71,7 +71,7 @@ impl SEEntity<KeindGameLogic> for MobDamageEntity {
                     next_self.contacted_mob_id = Some(entity.id());
 
                     // despawn whatever it's attached to
-                    engine.remove_entity(entity.id());
+                    engine.remove_entity(attached_entity.id());
                     break;
                 }
             }

@@ -19,7 +19,7 @@ impl EEntitySystem<KeindGameLogic> for AttachSystem {
             entity
                 .systems()
                 .iter()
-                .filter_map(|system| (&*system as &dyn Any).downcast_ref::<Self>())
+                .filter_map(|system| system.extract_ref::<Self>())
                 .collect::<Vec<_>>()
                 .len(),
             1,
@@ -44,6 +44,6 @@ impl EEntitySystem<KeindGameLogic> for AttachSystem {
         } else {
             unreachable!("entities changed existence during step");
         }
-        None
+        Some(self.clone())
     }
 }

@@ -34,10 +34,6 @@ impl MobSpawnEntity {
 }
 
 impl SEEntity<KeindGameLogic> for MobSpawnEntity {
-    fn prestep(&self, _engine: &GameEngine<KeindGameLogic>) -> bool {
-        true
-    }
-
     fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         let step_index = engine.step_index();
         let current_spawn_count = self.owned_mob_ids.len();
@@ -57,18 +53,21 @@ impl SEEntity<KeindGameLogic> for MobSpawnEntity {
         let max_spawn_count = self.spawn_data.max_count - current_spawn_count;
         let spawn_count = rng.random_range(0..=max_spawn_count);
         for _ in 0..spawn_count {
-            // deterministically generate future mob ids
-            let id = rng.random();
-            next_self.owned_mob_ids.insert(id);
-            let mut mob_entity = MobEntity::default();
+            let mut mob_entity = MobEntity::new(
+                BaseEntityState {
+                    id: rng.random(),
+                    position: IVec2::new(
+                        rng.random_range(self.position().x..self.position().x + self.size().x),
+                        rng.random_range(self.position().y..self.position().y + self.size().y),
+                    ),
+                    size: IVec2::new(37, 62),
+                    ..Default::default()
+                },
+                vec![],
+            );
+            next_self.owned_mob_ids.insert(mob_entity.id());
             mob_entity.drop_table = self.drop_table.clone();
             mob_entity.current_health = 10;
-            mob_entity.state.id = id;
-            mob_entity.state.position = IVec2::new(
-                rng.random_range(self.position().x..self.position().x + self.size().x),
-                rng.random_range(self.position().y..self.position().y + self.size().y),
-            );
-            mob_entity.state.size = IVec2::new(37, 62);
             mob_entity.mob_type = self.spawn_data.mob_type;
             engine.spawn_entity(RefPointer::new(mob_entity.into()));
         }

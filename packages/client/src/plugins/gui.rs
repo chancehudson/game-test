@@ -14,7 +14,6 @@ use bevy_egui::egui::Vec2;
 
 use db::Ability;
 use game_common::prelude::*;
-use keind::prelude::*;
 
 use crate::GameState;
 use crate::plugins::engine::ActiveGameEngine;
@@ -109,11 +108,11 @@ fn show_bottom_info_bar(
         _ => unreachable!(),
     };
     let active_player = &active_player.0.as_ref().unwrap();
-    let player_level = player_entity.stats.total_level();
-    let health_level = player_entity.stats.next_level(&Ability::Health);
-    let strength_level = player_entity.stats.next_level(&Ability::Strength);
-    let dex_level = player_entity.stats.next_level(&Ability::Dexterity);
-    let int_level = player_entity.stats.next_level(&Ability::Intelligence);
+    let player_level = player_entity.stats_ptr.total_level();
+    let health_level = player_entity.stats_ptr.next_level(&Ability::Health);
+    let strength_level = player_entity.stats_ptr.next_level(&Ability::Strength);
+    let dex_level = player_entity.stats_ptr.next_level(&Ability::Dexterity);
+    let int_level = player_entity.stats_ptr.next_level(&Ability::Intelligence);
     egui::Window::new("bottom_info_bar")
         .title_bar(false)
         .resizable(false)
@@ -139,7 +138,7 @@ fn show_bottom_info_bar(
                         bar(
                             ui,
                             player_entity.record.current_health,
-                            player_entity.stats.max_health(),
+                            player_entity.stats_ptr.max_health(),
                             Color32::RED,
                             80.,
                             20.,

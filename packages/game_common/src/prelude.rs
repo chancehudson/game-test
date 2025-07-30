@@ -41,3 +41,4 @@ pub use crate::entity::text::TextEntity;
 pub use crate::system::attach::AttachSystem;
 pub use crate::system::disappear::DisappearSystem;
 pub use crate::system::gravity::GravitySystem;
+pub use crate::system::player_exp::PlayerExpSystem;
