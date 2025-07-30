@@ -58,6 +58,10 @@ keind::engine_entity_system_enum!(
         Attach(AttachSystem),
         Disappear(DisappearSystem),
         PlayerExp(PlayerExpSystem),
+        Gravity(GravitySystem),
+        AtomicMove(AtomicMoveSystem),
+        Weightless(WeightlessSystem),
+        Invincible(InvincibleSystem),
     }
 );
 
