@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::plugins::engine::ActiveGameEngine;
 
@@ -36,7 +37,7 @@ impl DamageComponent {
             },
             Transform::from_translation(Vec3::new(
                 mob_center.x as f32,
-                (mob_center.y + mob.size.y + 10) as f32,
+                (mob_center.y + mob.size().y + 10) as f32,
                 100.0,
             )),
         )
@@ -60,7 +61,7 @@ impl DamageComponent {
             },
             Transform::from_translation(Vec3::new(
                 player_center.x as f32,
-                (player_center.y + player.size.y + 10) as f32,
+                (player_center.y + player.size().y + 10) as f32,
                 100.0,
             )),
         )

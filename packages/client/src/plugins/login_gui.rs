@@ -7,11 +7,12 @@ use bevy_egui::egui::RichText;
 use web_time::Instant;
 
 use game_common::prelude::*;
+use keind::prelude::*;
 
-use crate::network::NetworkMessage;
-use crate::network::NetworkConnectionMaybe;
 use crate::GameState;
 use crate::network::NetworkConnection;
+use crate::network::NetworkConnectionMaybe;
+use crate::network::NetworkMessage;
 use crate::plugins::engine::ActiveGameEngine;
 
 use super::engine::sync_engine_components;
@@ -70,31 +71,43 @@ impl Plugin for LoginGuiPlugin {
 fn show_home_engine(mut active_engine_state: ResMut<ActiveGameEngine>) {
     let mut home_map = MapData::default();
     home_map.size = IVec2::splat(1000);
-    let mut engine = RewindableGameEngine::new(home_map.size, rand::random());
+    let mut engine = GameEngine::<KeindGameLogic>::new(home_map.size, rand::random());
     home_map.init(&GameData::default(), &mut engine).unwrap();
     active_engine_state.0 = engine;
     let engine = &mut active_engine_state.0;
 
-    let platform = PlatformEntity::new(rand::random(), IVec2::new(200, 200), IVec2::new(200, 25));
+    let platform = PlatformEntity::new(
+        BaseEntityState {
+            id: rand::random(),
+            position: IVec2::new(200, 200),
+            size: IVec2::new(200, 25),
+            ..Default::default()
+        },
+        vec![],
+    );
     let mut mob_spawner = MobSpawnEntity::new(
-        rand::random(),
-        platform.position + IVec2::new(0, platform.size.y + 20),
-        IVec2::new(200, 1),
+        BaseEntityState {
+            id: rand::random(),
+            position: platform.position() + IVec2::new(0, platform.size().y + 20),
+            size: IVec2::new(200, 1),
+            ..Default::default()
+        },
+        vec![],
     );
     mob_spawner.spawn_data.max_count = 2;
     mob_spawner.spawn_data.mob_type = 1;
     engine.register_event(
         None,
         EngineEvent::SpawnEntity {
-            entity: EngineEntity::Platform(platform),
-            universal: true,
+            entity: RefPointer::new(platform.into()),
+            is_non_determinism: true,
         },
     );
     engine.register_event(
         None,
         EngineEvent::SpawnEntity {
-            entity: EngineEntity::MobSpawner(mob_spawner),
-            universal: true,
+            entity: RefPointer::new(mob_spawner.into()),
+            is_non_determinism: true,
         },
     );
 }

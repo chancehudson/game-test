@@ -40,7 +40,6 @@ impl SEEntity<KeindGameLogic> for MobSpawnEntity {
 
     fn step(&self, engine: &GameEngine<KeindGameLogic>, next_self: &mut Self) {
         let step_index = engine.step_index();
-        let mut next_self = self.clone();
         let current_spawn_count = self.owned_mob_ids.len();
         for id in &self.owned_mob_ids {
             if !engine.entity_by_id_untyped(id, None).is_some() {
@@ -71,7 +70,7 @@ impl SEEntity<KeindGameLogic> for MobSpawnEntity {
             );
             mob_entity.state.size = IVec2::new(37, 62);
             mob_entity.mob_type = self.spawn_data.mob_type;
-            engine.spawn_entity(RefPointer::new(EngineEntity::from(mob_entity)));
+            engine.spawn_entity(RefPointer::new(mob_entity.into()));
         }
         next_self.last_spawn_step = *step_index;
     }

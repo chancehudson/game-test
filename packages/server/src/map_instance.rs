@@ -208,7 +208,7 @@ impl MapInstance {
                 anyhow::bail!("event from incorrect engine_id for player");
             }
             // Structure for validity checks
-            match &event {
+            match event {
                 EngineEvent::Input {
                     is_non_determinism: _,
                     input: _,
@@ -229,6 +229,7 @@ impl MapInstance {
                     entity_id: _,
                     is_non_determinism: _,
                 } => {}
+                EngineEvent::RequestCopy { .. } => {}
             }
         } else {
             anyhow::bail!("unknown player id, discarding game event");
@@ -273,7 +274,7 @@ impl MapInstance {
         }
 
         // step as needed
-        self.engine.tick(|_| {});
+        self.engine.tick();
 
         // process game events at a delayed rate to allow lagged user inputs
         let latest_step = self.engine.step_index - STEP_DELAY.min(self.engine.step_index);
@@ -313,25 +314,25 @@ impl MapInstance {
                     self.game_events.send(game_event).unwrap();
                 }
                 GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {
-                    if let Some(player_entity) = self
-                        .engine
-                        .entity_by_id_mut::<PlayerEntity>(&player_entity_id)
-                    {
-                        // we don't want to modify the entities here, this is purely synchronizing the server
-                        // and db with the engine
-                        player_entity.stats.clone().increment_db(
-                            &self.db,
-                            &AbilityExpRecord {
-                                player_id: player_entity.player_id.clone(),
-                                amount,
-                                ability,
-                            },
-                        )?;
-                    } else {
-                        println!(
-                            "WARNING: player entity does not exist in engine, xp not persisted to db!"
-                        );
-                    }
+                    // if let Some(player_entity) = self
+                    //     .engine
+                    //     .entity_by_id_mut::<PlayerEntity>(&player_entity_id)
+                    // {
+                    //     // we don't want to modify the entities here, this is purely synchronizing the server
+                    //     // and db with the engine
+                    //     player_entity.stats.clone().increment_db(
+                    //         &self.db,
+                    //         &AbilityExpRecord {
+                    //             player_id: player_entity.player_id.clone(),
+                    //             amount,
+                    //             ability,
+                    //         },
+                    //     )?;
+                    // } else {
+                    //     println!(
+                    //         "WARNING: player entity does not exist in engine, xp not persisted to db!"
+                    //     );
+                    // }
                 }
                 GameEvent::PlayerHealth(player_id, new_health) => {
                     PlayerRecord::set_health(&self.db, &player_id, new_health)?;
@@ -407,9 +408,6 @@ impl MapInstance {
                                             EngineEvent::Input { entity_id, .. } => {
                                                 entity_id != &player.entity_id
                                             }
-                                            EngineEvent::Message { entity_id, .. } => {
-                                                entity_id != &player.entity_id
-                                            }
                                             _ => true,
                                         })
                                         .cloned()
@@ -434,7 +432,7 @@ impl MapInstance {
         let mut removal_events = vec![];
         for entity in self.engine.entities_by_type::<PlayerEntity>() {
             if let Some(player) = self.player_engines.get(&entity.player_id) {
-                if player.entity_id == entity.id {
+                if player.entity_id == entity.id() {
                     // player still connected/active
                     continue;
                 }

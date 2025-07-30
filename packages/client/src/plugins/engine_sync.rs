@@ -4,6 +4,7 @@ use bevy_egui::egui::RichText;
 use bevy_egui::{EguiContextPass, EguiContexts, egui};
 
 use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::plugins::engine::ActiveGameEngine;
 use crate::plugins::engine::ActivePlayerEntityId;
@@ -36,8 +37,8 @@ fn display_hud(
     active_player_entity_id: Res<ActivePlayerEntityId>,
 ) {
     let engine = &active_game_engine.0;
-    if engine.step_index % STEPS_PER_SECOND == 0 {
-        hud_info.fps = ((timestamp() - hud_info.last_frame) / STEP_LEN_S).round();
+    if engine.step_index % STEPS_PER_SECOND as u64 == 0 {
+        hud_info.fps = ((timestamp() - hud_info.last_frame) / STEP_LEN_S as f64).round();
         hud_info.last_frame = timestamp();
     }
 
