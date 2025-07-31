@@ -99,7 +99,7 @@ fn show_bottom_info_bar(
     }
     let entity_id = active_player_entity_id.0.unwrap();
     let engine = &active_engine.0;
-    let player_entity = engine.entities_at_step(engine.step_index).get(&entity_id);
+    let player_entity = engine.entities_at_step(engine.step_index()).get(&entity_id);
     if player_entity.is_none() {
         return;
     }

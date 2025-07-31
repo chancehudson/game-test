@@ -79,7 +79,7 @@ pub fn move_y<G: GameLogic, T: SEEntity<G>>(
     body: IRect,
     dy: i32,
     platforms: &[&T],
-    map_size: IVec2,
+    map_size: &IVec2,
 ) -> i32 {
     if dy == 0 {
         return body.min.y;
