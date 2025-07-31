@@ -88,7 +88,7 @@ impl MapInstance {
                             item.0,
                             item.1,
                             entity.id(),
-                            self.engine.step_index,
+                            self.engine.step_index(),
                         )
                         .into(),
                     ),
@@ -96,7 +96,7 @@ impl MapInstance {
                 };
                 self.pending_events
                     .0
-                    .send((self.engine.step_index, event.clone()))?;
+                    .send((*self.engine.step_index(), event.clone()))?;
                 self.engine.register_event(None, event);
             }
         }
@@ -119,7 +119,7 @@ impl MapInstance {
             is_inited: false,
             player_id: player_record.id.clone(),
             entity_id: entity.id(),
-            last_input_step_index: self.engine.step_index,
+            last_input_step_index: *self.engine.step_index(),
         };
         // we've inserted a new player, last_engine is the old player engine data, if it exists
         if let Some(last_engine) = self.player_engines.insert(player_record.id.clone(), player) {
@@ -131,7 +131,7 @@ impl MapInstance {
             self.engine.register_event(None, remove.clone());
             self.pending_events
                 .0
-                .send((self.engine.step_index, remove))?;
+                .send((*self.engine.step_index(), remove))?;
         }
         let add_event = EngineEvent::SpawnEntity {
             entity: RefPointer::new(entity.into()),
@@ -140,7 +140,7 @@ impl MapInstance {
         self.engine.register_event(None, add_event.clone());
         self.pending_events
             .0
-            .send((self.engine.step_index, add_event))?;
+            .send((*self.engine.step_index(), add_event))?;
         Ok(())
     }
 
@@ -153,7 +153,7 @@ impl MapInstance {
             self.engine.register_event(None, event.clone());
             self.pending_events
                 .0
-                .send((self.engine.step_index, event))?;
+                .send((*self.engine.step_index(), event))?;
         } else {
             println!(
                 "WARNING: attempted to remove {player_id} from {} instance",
@@ -186,8 +186,8 @@ impl MapInstance {
         }: &RemoteEngineEvent,
     ) -> anyhow::Result<Option<(u64, EngineEvent<KeindGameLogic>)>> {
         // discard events too far back
-        if step_index < &self.engine.step_index
-            && self.engine.step_index - step_index >= self.engine.trailing_state_len
+        if step_index < self.engine.step_index()
+            && self.engine.step_index() - &step_index >= self.engine.trailing_state_len
         {
             anyhow::bail!("event too far in the past, discarding");
         }
@@ -260,7 +260,7 @@ impl MapInstance {
         self.engine.tick();
 
         // process game events at a delayed rate to allow lagged user inputs
-        let latest_step = self.engine.step_index - STEP_DELAY.min(self.engine.step_index);
+        let latest_step = self.engine.step_index() - STEP_DELAY.min(self.engine.step_index());
         let game_events = self
             .engine
             .game_events(self.latest_processed_game_events, latest_step);
@@ -306,10 +306,10 @@ impl MapInstance {
         // build a checksum for a step in the recent past to
         // send to the client for detecting desync
         let engine_hash = if timestamp() - self.last_stats_broadcast > 2.0
-            && self.engine.step_index >= 2 * STEPS_PER_SECOND as u64
+            && self.engine.step_index() >= &(2 * STEPS_PER_SECOND as u64)
         {
             self.last_stats_broadcast = timestamp();
-            let target_step = self.engine.step_index - 2 * STEPS_PER_SECOND as u64;
+            let target_step = self.engine.step_index() - 2 * STEPS_PER_SECOND as u64;
             Some((target_step, self.engine.step_hash(&target_step)?))
         } else {
             None
@@ -333,7 +333,7 @@ impl MapInstance {
                 self.engine.register_event(None, removal_event.clone());
                 self.pending_events
                     .0
-                    .send((self.engine.step_index, removal_event))?;
+                    .send((*self.engine.step_index(), removal_event))?;
                 ids_to_remove.push(id.clone());
                 continue;
             }
@@ -346,10 +346,10 @@ impl MapInstance {
                         &id,
                         Response::EngineStats(
                             player.engine_id,
-                            self.engine.step_index,
+                            *self.engine.step_index(),
                             engine_hash,
                             #[cfg(debug_assertions)]
-                            Some(self.engine.entities_at_step(engine_hash.0).clone()),
+                            Some(self.engine.entities_at_step(&engine_hash.0).clone()),
                             #[cfg(not(debug_assertions))]
                             None,
                         ),
@@ -413,7 +413,7 @@ impl MapInstance {
             self.player_engines.remove(&player_id);
             self.pending_events
                 .0
-                .send((self.engine.step_index, e.clone()))?;
+                .send((*self.engine.step_index(), e.clone()))?;
             self.engine.register_event(None, e);
         }
 
@@ -426,10 +426,10 @@ impl MapInstance {
         player_id: &str,
         player: &mut RemotePlayerEngine,
     ) {
-        if engine.step_index < STEP_DELAY {
+        if engine.step_index() < &STEP_DELAY {
             return;
         }
-        let client_engine = engine.engine_at_step(&(engine.step_index - STEP_DELAY), false);
+        let client_engine = engine.engine_at_step(&(engine.step_index() - STEP_DELAY), false);
         if client_engine.is_err() {
             // engine warming up, we'll try again next tick
             return;

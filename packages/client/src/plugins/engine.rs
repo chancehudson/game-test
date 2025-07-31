@@ -115,8 +115,8 @@ fn step_game_engine(
     let engine = &mut active_game_engine.0;
     let target_step = sync_info.server_step
         + (((timestamp() - sync_info.server_step_timestamp) / STEP_LEN_S as f64).ceil() as u64);
-    let game_events = if target_step > engine.step_index {
-        let steps = target_step - engine.step_index;
+    let game_events = if &target_step > engine.step_index() {
+        let steps = target_step - engine.step_index();
         if steps >= 30 {
             println!("skipping forward {} steps", steps / 2);
             &engine.step_to(&(engine.step_index() + (steps / 2)))
@@ -238,14 +238,14 @@ fn handle_engine_stats(
             }
             engine_sync.server_step = *step_index;
             engine_sync.server_step_timestamp = timestamp();
-            engine_sync.sync_distance = (engine.step_index as i64) - (*step_index as i64);
+            engine_sync.sync_distance = (*engine.step_index() as i64) - (*step_index as i64);
             if !engine_sync.requested_resync {
                 if let Ok(local_engine_hash) = engine.step_hash(&hash_step_index) {
                     if local_engine_hash != *server_engine_hash {
                         println!("WARNING: desync detected");
                         println!(
                             "local engine state: {:?}",
-                            active_engine_state.0.entities_at_step(*hash_step_index)
+                            active_engine_state.0.entities_at_step(hash_step_index)
                         );
                         action_events_writer.write(NetworkAction(Action::RequestEngineReload(
                             *engine.id(),
@@ -255,7 +255,7 @@ fn handle_engine_stats(
                         // trigger resync
                         // debug if needed
                         if let Some(server_entities) = entities_maybe {
-                            let local_entities = engine.entities_at_step(*hash_step_index);
+                            let local_entities = engine.entities_at_step(hash_step_index);
                             let server_json =
                                 serde_json::to_string_pretty(&server_entities).unwrap();
                             let local_json = serde_json::to_string_pretty(&local_entities).unwrap();
@@ -293,7 +293,7 @@ fn handle_engine_state(
             engine_sync.server_step_timestamp = timestamp();
             active_engine_state.0 = engine.clone();
             let engine = &mut active_engine_state.0;
-            if server_step > &engine.step_index {
+            if server_step > engine.step_index() {
                 engine.step_to(&server_step);
             }
             println!("INFO: Received engine with id: {}", engine.id());
@@ -325,7 +325,7 @@ pub fn sync_engine_components(
     // this is the entities in relative positions we want to render
     let mut aggrod_mobs = HashMap::new();
     let mut current_entities = engine
-        .entities_at_step(engine.step_index)
+        .entities_at_step(engine.step_index())
         .iter()
         .filter(|(_id, entity)| {
             match entity.as_ref() {
@@ -346,9 +346,9 @@ pub fn sync_engine_components(
             }
         })
         .collect::<BTreeMap<_, _>>();
-    if engine.step_index >= STEP_DELAY {
-        let past_step_index = engine.step_index - STEP_DELAY;
-        let past_entities = engine.entities_at_step(past_step_index);
+    if engine.step_index() >= &STEP_DELAY {
+        let past_step_index = engine.step_index() - &STEP_DELAY;
+        let past_entities = engine.entities_at_step(&past_step_index);
         for (entity_id, entity) in past_entities.iter().filter(|(id, entity)| {
             if aggrod_mobs.contains_key(id) {
                 return true;
@@ -366,16 +366,16 @@ pub fn sync_engine_components(
     }
     let mut position_overrides = HashMap::new();
     for (entity_id, interpolation) in &interpolating_entities.0 {
-        if engine.step_index < interpolation.to_step {
+        if engine.step_index() < &interpolation.to_step {
             let pos = interpolation.start_position
-                + IVec2::splat((engine.step_index - interpolation.from_step) as i32)
+                + IVec2::splat((engine.step_index() - interpolation.from_step) as i32)
                     * interpolation.diff_position;
             position_overrides.insert(*entity_id, pos);
         }
     }
     interpolating_entities
         .0
-        .retain(|_, Interpolation { to_step, .. }| engine.step_index < *to_step);
+        .retain(|_, Interpolation { to_step, .. }| engine.step_index() < to_step);
 
     for (entity, entity_component, mut transform) in entity_query.iter_mut() {
         if let Some(game_entity) = current_entities.get(&entity_component.entity_id) {
@@ -422,7 +422,7 @@ fn add_simple_bubble_background(
 
         const MARGIN: f32 = 4.0;
         if let Some(p) = engine
-            .entities_at_step(engine.step_index)
+            .entities_at_step(engine.step_index())
             .get(&game_entity.entity_id)
         {
             let bubble_size =
