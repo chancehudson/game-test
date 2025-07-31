@@ -12,11 +12,10 @@ fn main() {
     let engine_seed: u64 = env::read();
 
     let mut engine =
-        GameEngine::<KeindGameLogic>::new_simple(IVec2 { x: 1000, y: 1000 }, engine_seed);
+        GameEngine::<KeindGameLogic>::new_simple(IVec2 { x: 1000, y: 1000 }, engine_seed as u128);
 
     let platform = PlatformEntity::new(
         BaseEntityState {
-            id: engine.generate_id(),
             position: IVec2::new(200, 200),
             size: IVec2::new(200, 25),
             ..Default::default()
@@ -25,7 +24,6 @@ fn main() {
     );
     let mut mob_spawner = MobSpawnEntity::new(
         BaseEntityState {
-            id: engine.generate_id(),
             position: platform.position() + IVec2::new(0, platform.size().y + 20),
             size: IVec2::new(200, 1),
             ..Default::default()
@@ -48,5 +46,5 @@ fn main() {
             is_non_determinism: true,
         },
     );
-    engine.step_to(&1000, |_| {});
+    engine.step_to(&1000);
 }

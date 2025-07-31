@@ -27,7 +27,7 @@ impl EEntitySystem<KeindGameLogic> for PlayerExpSystem {
             .extract_mut::<PlayerEntity>()
             .expect("PlayerExpSystem must be attached to a player entity");
         let mut stats_ptr = player_entity.stats_ptr.clone();
-        let stats: &mut db::PlayerStats = Arc::make_mut(&mut stats_ptr);
+        let stats: &mut db::PlayerStats = RefPointer::make_mut(&mut stats_ptr);
         stats.increment(&self.record);
         player_entity.stats_ptr = stats_ptr;
 

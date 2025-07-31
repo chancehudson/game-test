@@ -10,9 +10,9 @@ mod system;
 
 /// In a zkvm we are truly single threaded, and have no use for atomics.
 /// We try to remove all atomics and thread support to improve performance.
-#[cfg(feature = "zk")]
-pub use std::rc::Rc as RefPointer;
-#[cfg(not(feature = "zk"))]
+// #[cfg(feature = "zk")]
+// pub use std::rc::Rc as RefPointer;
+// #[cfg(not(feature = "zk"))]
 pub use std::sync::Arc as RefPointer;
 
 use serde::Deserialize;
@@ -38,7 +38,7 @@ pub trait GameLogic: Clone + Serialize + for<'de> Deserialize<'de> + 'static {
         + Serialize
         + for<'de> Deserialize<'de>; // Enum wrapping all possible entities
     type System: KPoly + Debug + Clone + Serialize + for<'de> Deserialize<'de>; // Enum wrapping all possible systems
-    type Input: Default + Clone + Serialize + for<'de> Deserialize<'de>; // User input
+    type Input: Default + Clone + Serialize + for<'de> Deserialize<'de>; // User ninput
     type Event: Clone + Serialize + for<'de> Deserialize<'de>; // Game event, distinct from Engine event, which is internal to keind
 
     fn handle_game_events(
