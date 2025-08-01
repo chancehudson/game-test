@@ -1,0 +1,32 @@
+[package]
+name = "keind_zk"
+version = "0.1.0"
+edition = "2024"
+description = "Utilities for interacting with zero knowledge systems"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/chancehudson/game-test/tree/main/packages/keind_zk"
+
+[lib]
+
+[[bin]]
+name = "test"
+
+[features]
+default = ["zkpo", "blake3", "sp1-sdk"]
+
+[dependencies]
+anyhow = { workspace = true }
+blake3 = { workspace = true, optional = true }
+
+#game_common = { path = "../game_common" }
+#keind = { path = "../keind" }
+
+zkpo = { version = "0", features = ["sp1"], optional = true }
+sp1-zkvm = "4"
+sp1-sdk = { version = "4", optional = true }
+
+[build-dependencies]
+anyhow = { workspace = true }
+sp1-build = "4"
+
+
