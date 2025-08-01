@@ -75,7 +75,7 @@ fn animation_system(
 ) {
     for (entity, mut transform, damage) in query.iter_mut() {
         transform.translation.y += 1.;
-        if active_engine.0.step_index >= damage.disappears_at_step {
+        if active_engine.0.step_index() >= &damage.disappears_at_step {
             commands.entity(entity).despawn();
         }
     }

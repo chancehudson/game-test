@@ -84,6 +84,7 @@ impl MapData {
             let entity = RefPointer::new(
                 PlatformEntity::new(
                     BaseEntityState {
+                        id: rand::random(),
                         position: platform.position.clone(),
                         size: platform.size.clone(),
                         ..Default::default()
