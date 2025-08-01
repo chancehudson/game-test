@@ -18,26 +18,18 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use bevy_math::IVec2;
+use rand::SeedableRng;
+use rand_xoshiro::Xoroshiro64StarStar;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::prelude::*;
 
-#[cfg(not(feature = "zk"))]
-pub static START_INSTANT: once_cell::sync::Lazy<std::time::Instant> =
-    once_cell::sync::Lazy::new(|| std::time::Instant::now());
-#[cfg(not(feature = "zk"))]
-pub fn timestamp() -> f64 {
-    std::time::Instant::now()
-        .duration_since(*START_INSTANT)
-        .as_secs_f64()
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(deserialize = "G: for<'dee> serde::Deserialize<'dee>"))]
 pub struct GameEngine<G: GameLogic> {
     /// A distinct identifier for this engine instance.
-    id: u128,
+    pub id: u128,
 
     /// The size of the space being simulated.
     size: IVec2,
@@ -80,11 +72,6 @@ pub struct GameEngine<G: GameLogic> {
     #[serde(skip, default = "default_game_events::<G>")]
     game_events: (flume::Sender<G::Event>, flume::Receiver<G::Event>),
 
-    /// Designed to be distinct for each step. e.g. we don't have to store
-    #[cfg(not(feature = "zk"))]
-    start_timestamp: f64,
-    #[cfg(not(feature = "zk"))]
-    step_len: f64,
     #[serde(default = "default_trailing_state_len")]
     pub trailing_state_len: u64,
 }
@@ -124,10 +111,6 @@ impl<G: GameLogic> Default for GameEngine<G> {
             engine_events_by_step: BTreeMap::default(),
             game_events: flume::unbounded(),
             engine_events: flume::unbounded(),
-            #[cfg(not(feature = "zk"))]
-            start_timestamp: timestamp(),
-            #[cfg(not(feature = "zk"))]
-            step_len: 1.0 / 60.0,
             trailing_state_len: default_trailing_state_len(),
         }
     }
@@ -279,6 +262,9 @@ impl<G: GameLogic> GameEngine<G> {
         {
             match event {
                 EngineEvent::SpawnEntity { entity, .. } => {
+                    if entity.id() == 0 {
+                        println!("WARNING: refusing to spawn entity with id 0");
+                    }
                     if let Some(e) = self.entities.insert(entity.id(), entity.clone()) {
                         println!("WARNING: inserting entity that already existed! {:?}", e);
                         // if &e == entity {
@@ -387,8 +373,6 @@ impl<G: GameLogic> GameEngine<G> {
         Self {
             id,
             size,
-            #[cfg(not(feature = "zk"))]
-            start_timestamp: timestamp(),
             ..Default::default()
         }
     }
@@ -397,8 +381,6 @@ impl<G: GameLogic> GameEngine<G> {
         Self {
             id,
             size,
-            #[cfg(not(feature = "zk"))]
-            start_timestamp: timestamp(),
             trailing_state_len: 0,
             ..Default::default()
         }
@@ -557,26 +539,6 @@ impl<G: GameLogic> GameEngine<G> {
                 }
             }
         }
-    }
-
-    #[cfg(not(feature = "zk"))]
-    pub fn expected_step_index(&self) -> u64 {
-        let now = timestamp();
-        assert!(now >= self.start_timestamp, "GameEngine time ran backward");
-        // rounds toward 0
-        self.step_index
-            .max(((now - self.start_timestamp) / self.step_len) as u64)
-    }
-
-    /// Automatically step forward in time as much as needed
-    #[cfg(not(feature = "zk"))]
-    pub fn tick(&mut self) {
-        let expected = self.expected_step_index();
-        if expected <= self.step_index {
-            println!("noop tick: your tick rate is too high!");
-            return;
-        }
-        self.step_to(&expected);
     }
 
     pub fn step_to(&mut self, to_step: &u64) -> Vec<RefPointer<G::Event>> {

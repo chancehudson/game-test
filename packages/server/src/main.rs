@@ -7,6 +7,7 @@ use tokio::task::JoinSet;
 
 use db::PlayerRecord;
 use game_common::prelude::*;
+use keind_time::GameEngineTime;
 
 mod game;
 mod map_instance;
@@ -100,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
             println!("Halting game loop");
             break;
         }
-        let tick_start = timestamp();
+        let tick_start = GameEngineTime::now();
         // step the game state in parallel
         let mut join_set = JoinSet::new();
         for map_instance in game.map_instances.values().cloned() {
@@ -116,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
         if let Err(e) = game.handle_events().await {
             println!("WARNING: error handling game events {:?}", e);
         }
-        let tick_time = timestamp() - tick_start;
+        let tick_time = GameEngineTime::now() - tick_start;
         if tick_time >= TICK_RATE_S {
             println!(
                 "WARNING: server tick took more than TICK_RATE_MS ! target: {} ms, actual: {} ms",

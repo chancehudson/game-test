@@ -97,7 +97,7 @@ fn damage_text_system(
         if let Some(entity) = engine.entity_by_id::<PlayerEntity>(&entity.entity_id, None) {
             if entity.received_damage_this_step.0 {
                 commands.spawn(DamageComponent::player_damage(
-                    engine.step_index,
+                    *engine.step_index(),
                     &entity,
                     entity.received_damage_this_step.1,
                 ));
@@ -112,7 +112,7 @@ fn iframe_blink_system(
 ) {
     let engine = &active_engine.0;
     let blink_step_interval = 8;
-    let blink = (engine.step_index / blink_step_interval) % 2 == 0;
+    let blink = (engine.step_index() / blink_step_interval) % 2 == 0;
     for (entity, mut sprite) in entity_query.iter_mut() {
         if let Some(entity) = engine.entity_by_id::<PlayerEntity>(&entity.entity_id, None) {
             if entity.has_system::<InvincibleSystem>() {
@@ -154,7 +154,7 @@ fn input_system(
     if keyboard.just_pressed(KeyCode::KeyP) {
         action_events.write(NetworkAction(Action::RequestEngineReload(
             *engine.id(),
-            engine.step_index,
+            *engine.step_index(),
         )));
         return;
     }
@@ -205,7 +205,7 @@ fn input_system(
         action_events.write(NetworkAction(Action::RemoteEngineEvent(
             *engine.id(),
             input_event,
-            engine.step_index,
+            *engine.step_index(),
         )));
     }
 }

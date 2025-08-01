@@ -3188,6 +3188,7 @@ dependencies = [
  "js-sys",
  "json5",
  "keind",
+ "keind_time",
  "rand 0.9.2",
  "redb",
  "serde_json",
@@ -6004,6 +6005,23 @@ dependencies = [
  "bincode",
  "blake3",
  "flume",
+ "once_cell",
+ "rand 0.9.2",
+ "rand_xoshiro",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "keind_time"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy_math",
+ "bincode",
+ "blake3",
+ "flume",
+ "keind",
  "once_cell",
  "rand 0.9.2",
  "rand_xoshiro",
@@ -9534,6 +9552,7 @@ dependencies = [
  "game_common",
  "json5",
  "keind",
+ "keind_time",
  "nanoid",
  "once_cell",
  "rand 0.9.2",

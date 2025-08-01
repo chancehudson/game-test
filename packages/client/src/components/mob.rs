@@ -32,7 +32,7 @@ fn damage_text_system(
             for amount in &entity.received_damage_this_step {
                 if let Some((_aggro_to_entity_id, _)) = entity.aggro_to {
                     commands.spawn(DamageComponent::mob_damage(
-                        engine.step_index,
+                        *engine.step_index(),
                         entity,
                         *amount,
                     ));

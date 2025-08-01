@@ -28,7 +28,7 @@ pub struct BaseEntityState {
 impl Default for BaseEntityState {
     fn default() -> Self {
         Self {
-            id: rand::random(),
+            id: 0,
             position: IVec2::default(),
             size: IVec2::default(),
             velocity: IVec2::default(),

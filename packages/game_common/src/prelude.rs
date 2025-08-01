@@ -1,9 +1,6 @@
 pub use std::any::Any;
 pub use std::any::TypeId;
 
-#[cfg(not(feature = "zk"))]
-pub use keind::prelude::timestamp;
-
 pub use crate::AnimationData;
 pub use crate::STEP_DELAY;
 pub use crate::STEP_LEN_S;
