@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::time::Instant;
 
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
@@ -39,7 +40,7 @@ pub struct GameEntityComponent {
 pub struct ActivePlayerEntityId(pub Option<u128>);
 
 #[derive(Resource, Default)]
-pub struct LoggedInAt(pub f64);
+pub struct LoggedInAt(pub Option<Instant>);
 
 #[derive(Resource, Default)]
 pub struct ActivePlayerState(pub Option<PlayerRecord>);
@@ -86,7 +87,7 @@ fn handle_login(
     for event in action_events.read() {
         if let Response::PlayerLoggedIn(_state) = &event.0 {
             active_player_entity_id.0 = None;
-            logged_in_at.0 = timestamp();
+            logged_in_at.0 = Some(Instant::now());
             next_state.set(GameState::Waiting);
         }
     }
@@ -113,8 +114,7 @@ fn step_game_engine(
 ) {
     let game_data = &game_data.0;
     let engine = &mut active_game_engine.0;
-    let target_step = sync_info.server_step
-        + (((timestamp() - sync_info.server_step_timestamp) / STEP_LEN_S as f64).ceil() as u64);
+    let target_step = sync_info.engine_time.expected_step_index();
     let game_events = if &target_step > engine.step_index() {
         let steps = target_step - engine.step_index();
         if steps >= 30 {
@@ -193,7 +193,7 @@ fn handle_engine_event(
                 }
                 let player_entity_id = active_player_entity_id.0.unwrap_or_default();
                 engine_sync.server_step = *server_step_index;
-                engine_sync.server_step_timestamp = timestamp();
+                engine_sync.server_step_timestamp = Some(Instant::now());
                 // these are the mobs we were seeing before
                 let last_mobs = engine
                     .entities_by_type::<MobEntity>()
@@ -237,7 +237,7 @@ fn handle_engine_stats(
                 return;
             }
             engine_sync.server_step = *step_index;
-            engine_sync.server_step_timestamp = timestamp();
+            engine_sync.server_step_timestamp = Some(Instant::now());
             engine_sync.sync_distance = (*engine.step_index() as i64) - (*step_index as i64);
             if !engine_sync.requested_resync {
                 if let Ok(local_engine_hash) = engine.step_hash(&hash_step_index) {
@@ -289,8 +289,9 @@ fn handle_engine_state(
         if let Response::EngineState(engine, player_entity_id_maybe, server_step) = &event.0 {
             active_player_entity_id.0 = Some(*player_entity_id_maybe);
             *engine_sync = EngineSyncInfo::default();
+            engine_sync.engine_time = keind_time::GameEngineTime::from_step(*server_step, 60);
             engine_sync.server_step = *server_step;
-            engine_sync.server_step_timestamp = timestamp();
+            engine_sync.server_step_timestamp = Some(Instant::now());
             active_engine_state.0 = engine.clone();
             let engine = &mut active_engine_state.0;
             if server_step > engine.step_index() {

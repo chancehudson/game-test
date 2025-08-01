@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 
-members = ["packages/keind", "packages/game_common", "packages/client", "packages/db", "packages/server", "packages/zk-risczero", "packages/zk-sp1"]
+members = ["packages/keind", "packages/keind_time", "packages/game_common", "packages/client", "packages/db", "packages/server", "packages/zk-risczero", "packages/zk-sp1"]
 
 [workspace.dependencies]
 anyhow = "1.0.95"
