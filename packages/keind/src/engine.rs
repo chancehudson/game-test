@@ -1,4 +1,4 @@
-// A game engine instance for a single map.
+/// A game engine instance for a single map.
 /// Handles the "physics" of players, mobs, items.
 ///
 /// This engine must allow stepping forward and backward.
@@ -36,34 +36,49 @@ pub fn timestamp() -> f64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(deserialize = "G: for<'dee> serde::Deserialize<'dee>"))]
 pub struct GameEngine<G: GameLogic> {
-    pub id: u128,
+    /// A distinct identifier for this engine instance.
+    id: u128,
 
-    pub size: IVec2,
+    /// The size of the space being simulated.
+    size: IVec2,
 
-    pub step_index: u64,
+    /// The step index of the engine. Steps abstract the concept of time
+    /// to make synchronization and determinism easier to achieve.
+    step_index: u64,
 
-    // entity type, id keyed to struct
+    /// Entities stored by id. Each entity is behind an Rc allowing for
+    /// cheap copies of unchanged entities.
     entities: BTreeMap<u128, RefPointer<G::Entity>>,
+    /// An empty entity structure to allow references to empty
+    /// step data.
     empty_entities: BTreeMap<u128, RefPointer<G::Entity>>,
-    // step index keyed to entity id to struct
+    /// Historical entities for the past trailing_state_len steps.
     entities_by_step: BTreeMap<u64, BTreeMap<u128, RefPointer<G::Entity>>>,
 
+    /// The default input for all entities. Used for cheap `&G::Input` returns.
     default_input: G::Input,
+    /// Map of current input to each entity id.
     inputs: HashMap<u128, G::Input>,
+    /// Map of historical inputs to entity ids, for the past trailing_state_len steps.
     inputs_by_step: BTreeMap<u64, HashMap<u128, G::Input>>,
 
-    // engine events may be scheduled for the future, game events may not
+    /// Engine events that occurred in each step.
     engine_events_by_step: BTreeMap<u64, Vec<EngineEvent<G>>>,
+    /// Game events that occurred in each step.
     #[serde(skip)]
     game_events_by_step: BTreeMap<u64, Vec<RefPointer<G::Event>>>,
 
-    #[serde(skip, default = "default_game_events::<G>")]
-    game_events: (flume::Sender<G::Event>, flume::Receiver<G::Event>),
+    /// Used to allow entities to register EngineEvents without
+    /// an `&mut GameEngine<G>` reference.
     #[serde(skip, default = "default_engine_events::<G>")]
     engine_events: (
         flume::Sender<(u64, EngineEvent<G>)>,
         flume::Receiver<(u64, EngineEvent<G>)>,
     ),
+    /// Used to register `G::Event` objects without an `&mut GameEngine<G>`
+    /// reference.
+    #[serde(skip, default = "default_game_events::<G>")]
+    game_events: (flume::Sender<G::Event>, flume::Receiver<G::Event>),
 
     /// Designed to be distinct for each step. e.g. we don't have to store
     #[cfg(not(feature = "zk"))]
