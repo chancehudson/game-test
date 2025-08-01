@@ -1,0 +1,26 @@
+[package]
+name = "keind_zk"
+version = "0.1.0"
+edition = "2024"
+description = "Utilities for interacting with zero knowledge systems"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/chancehudson/game-test/tree/main/packages/keind_zk"
+
+[[bin]]
+name = "test"
+
+[dependencies]
+anyhow = { workspace = true }
+bevy_math = { workspace = true }
+
+#game_common = { path = "../game_common" }
+#keind = { path = "../keind" }
+
+risc0-zkvm = "2.3.1"
+
+[build-dependencies]
+anyhow = { workspace = true }
+tempfile = "3.20.0"
+
+
+risc0-build = "2.0.0"

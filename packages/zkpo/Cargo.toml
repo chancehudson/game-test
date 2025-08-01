@@ -1,0 +1,12 @@
+[package]
+name = "zkpo"
+version = "0.1.0"
+edition = "2024"
+description = "Zero knowledge program operations"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+bincode = { workspace = true }
+anyhow = { workspace = true }
+
+risc0-zkvm = "2.3.1"
