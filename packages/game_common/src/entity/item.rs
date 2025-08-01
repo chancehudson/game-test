@@ -23,7 +23,7 @@ impl ItemEntity {
         item_type: u64,
         count: u32,
         player_creator_id: u128,
-        current_step: u64,
+        current_step: &u64,
     ) -> Self {
         Self {
             state: BaseEntityState {

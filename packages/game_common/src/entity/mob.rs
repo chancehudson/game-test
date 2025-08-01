@@ -210,7 +210,7 @@ impl SEEntity<KeindGameLogic> for MobEntity {
                                 drop.0, // item type
                                 drop.1, // amount
                                 player_entity_id,
-                                *step_index,
+                                step_index,
                             )
                             .into(),
                         ));
@@ -277,12 +277,11 @@ impl SEEntity<KeindGameLogic> for MobEntity {
             last_velocity.x / STEPS_PER_SECOND as i32,
             engine,
         );
-        let map_size = engine.size().clone();
         let y_pos = actor::move_y(
             self.rect(),
             last_velocity.y / STEPS_PER_SECOND as i32,
             &engine.entities_by_type::<PlatformEntity>(),
-            map_size,
+            &engine.size(),
         );
         next_self.state.position.x = x_pos;
         next_self.state.position.y = y_pos;

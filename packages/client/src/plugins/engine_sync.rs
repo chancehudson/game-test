@@ -37,7 +37,7 @@ fn display_hud(
     active_player_entity_id: Res<ActivePlayerEntityId>,
 ) {
     let engine = &active_game_engine.0;
-    if engine.step_index % STEPS_PER_SECOND as u64 == 0 {
+    if engine.step_index() % STEPS_PER_SECOND as u64 == 0 {
         hud_info.fps = ((timestamp() - hud_info.last_frame) / STEP_LEN_S as f64).round();
         hud_info.last_frame = timestamp();
     }
@@ -56,7 +56,7 @@ fn display_hud(
         .show(contexts.ctx_mut(), |ui| {
             ui.vertical(|ui| {
                 ui.label(format!("fps: {}", hud_info.fps));
-                ui.label(format!("engine step: {}", engine.step_index));
+                ui.label(format!("engine step: {}", engine.step_index()));
                 ui.label(format!("server step: {}", hud_info.server_step));
                 ui.label(format!("sync distance: {}", hud_info.sync_distance));
                 ui.label(format!("entity count: {}", engine.entity_count()));
@@ -65,7 +65,7 @@ fn display_hud(
                 }
                 if let Some(player_entity_id) = active_player_entity_id.0 {
                     if let Some(entity) = engine
-                        .entities_at_step(engine.step_index)
+                        .entities_at_step(engine.step_index())
                         .get(&player_entity_id)
                     {
                         ui.label(format!(

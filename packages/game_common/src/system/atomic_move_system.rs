@@ -49,7 +49,7 @@ impl EEntitySystem<KeindGameLogic> for AtomicMoveSystem {
             body,
             disp.y,
             &engine.entities_by_type::<PlatformEntity>(),
-            engine.size,
+            engine.size(),
         );
         Some(self.clone())
     }

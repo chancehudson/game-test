@@ -157,7 +157,7 @@ impl Game {
             let instance = current_instance.read().await;
             if let Some(player) = instance.player_engines.get(&record.id) {
                 if player.last_input_step_index
-                    > instance.engine.step_index - 10 * STEPS_PER_SECOND as u64
+                    > instance.engine.step_index() - 10 * STEPS_PER_SECOND as u64
                 {
                     anyhow::bail!("A player with this name is already logged in!");
                 }

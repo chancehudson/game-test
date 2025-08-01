@@ -111,7 +111,7 @@ impl<G: GameLogic> Default for GameEngine<G> {
         let mut entities_by_step = BTreeMap::default();
         entities_by_step.insert(0, BTreeMap::default());
         Self {
-            id: rand::random(),
+            id: 0,
             size: IVec2::new(1000, 1000),
             step_index: 0,
             entities: BTreeMap::default(),
@@ -203,7 +203,7 @@ impl<G: GameLogic> GameEngine<G> {
         step_index: Option<u64>,
     ) -> Option<&RefPointer<G::Entity>> {
         let step_index = step_index.unwrap_or(self.step_index);
-        self.entities_at_step(step_index).get(id)
+        self.entities_at_step(&step_index).get(id)
     }
 
     pub fn entity_by_id<T: SEEntity<G> + 'static>(
@@ -538,11 +538,11 @@ impl<G: GameLogic> GameEngine<G> {
         }
     }
 
-    pub fn entities_at_step(&self, step_index: u64) -> &BTreeMap<u128, RefPointer<G::Entity>> {
-        if step_index == 0 {
+    pub fn entities_at_step(&self, step_index: &u64) -> &BTreeMap<u128, RefPointer<G::Entity>> {
+        if step_index == &0 {
             return &self.empty_entities;
         }
-        if step_index == self.step_index {
+        if step_index == &self.step_index {
             &self.entities
         } else {
             match self.entities_by_step.get(&step_index) {

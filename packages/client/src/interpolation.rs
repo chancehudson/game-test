@@ -29,7 +29,7 @@ pub fn interpolate_mobs(
     for mob in last_mobs {
         if let Some(current_mob_entity) = engine.entity_by_id::<MobEntity>(&mob.id(), None) {
             if let Some(past_entity) = engine
-                .entity_by_id::<MobEntity>(&mob.id(), Some(engine.step_index - STEP_DELAY / 2))
+                .entity_by_id::<MobEntity>(&mob.id(), Some(engine.step_index() - STEP_DELAY / 2))
             {
                 // interpolate position over N steps
                 if current_mob_entity.aggro_to.is_none()
@@ -52,8 +52,8 @@ pub fn interpolate_mobs(
                     interpolating_entities.0.insert(
                         mob.id(),
                         Interpolation {
-                            from_step: engine.step_index,
-                            to_step: engine.step_index + interp_steps,
+                            from_step: *engine.step_index(),
+                            to_step: engine.step_index() + interp_steps,
                             start_position: current_position,
                             diff_position: step_amount,
                         },
