@@ -6016,17 +6016,8 @@ dependencies = [
 name = "keind_time"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "bevy_math",
- "bincode",
- "blake3",
- "flume",
  "keind",
- "once_cell",
- "rand 0.9.2",
- "rand_xoshiro",
  "serde",
- "serde_json",
  "web-time",
 ]
 
