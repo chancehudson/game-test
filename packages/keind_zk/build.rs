@@ -78,13 +78,12 @@ fn main() -> anyhow::Result<()> {
                 &[
                     "+risc0",
                     "build",
-                    &format!("--bin={bin_name}"),
                     &format!("--manifest-path={manifest_dir}/Cargo.toml"),
+                    &format!("--target-dir={}", target_dir.to_str().unwrap()),
                     "--target=riscv32im-risc0-zkvm-elf",
                     "--release",
-                    &format!("--target-dir={}", target_dir.to_str().unwrap()),
                 ]
-                .join(" ")
+                .join(" "),
             ),
         ])
         .env("RUSTFLAGS", rust_flags.join(" "))
@@ -93,6 +92,8 @@ fn main() -> anyhow::Result<()> {
         println!("cargo:warning={:?}", out);
         println!("cargo:warning={}", "compilation failed!");
         std::process::exit(1);
+    } else {
+        println!("cargo:warning={:?}", out);
     }
 
     // fs::copy(
