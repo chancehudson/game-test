@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
-use game_common::entity::EEntity;
+use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::map;
 use crate::map_data_loader::MapDataAsset;
@@ -150,7 +151,7 @@ fn player_camera(
     let active_player_entity_id = active_player_entity_id.0.as_ref().unwrap();
     let engine = &active_game_engine.0;
     let entity = engine
-        .entities_at_step(engine.step_index)
+        .entities_at_step(engine.step_index())
         .get(active_player_entity_id);
     if entity.is_none() {
         return;

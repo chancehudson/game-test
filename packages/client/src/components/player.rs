@@ -1,10 +1,7 @@
 use bevy::prelude::*;
 
-use game_common::AnimationData;
-use game_common::entity::EntityInput;
-use game_common::entity::player::PlayerEntity;
-use game_common::game_event::EngineEvent;
-use game_common::network::Action;
+use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;
@@ -100,7 +97,7 @@ fn damage_text_system(
         if let Some(entity) = engine.entity_by_id::<PlayerEntity>(&entity.entity_id, None) {
             if entity.received_damage_this_step.0 {
                 commands.spawn(DamageComponent::player_damage(
-                    engine.step_index,
+                    *engine.step_index(),
                     &entity,
                     entity.received_damage_this_step.1,
                 ));
@@ -115,10 +112,10 @@ fn iframe_blink_system(
 ) {
     let engine = &active_engine.0;
     let blink_step_interval = 8;
-    let blink = (engine.step_index / blink_step_interval) % 2 == 0;
+    let blink = (engine.step_index() / blink_step_interval) % 2 == 0;
     for (entity, mut sprite) in entity_query.iter_mut() {
         if let Some(entity) = engine.entity_by_id::<PlayerEntity>(&entity.entity_id, None) {
-            if entity.receiving_damage_until.is_some() {
+            if entity.has_system::<InvincibleSystem>() {
                 let alpha = if blink { 0.4 } else { 1.0 };
                 sprite.color.set_alpha(alpha);
             } else {
@@ -156,8 +153,8 @@ fn input_system(
     // request engine reload if p key is pressed
     if keyboard.just_pressed(KeyCode::KeyP) {
         action_events.write(NetworkAction(Action::RequestEngineReload(
-            engine.id,
-            engine.step_index,
+            *engine.id(),
+            *engine.step_index(),
         )));
         return;
     }
@@ -188,35 +185,27 @@ fn input_system(
             crouch: keyboard.pressed(KeyCode::ArrowDown),
             attack: keyboard.just_pressed(KeyCode::KeyA),
             enter_portal: keyboard.pressed(KeyCode::ArrowUp),
-            admin_enable_debug_markers: keyboard.just_pressed(KeyCode::Digit9),
             show_emoji: keyboard.just_pressed(KeyCode::KeyQ),
             respawn: keyboard.just_pressed(KeyCode::KeyR),
             pick_up: keyboard.just_pressed(KeyCode::KeyZ),
         };
-        let (_, latest_input) =
-            if let Some(player_entity) = engine.entity_by_id::<PlayerEntity>(&entity_id, None) {
-                &player_entity.input_system.latest_input
-            } else {
-                println!("WARNING: player entity not found for input");
-                return;
-            };
-
+        let latest_input = engine.input_for_entity(&entity_id);
         if latest_input == &input {
             return;
         }
         let input_event = EngineEvent::Input {
             input: input.clone(),
             entity_id,
-            universal: true,
+            is_non_determinism: true,
         };
         // register here, will get confirmation with an id change?
         // for now, no
         engine.register_event(None, input_event.clone());
         // send the new input to the server
         action_events.write(NetworkAction(Action::RemoteEngineEvent(
-            engine.id,
+            *engine.id(),
             input_event,
-            engine.step_index,
+            *engine.step_index(),
         )));
     }
 }

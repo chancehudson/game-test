@@ -24,7 +24,9 @@ bevy = { version = "0.16.0", features = ["web", "jpeg", "wayland"] }
 bevy_egui = { version = "0.34.1" }
 
 db = { path = "../db" }
-game_common = { path = "../game_common" }
+game_common = { path = "../game_common", default-features = false }
+keind = { path = "../keind", default-features = false }
+keind_time = { path = "../keind_time" }
 similar = "2.7.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

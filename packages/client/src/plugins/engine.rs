@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::time::Instant;
 
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
@@ -7,17 +8,8 @@ use bevy::text::TextBounds;
 use bevy::text::TextLayoutInfo;
 
 use db::PlayerRecord;
-use game_common::AnimationData;
-use game_common::STEP_DELAY;
-use game_common::STEP_LEN_S;
-use game_common::engine::GameEngine;
-use game_common::entity::EEntity;
-use game_common::entity::EngineEntity;
-use game_common::entity::mob::MobEntity;
-use game_common::game_event::GameEvent;
-use game_common::network::Action;
-use game_common::network::Response;
-use game_common::timestamp;
+use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::GameState;
 use crate::NetworkMessage;
@@ -37,7 +29,7 @@ use crate::plugins::info_text::InfoMessage;
 /// Engine tracking resources/components
 ///
 #[derive(Resource, Default)]
-pub struct ActiveGameEngine(pub GameEngine);
+pub struct ActiveGameEngine(pub GameEngine<KeindGameLogic>);
 
 #[derive(Component, Default)]
 pub struct GameEntityComponent {
@@ -48,7 +40,7 @@ pub struct GameEntityComponent {
 pub struct ActivePlayerEntityId(pub Option<u128>);
 
 #[derive(Resource, Default)]
-pub struct LoggedInAt(pub f64);
+pub struct LoggedInAt(pub Option<Instant>);
 
 #[derive(Resource, Default)]
 pub struct ActivePlayerState(pub Option<PlayerRecord>);
@@ -95,7 +87,7 @@ fn handle_login(
     for event in action_events.read() {
         if let Response::PlayerLoggedIn(_state) = &event.0 {
             active_player_entity_id.0 = None;
-            logged_in_at.0 = timestamp();
+            logged_in_at.0 = Some(Instant::now());
             next_state.set(GameState::Waiting);
         }
     }
@@ -122,27 +114,25 @@ fn step_game_engine(
 ) {
     let game_data = &game_data.0;
     let engine = &mut active_game_engine.0;
-    let target_step = sync_info.server_step
-        + (((timestamp() - sync_info.server_step_timestamp) / STEP_LEN_S).ceil() as u64);
-    let game_events = if target_step > engine.step_index {
-        let steps = target_step - engine.step_index;
+    let target_step = sync_info.engine_time.expected_step_index();
+    let game_events = if &target_step > engine.step_index() {
+        let steps = target_step - engine.step_index();
         if steps >= 30 {
             println!("skipping forward {} steps", steps / 2);
-            engine.step_to(&(engine.step_index + (steps / 2)))
+            &engine.step_to(&(engine.step_index() + (steps / 2)))
         } else if steps >= 10 {
-            let mut out = engine.step();
-            out.append(&mut engine.step());
-            out
+            // execute a double step
+            &vec![engine.step(), engine.step()].concat()
         } else {
-            engine.step()
+            &engine.step()
         }
     } else {
         println!("skipped step");
-        vec![]
+        &vec![]
         // local engine is ahead of server, skip a step
     };
     for event in game_events {
-        match event {
+        match &**event {
             GameEvent::Message(_, _) => {
                 // spawn a message in bevy
             }
@@ -154,7 +144,7 @@ fn step_game_engine(
             }
             GameEvent::PlayerAbilityExp(entity_id, ability, amount) => {
                 if let Some(player_entity_id) = active_player_entity_id.0
-                    && player_entity_id == entity_id
+                    && &player_entity_id == entity_id
                 {
                     let ability_str: &'static str = ability.into();
                     info_event_writer
@@ -181,7 +171,7 @@ fn handle_exit_map(
                 commands.entity(entity).despawn();
             }
             active_player_entity_id.0 = None;
-            active_game_engine.0 = GameEngine::default();
+            active_game_engine.0 = GameEngine::<KeindGameLogic>::default();
             next_state.set(GameState::Waiting);
         }
     }
@@ -198,17 +188,18 @@ fn handle_engine_event(
         match &event.0 {
             Response::RemoteEngineEvents(engine_id, events, server_step_index) => {
                 let engine = &mut active_engine_state.0;
-                if engine.id != *engine_id || events.is_empty() {
+                if engine.id() != engine_id || events.is_empty() {
                     continue;
                 }
                 let player_entity_id = active_player_entity_id.0.unwrap_or_default();
                 engine_sync.server_step = *server_step_index;
-                engine_sync.server_step_timestamp = timestamp();
+                engine_sync.server_step_timestamp = Some(Instant::now());
                 // these are the mobs we were seeing before
                 let last_mobs = engine
                     .entities_by_type::<MobEntity>()
-                    .cloned()
-                    .collect::<Vec<_>>();
+                    .iter()
+                    .map(|v| (*v).clone())
+                    .collect::<Vec<MobEntity>>();
                 engine.integrate_events(events.clone());
                 interpolate_mobs(
                     last_mobs,
@@ -237,33 +228,34 @@ fn handle_engine_stats(
             entities_maybe,
         ) = &event.0
         {
-            if engine_id != &active_engine_state.0.id {
+            if engine_id != active_engine_state.0.id() {
                 println!(
                     "WARNING: received engine stats for inactive engine, discarding  server: {} local: {}",
-                    engine_id, active_engine_state.0.id
+                    engine_id,
+                    active_engine_state.0.id()
                 );
                 return;
             }
             engine_sync.server_step = *step_index;
-            engine_sync.server_step_timestamp = timestamp();
-            engine_sync.sync_distance = (engine.step_index as i64) - (*step_index as i64);
+            engine_sync.server_step_timestamp = Some(Instant::now());
+            engine_sync.sync_distance = (*engine.step_index() as i64) - (*step_index as i64);
             if !engine_sync.requested_resync {
                 if let Ok(local_engine_hash) = engine.step_hash(&hash_step_index) {
                     if local_engine_hash != *server_engine_hash {
                         println!("WARNING: desync detected");
                         println!(
                             "local engine state: {:?}",
-                            active_engine_state.0.entities_at_step(*hash_step_index)
+                            active_engine_state.0.entities_at_step(hash_step_index)
                         );
                         action_events_writer.write(NetworkAction(Action::RequestEngineReload(
-                            engine.id,
+                            *engine.id(),
                             *hash_step_index,
                         )));
                         engine_sync.requested_resync = true;
                         // trigger resync
                         // debug if needed
                         if let Some(server_entities) = entities_maybe {
-                            let local_entities = engine.entities_at_step(*hash_step_index);
+                            let local_entities = engine.entities_at_step(hash_step_index);
                             let server_json =
                                 serde_json::to_string_pretty(&server_entities).unwrap();
                             let local_json = serde_json::to_string_pretty(&local_entities).unwrap();
@@ -297,14 +289,15 @@ fn handle_engine_state(
         if let Response::EngineState(engine, player_entity_id_maybe, server_step) = &event.0 {
             active_player_entity_id.0 = Some(*player_entity_id_maybe);
             *engine_sync = EngineSyncInfo::default();
+            engine_sync.engine_time = keind_time::GameEngineTime::from_step(*server_step, 60);
             engine_sync.server_step = *server_step;
-            engine_sync.server_step_timestamp = timestamp();
+            engine_sync.server_step_timestamp = Some(Instant::now());
             active_engine_state.0 = engine.clone();
             let engine = &mut active_engine_state.0;
-            if server_step > &engine.step_index {
+            if server_step > engine.step_index() {
                 engine.step_to(&server_step);
             }
-            println!("INFO: Received engine with id: {}", engine.id);
+            println!("INFO: Received engine with id: {}", engine.id());
             // TODO: figure out how to get rid of this clone
             next_state.set(GameState::LoadingMap);
         }
@@ -333,14 +326,14 @@ pub fn sync_engine_components(
     // this is the entities in relative positions we want to render
     let mut aggrod_mobs = HashMap::new();
     let mut current_entities = engine
-        .entities_at_step(engine.step_index)
+        .entities_at_step(engine.step_index())
         .iter()
         .filter(|(_id, entity)| {
-            match entity {
+            match entity.as_ref() {
                 EngineEntity::Mob(p) => {
                     if let Some(aggro_to) = p.aggro_to {
                         if aggro_to.0 != player_entity_id {
-                            aggrod_mobs.insert(p.id, true);
+                            aggrod_mobs.insert(p.id(), true);
                             return false;
                         }
                     }
@@ -354,11 +347,11 @@ pub fn sync_engine_components(
             }
         })
         .collect::<BTreeMap<_, _>>();
-    if engine.step_index >= STEP_DELAY {
-        let past_step_index = engine.step_index - STEP_DELAY;
-        let past_entities = engine.entities_at_step(past_step_index);
+    if engine.step_index() >= &STEP_DELAY {
+        let past_step_index = engine.step_index() - &STEP_DELAY;
+        let past_entities = engine.entities_at_step(&past_step_index);
         for (entity_id, entity) in past_entities.iter().filter(|(id, entity)| {
-            if aggrod_mobs.contains_key(&id) {
+            if aggrod_mobs.contains_key(id) {
                 return true;
             }
             if let Some(player_creator_id) = entity.player_creator_id() {
@@ -374,16 +367,16 @@ pub fn sync_engine_components(
     }
     let mut position_overrides = HashMap::new();
     for (entity_id, interpolation) in &interpolating_entities.0 {
-        if engine.step_index < interpolation.to_step {
+        if engine.step_index() < &interpolation.to_step {
             let pos = interpolation.start_position
-                + IVec2::splat((engine.step_index - interpolation.from_step) as i32)
+                + IVec2::splat((engine.step_index() - interpolation.from_step) as i32)
                     * interpolation.diff_position;
             position_overrides.insert(*entity_id, pos);
         }
     }
     interpolating_entities
         .0
-        .retain(|_, Interpolation { to_step, .. }| engine.step_index < *to_step);
+        .retain(|_, Interpolation { to_step, .. }| engine.step_index() < to_step);
 
     for (entity, entity_component, mut transform) in entity_query.iter_mut() {
         if let Some(game_entity) = current_entities.get(&entity_component.entity_id) {
@@ -430,7 +423,7 @@ fn add_simple_bubble_background(
 
         const MARGIN: f32 = 4.0;
         if let Some(p) = engine
-            .entities_at_step(engine.step_index)
+            .entities_at_step(engine.step_index())
             .get(&game_entity.entity_id)
         {
             let bubble_size =
@@ -528,7 +521,7 @@ pub fn spawn_bevy_entity(
                     linebreak: LineBreak::WordOrCharacter,
                 },
                 TextBounds {
-                    width: Some(p.size.x as f32),
+                    width: Some(p.size().x as f32),
                     ..default()
                 },
             ));
@@ -550,13 +543,13 @@ pub fn spawn_bevy_entity(
                 ))
                 .with_children(|parent| {
                     parent.spawn((
-                        Transform::from_translation(Vec3::new(p.size.x as f32 / 2., -10., 100.)),
+                        Transform::from_translation(Vec3::new(p.size().x as f32 / 2., -10., 100.)),
                         Text2d::new(p.record.username.clone()),
                         TextFont::from_font_size(10.0),
                     ));
                 });
         }
-        EngineEntity::MobSpawner(_) => {}
+        EngineEntity::MobSpawn(_) => {}
         EngineEntity::Mob(p) => {
             let mob_data = if let Some(mob_data) = game_data.0.mobs.get(&p.mob_type) {
                 mob_data

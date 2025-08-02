@@ -4,23 +4,13 @@ use std::sync::Arc;
 
 use bevy_math::IVec2;
 
-use db::AbilityExpRecord;
 use db::PlayerInventory;
 use db::PlayerRecord;
 use db::PlayerStats;
-use game_common::GameEngine;
-use game_common::MapData;
-use game_common::STEP_DELAY;
-use game_common::STEPS_PER_SECOND;
-use game_common::TRAILING_STATE_COUNT;
-use game_common::entity::EEntity;
-use game_common::entity::EngineEntity;
-use game_common::entity::item::ItemEntity;
-use game_common::entity::player::PlayerEntity;
-use game_common::game_event::EngineEvent;
-use game_common::game_event::GameEvent;
-use game_common::network::Response;
-use game_common::timestamp;
+
+use game_common::prelude::*;
+use keind::prelude::*;
+use keind_time::GameEngineTime;
 
 use crate::game::RemoteEngineEvent;
 use crate::network;
@@ -28,7 +18,7 @@ use crate::network;
 pub struct RemotePlayerEngine {
     pub socket_id: String,
     pub entity_id: u128,
-    pub engine_id: u128,
+    pub engine_id: Option<u128>,
     pub is_inited: bool,
     pub player_id: String,
     pub last_input_step_index: u64,
@@ -37,7 +27,8 @@ pub struct RemotePlayerEngine {
 /// A distinct instance of a map. Each map is it's own game instance
 /// responsible for player communication, mob management, and physics.
 pub struct MapInstance {
-    pub engine: GameEngine,
+    pub engine: GameEngine<KeindGameLogic>,
+    pub engine_time: GameEngineTime,
     pub map: MapData,
 
     // actions received from players. These must be sanitized before
@@ -47,11 +38,11 @@ pub struct MapInstance {
         flume::Receiver<RemoteEngineEvent>,
     ),
     pub pending_events: (
-        flume::Sender<(u64, EngineEvent)>,
-        flume::Receiver<(u64, EngineEvent)>,
+        flume::Sender<(u64, EngineEvent<KeindGameLogic>)>,
+        flume::Receiver<(u64, EngineEvent<KeindGameLogic>)>,
     ),
     pub player_engines: HashMap<String, RemotePlayerEngine>,
-    last_stats_broadcast: f64,
+    last_stats_broadcast_step: u64,
 
     network_server: Arc<network::Server>,
     db: Arc<redb::Database>,
@@ -75,10 +66,11 @@ impl MapInstance {
             pending_actions: flume::unbounded(),
             pending_events: flume::unbounded(),
             player_engines: HashMap::new(),
-            engine: GameEngine::new(map.size),
+            engine: GameEngine::<KeindGameLogic>::new(map.size, rand::random()),
+            engine_time: GameEngineTime::default(),
             map,
             network_server,
-            last_stats_broadcast: 0.,
+            last_stats_broadcast_step: 0,
             db,
             game_events,
             latest_processed_game_events: 0,
@@ -92,23 +84,24 @@ impl MapInstance {
                 .entity_by_id_untyped(&player_engine.entity_id, None)
                 .cloned()
             {
-                let new_entity_id = self.engine.generate_id();
                 let event = EngineEvent::SpawnEntity {
-                    entity: EngineEntity::Item(ItemEntity::new_item(
-                        new_entity_id,
-                        entity.center(),
-                        item.0,
-                        item.1,
-                        entity.id(),
-                        self.engine.step_index,
-                    )),
-                    universal: true,
+                    entity: RefPointer::new(
+                        ItemEntity::new_item(
+                            rand::random(),
+                            entity.center(),
+                            item.0,
+                            item.1,
+                            entity.id(),
+                            self.engine.step_index(),
+                        )
+                        .into(),
+                    ),
+                    is_non_determinism: true,
                 };
                 self.pending_events
                     .0
-                    .send((self.engine.step_index, event.clone()))?;
-                self.engine
-                    .register_event(Some(self.engine.step_index), event);
+                    .send((*self.engine.step_index(), event.clone()))?;
+                self.engine.register_event(None, event);
             }
         }
         Ok(())
@@ -122,39 +115,36 @@ impl MapInstance {
         player_stats: &PlayerStats,
         requested_spawn_pos: Option<IVec2>,
     ) -> anyhow::Result<()> {
-        let entity = EngineEntity::Player(PlayerEntity::new_with_ids(
-            rand::random(),
-            player_record.clone(),
-            player_stats.clone(),
-        ));
+        let entity =
+            PlayerEntity::new_with_ids(rand::random(), player_record.clone(), player_stats.clone());
         let player = RemotePlayerEngine {
             socket_id,
-            engine_id: rand::random(),
+            engine_id: None,
             is_inited: false,
             player_id: player_record.id.clone(),
             entity_id: entity.id(),
-            last_input_step_index: self.engine.step_index,
+            last_input_step_index: *self.engine.step_index(),
         };
         // we've inserted a new player, last_engine is the old player engine data, if it exists
         if let Some(last_engine) = self.player_engines.insert(player_record.id.clone(), player) {
             // cleanup previous engine connection
             let remove = EngineEvent::RemoveEntity {
                 entity_id: last_engine.entity_id,
-                universal: true,
+                is_non_determinism: true,
             };
             self.engine.register_event(None, remove.clone());
             self.pending_events
                 .0
-                .send((self.engine.step_index, remove))?;
+                .send((*self.engine.step_index(), remove))?;
         }
         let add_event = EngineEvent::SpawnEntity {
-            entity,
-            universal: true,
+            entity: RefPointer::new(entity.into()),
+            is_non_determinism: true,
         };
         self.engine.register_event(None, add_event.clone());
         self.pending_events
             .0
-            .send((self.engine.step_index, add_event))?;
+            .send((*self.engine.step_index(), add_event))?;
         Ok(())
     }
 
@@ -162,12 +152,12 @@ impl MapInstance {
         if let Some(player) = self.player_engines.remove(player_id) {
             let event = EngineEvent::RemoveEntity {
                 entity_id: player.entity_id,
-                universal: true,
+                is_non_determinism: true,
             };
             self.engine.register_event(None, event.clone());
             self.pending_events
                 .0
-                .send((self.engine.step_index, event))?;
+                .send((*self.engine.step_index(), event))?;
         } else {
             println!(
                 "WARNING: attempted to remove {player_id} from {} instance",
@@ -183,7 +173,7 @@ impl MapInstance {
             println!("player {player_id} requested engine reload");
             // engine resync
             player.is_inited = false;
-            player.engine_id = rand::random();
+            player.engine_id = None;
         } else {
             println!("WARNING: attempting engine reload for player not on instance");
         }
@@ -198,49 +188,27 @@ impl MapInstance {
             event,
             step_index,
         }: &RemoteEngineEvent,
-    ) -> anyhow::Result<Option<(u64, EngineEvent)>> {
+    ) -> anyhow::Result<Option<(u64, EngineEvent<KeindGameLogic>)>> {
         // discard events too far back
-        if step_index < &self.engine.step_index
-            && self.engine.step_index - step_index >= TRAILING_STATE_COUNT
+        if step_index < self.engine.step_index()
+            && self.engine.step_index() - step_index >= self.engine.trailing_state_len
         {
             anyhow::bail!("event too far in the past, discarding");
         }
-        if step_index > &self.engine.expected_step_index() {
+        if step_index > &self.engine_time.expected_step_index() {
             anyhow::bail!("event too far in the future, discarding");
         }
 
         // player action validity checks/logic
         if let Some(player) = self.player_engines.get_mut(player_id) {
             // check that we're syncing with the correct engine
-            if &player.engine_id != engine_id {
-                anyhow::bail!("event from incorrect engine_id for player");
+            if player.engine_id.is_none() || &player.engine_id.unwrap() != engine_id {
+                // we discard without erroring, wait for engine to be inited
+                return Ok(None);
             }
             // Structure for validity checks
-            match &event {
-                EngineEvent::Message {
-                    text,
-                    entity_id,
-                    universal: _,
-                } => {
-                    if entity_id != &player.entity_id {
-                        anyhow::bail!("player tried to message from wrong entity");
-                    }
-                    println!("integrating input event at {step_index}");
-                    // player.last_input_step_index = *step_index;
-                    return Ok(Some((
-                        *step_index,
-                        EngineEvent::Message {
-                            text: text.clone(),
-                            entity_id: *entity_id,
-                            universal: true,
-                        },
-                    )));
-                }
-                EngineEvent::Input {
-                    universal: _,
-                    input: _,
-                    entity_id,
-                } => {
+            match event {
+                EngineEvent::Input { entity_id, .. } => {
                     if entity_id != &player.entity_id {
                         anyhow::bail!("player tried to input for wrong entity");
                     }
@@ -248,14 +216,7 @@ impl MapInstance {
                     player.last_input_step_index = *step_index;
                     return Ok(Some((*step_index, event.clone())));
                 }
-                EngineEvent::SpawnEntity {
-                    universal: _,
-                    entity: _,
-                } => {}
-                EngineEvent::RemoveEntity {
-                    entity_id: _,
-                    universal: _,
-                } => {}
+                _ => {} // disallow all others
             }
         } else {
             anyhow::bail!("unknown player id, discarding game event");
@@ -267,7 +228,7 @@ impl MapInstance {
     pub async fn process_remote_events(
         &mut self,
         remote_events: Vec<RemoteEngineEvent>,
-    ) -> anyhow::Result<BTreeMap<u64, Vec<EngineEvent>>> {
+    ) -> anyhow::Result<BTreeMap<u64, Vec<EngineEvent<KeindGameLogic>>>> {
         let mut events: BTreeMap<u64, Vec<_>> = BTreeMap::new();
 
         for remote_event in remote_events {
@@ -300,22 +261,22 @@ impl MapInstance {
         }
 
         // step as needed
-        self.engine.tick();
+        self.engine_time.tick(&mut self.engine);
 
         // process game events at a delayed rate to allow lagged user inputs
-        let latest_step = self.engine.step_index - STEP_DELAY.min(self.engine.step_index);
+        let latest_step = *self.engine.step_index() - STEP_DELAY.min(*self.engine.step_index());
         let game_events = self
             .engine
             .game_events(self.latest_processed_game_events, latest_step);
         self.latest_processed_game_events = latest_step;
         for game_event in game_events {
             // handle game events that occurred during a step
-            match game_event {
+            match &*game_event {
                 GameEvent::Message(_, _) => {}
                 GameEvent::PlayerPickUpRequest(_) => {}
                 GameEvent::PlayerPickUp(player_id, item_type, count) => {
                     let mut inventory = PlayerInventory::new(player_id.to_string());
-                    match inventory.player_picked_up(self.db.clone(), item_type, count)? {
+                    match inventory.player_picked_up(self.db.clone(), *item_type, *count)? {
                         Some((slot_index, new_record)) => {
                             self.network_server
                                 .send_to_player(
@@ -337,70 +298,41 @@ impl MapInstance {
                     requested_spawn_pos: _,
                 } => {
                     // we'll send this up to game.rs
-                    self.game_events.send(game_event).unwrap();
+                    self.game_events.send((*game_event).clone()).unwrap();
                 }
-                GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {
-                    if let Some(player_entity) = self
-                        .engine
-                        .entity_by_id_mut::<PlayerEntity>(&player_entity_id, None)
-                    {
-                        // we don't want to modify the entities here, this is purely synchronizing the server
-                        // and db with the engine
-                        player_entity.stats.clone().increment_db(
-                            &self.db,
-                            &AbilityExpRecord {
-                                player_id: player_entity.player_id.clone(),
-                                amount,
-                                ability,
-                            },
-                        )?;
-                    } else {
-                        println!(
-                            "WARNING: player entity does not exist in engine, xp not persisted to db!"
-                        );
-                    }
-                }
+                GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {}
                 GameEvent::PlayerHealth(player_id, new_health) => {
-                    PlayerRecord::set_health(&self.db, &player_id, new_health)?;
+                    PlayerRecord::set_health(&self.db, &player_id, *new_health)?;
                 }
             }
         }
 
         // build a checksum for a step in the recent past to
         // send to the client for detecting desync
-        let engine_hash = if timestamp() - self.last_stats_broadcast > 2.0
-            && self.engine.step_index >= 2 * STEPS_PER_SECOND
-        {
-            self.last_stats_broadcast = timestamp();
-            let target_step = self.engine.step_index - 2 * STEPS_PER_SECOND;
-            Some((target_step, self.engine.step_hash(&target_step)?))
-        } else {
-            None
-        };
-        let mut ids_to_remove = vec![];
-        for (id, player) in self.player_engines.iter_mut() {
-            let player_disconnected = if let Some(socket_id) = self
-                .network_server
-                .socket_by_player_id(&player.player_id)
-                .await
-            {
-                socket_id != player.socket_id
+        let engine_hash =
+            if self.engine_time.expected_step_index() - self.last_stats_broadcast_step > 120 {
+                self.last_stats_broadcast_step = self.engine_time.expected_step_index();
+                let target_step = self.engine.step_index() - 2 * self.engine_time.steps_per_second;
+                Some((target_step, self.engine.step_hash(&target_step)?))
             } else {
-                true
+                None
             };
-            if player_disconnected {
-                let removal_event = EngineEvent::RemoveEntity {
-                    entity_id: player.entity_id,
-                    universal: true,
-                };
-                self.engine.register_event(None, removal_event.clone());
-                self.pending_events
-                    .0
-                    .send((self.engine.step_index, removal_event))?;
-                ids_to_remove.push(id.clone());
+        for (id, player) in self.player_engines.iter_mut() {
+            if !player.is_inited || player.engine_id.is_none() {
+                Self::init_remote_engine(
+                    self.network_server.clone(),
+                    &self.engine,
+                    &self.engine_time,
+                    &id,
+                    player,
+                )
+                .await;
                 continue;
             }
-            // send engine stats
+            // explicitly checked 10 lines above
+            let engine_id = player.engine_id.unwrap();
+            // if we have an engine hash let's trigger
+            // a client integrity check
             if let Some(engine_hash) = engine_hash {
                 let id = id.to_string();
                 let engine_hash = engine_hash.clone();
@@ -408,70 +340,92 @@ impl MapInstance {
                     .send_to_player(
                         &id,
                         Response::EngineStats(
-                            player.engine_id,
-                            self.engine.step_index,
+                            engine_id,
+                            *self.engine.step_index(),
                             engine_hash,
                             #[cfg(debug_assertions)]
-                            Some(self.engine.entities_at_step(engine_hash.0).clone()),
+                            Some(self.engine.entities_at_step(&engine_hash.0).clone()),
                             #[cfg(not(debug_assertions))]
                             None,
                         ),
                     )
                     .await;
             }
-            if player.is_inited {
-                if has_events {
-                    let response = Response::RemoteEngineEvents(
-                        player.engine_id,
-                        new_events
-                            .iter()
-                            .map(|(step_index, events)| {
-                                (
-                                    *step_index,
-                                    events
-                                        .iter()
-                                        .filter(|event| match event {
-                                            EngineEvent::Input { entity_id, .. } => {
-                                                entity_id != &player.entity_id
-                                            }
-                                            EngineEvent::Message { entity_id, .. } => {
-                                                entity_id != &player.entity_id
-                                            }
-                                            _ => true,
-                                        })
-                                        .cloned()
-                                        .collect::<Vec<_>>(),
-                                )
-                            })
-                            .filter(|(_step_index, events)| !events.is_empty())
-                            .collect::<BTreeMap<_, Vec<_>>>(),
-                        self.engine.expected_step_index(),
-                    );
-                    self.network_server.send_to_player(id, response).await;
-                }
-            } else {
-                Self::init_remote_engine(self.network_server.clone(), &self.engine, &id, player)
-                    .await;
+            // if we have new non-determinism, share it
+            // with all clients
+            if has_events {
+                let response = Response::RemoteEngineEvents(
+                    engine_id,
+                    new_events
+                        .iter()
+                        .map(|(step_index, events)| {
+                            (
+                                *step_index,
+                                events
+                                    .iter()
+                                    .filter(|event| match event {
+                                        EngineEvent::Input { entity_id, .. } => {
+                                            entity_id != &player.entity_id
+                                        }
+                                        _ => true,
+                                    })
+                                    .cloned()
+                                    .collect::<Vec<_>>(),
+                            )
+                        })
+                        .filter(|(_step_index, events)| !events.is_empty())
+                        .collect::<BTreeMap<_, Vec<_>>>(),
+                    self.engine_time.expected_step_index(),
+                );
+                self.network_server.send_to_player(id, response).await;
             }
         }
-        for id in ids_to_remove {
-            self.player_engines.remove(&id);
-        }
-        // cleanup players that have disconnected
+        self.purge_players().await?;
+        Ok(())
+    }
+
+    /// Remove players that have disconnected or are otherwise in an incosistent state.
+    pub async fn purge_players(&mut self) -> anyhow::Result<()> {
+        // remove player entities that have disconnected
         let mut removal_events = vec![];
+        for (player_id, player) in &self.player_engines {
+            let player_connected = if let Some(socket_id) =
+                self.network_server.socket_by_player_id(&player_id).await
+            {
+                socket_id == player.socket_id
+            } else {
+                true
+            };
+            if !player_connected {
+                removal_events.push((
+                    player_id.clone(),
+                    EngineEvent::RemoveEntity {
+                        entity_id: player.entity_id,
+                        is_non_determinism: true,
+                    },
+                ));
+            }
+        }
+        // check for duplicate or stale player entries
         for entity in self.engine.entities_by_type::<PlayerEntity>() {
+            // check that our entity is valid in the engine
             if let Some(player) = self.player_engines.get(&entity.player_id) {
-                if player.entity_id == entity.id {
+                if player.entity_id == entity.id() {
                     // player still connected/active
                     continue;
+                } else {
+                    println!(
+                        "WARNING: detected player with mismatched entity id on '{}'",
+                        self.map.name
+                    );
                 }
             }
             // otherwise remove the entity
             removal_events.push((
                 entity.player_id.clone(),
                 EngineEvent::RemoveEntity {
-                    entity_id: entity.id,
-                    universal: true,
+                    entity_id: entity.id(),
+                    is_non_determinism: true,
                 },
             ));
         }
@@ -479,37 +433,40 @@ impl MapInstance {
             self.player_engines.remove(&player_id);
             self.pending_events
                 .0
-                .send((self.engine.step_index, e.clone()))?;
+                .send((*self.engine.step_index(), e.clone()))?;
             self.engine.register_event(None, e);
         }
-
         Ok(())
     }
 
     pub async fn init_remote_engine(
         network_server: Arc<network::Server>,
-        engine: &GameEngine,
+        engine: &GameEngine<KeindGameLogic>,
+        engine_time: &GameEngineTime,
         player_id: &str,
         player: &mut RemotePlayerEngine,
     ) {
-        if engine.step_index < STEP_DELAY {
+        if engine.step_index() < &(STEP_DELAY - 1) {
             return;
         }
-        let client_engine = engine.engine_at_step(&(engine.step_index - STEP_DELAY), false);
-        if client_engine.is_err() {
-            // engine warming up, we'll try again next tick
-            return;
-        }
-        let mut client_engine = client_engine.unwrap();
+        let mut client_engine =
+            match engine.engine_at_step(&(engine.step_index() - STEP_DELAY - 1), false) {
+                Ok(engine) => engine,
+                Err(err) => {
+                    println!("Error constructing engine for remote init, retrying");
+                    println!("{err}");
+                    return;
+                }
+            };
         client_engine.id = rand::random();
 
         player.is_inited = true;
-        player.engine_id = client_engine.id;
+        player.engine_id = Some(*client_engine.id());
 
         let response = Response::EngineState(
             client_engine,
             player.entity_id,
-            engine.expected_step_index(),
+            engine_time.expected_step_index(),
         );
         let player_id = player_id.to_string();
         network_server.send_to_player(&player_id, response).await;

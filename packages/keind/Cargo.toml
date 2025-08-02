@@ -1,0 +1,23 @@
+[package]
+name = "keind"
+version = "0.1.0"
+edition = "2024"
+description = "A lightweight 2d game engine"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/chancehudson/game-test/tree/main/packages/keind"
+
+[lib]
+
+[dependencies]
+anyhow = { workspace = true }
+bincode = { workspace = true }
+blake3 = { workspace = true }
+bevy_math = { workspace = true }
+serde = { workspace = true }
+rand = { workspace = true }
+rand_xoshiro = { workspace = true }
+once_cell = { workspace = true }
+flume = { workspace = true }
+
+serde_json = "1.0.140"
+

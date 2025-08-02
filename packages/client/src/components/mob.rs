@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
-use game_common::entity::EngineEntity;
-use game_common::entity::mob::MobEntity;
+use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::components::damage::DamageComponent;
 use crate::plugins::animated_sprite::AnimatedSprite;
@@ -32,7 +32,7 @@ fn damage_text_system(
             for amount in &entity.received_damage_this_step {
                 if let Some((_aggro_to_entity_id, _)) = entity.aggro_to {
                     commands.spawn(DamageComponent::mob_damage(
-                        engine.step_index,
+                        *engine.step_index(),
                         entity,
                         *amount,
                     ));
@@ -81,7 +81,7 @@ fn animate_mobs(
         }
         let entity = entity.unwrap();
         let data = game_data.mobs.get(&entity.mob_type).unwrap();
-        if entity.velocity.x.abs() < 1 {
+        if entity.velocity().x.abs() < 1 {
             if sprite.image != mob.standing_texture {
                 sprite.image = mob.standing_texture.clone();
                 sprite.texture_atlas = Some(TextureAtlas {

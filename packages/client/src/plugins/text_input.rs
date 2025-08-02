@@ -1,8 +1,6 @@
 use bevy::input::keyboard::Key;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
-use game_common::game_event::EngineEvent;
-use game_common::network::Action;
 
 use crate::GameState;
 use crate::map::MapEntity;
@@ -116,8 +114,8 @@ fn handle_text_input_keyboard(
     active_player_entity_id: Res<ActivePlayerEntityId>,
     mut action_events: EventWriter<NetworkAction>,
 ) {
-    let engine = &mut active_game_engine.0;
-    let entity_id = active_player_entity_id.0.unwrap_or_default();
+    let _engine = &mut active_game_engine.0;
+    let _entity_id = active_player_entity_id.0.unwrap_or_default();
     if let Ok((entity, mut input)) = text_inputs.single_mut() {
         for event in keyboard_events.read() {
             if !event.state.is_pressed() {
@@ -143,18 +141,18 @@ fn handle_text_input_keyboard(
                 }
                 Key::Enter => {
                     // send
-                    let event = EngineEvent::Message {
-                        text: input.text.clone(),
-                        entity_id,
-                        universal: true,
-                    };
-                    engine.register_event(None, event.clone());
-                    // send the new input to the server
-                    action_events.write(NetworkAction(Action::RemoteEngineEvent(
-                        engine.id,
-                        event,
-                        engine.step_index,
-                    )));
+                    // let event = EngineEvent::Message {
+                    //     text: input.text.clone(),
+                    //     entity_id,
+                    //     universal: true,
+                    // };
+                    // engine.register_event(None, event.clone());
+                    // // send the new input to the server
+                    // action_events.write(NetworkAction(Action::RemoteEngineEvent(
+                    //     engine.id,
+                    //     event,
+                    //     engine.step_index,
+                    // )));
                     commands.entity(entity).despawn();
                 }
                 Key::Escape => {

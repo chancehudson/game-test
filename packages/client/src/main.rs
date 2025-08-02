@@ -13,10 +13,7 @@ mod ui;
 
 use network::NetworkMessage;
 
-use crate::{
-    plugins::text_input::{TextInput, spawn_text_input},
-    sprite_data_loader::SpriteManager,
-};
+use crate::sprite_data_loader::SpriteManager;
 
 #[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum GameState {

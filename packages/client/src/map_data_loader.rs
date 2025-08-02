@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
 
-use game_common::MapData;
+use game_common::prelude::*;
 
 // Custom asset to hold the config
 #[derive(Asset, TypePath, Debug)]

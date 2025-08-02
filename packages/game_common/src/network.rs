@@ -5,9 +5,9 @@ use serde::Serialize;
 
 use db::PlayerRecord;
 
-use crate::GameEngine;
-use crate::entity::EngineEntity;
-use crate::game_event::EngineEvent;
+use keind::prelude::*;
+
+use crate::prelude::*;
 
 /// Types of messages that can be sent to the server
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,7 +18,7 @@ pub enum Action {
     LoginPlayer(String),
     LogoutPlayer,
     // engine id, engine event, step_index
-    RemoteEngineEvent(u128, EngineEvent, u64),
+    RemoteEngineEvent(u128, EngineEvent<KeindGameLogic>, u64),
     // engine id, divergent step index
     RequestEngineReload(u128, u64),
     PlayerInventorySwap((u8, u8)),
@@ -33,15 +33,15 @@ pub enum Response {
     PlayerLoggedIn(PlayerRecord),
     PlayerRemoved(String),
     // engine, entity id the player controls, server step
-    EngineState(GameEngine, u128, u64),
+    EngineState(GameEngine<KeindGameLogic>, u128, u64),
     EngineStats(
         u128,
         u64,
         (u64, blake3::Hash),
-        Option<BTreeMap<u128, EngineEntity>>,
+        Option<BTreeMap<u128, RefPointer<EngineEntity>>>,
     ),
     // engine id, game events <step_index, events>, server step
-    RemoteEngineEvents(u128, BTreeMap<u64, Vec<EngineEvent>>, u64),
+    RemoteEngineEvents(u128, BTreeMap<u64, Vec<EngineEvent<KeindGameLogic>>>, u64),
     PlayerState(PlayerRecord),
     // when a record in the inventory table changes
     // the provided value _replaces_ the old value

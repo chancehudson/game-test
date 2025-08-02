@@ -1,7 +1,7 @@
 use bevy::asset::LoadedUntypedAsset;
 use bevy::prelude::*;
 
-use game_common::MapData;
+use game_common::prelude::*;
 
 use crate::components::damage::DamageComponent;
 // use crate::mob::MobRegistry;
@@ -66,11 +66,9 @@ impl MapLoader {
                 }
             }
             self.loading_complete = true;
-        } else {
-            let map_data_handle = self.map_data_handle.as_ref().unwrap();
-            if !asset_server.is_loaded(map_data_handle.id()) {
-                return;
-            }
+        } else if let Some(map_data_handle) = self.map_data_handle.as_ref()
+            && asset_server.is_loaded(map_data_handle.id())
+        {
             let mut pending_handles = vec![];
             // begin loading dependent assets
             if let Some(asset) = map_assets.get(map_data_handle) {

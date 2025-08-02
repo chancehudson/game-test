@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 
-use game_common::entity::EEntity;
-use game_common::entity::mob::MobEntity;
-use game_common::entity::player::PlayerEntity;
+use game_common::prelude::*;
+use keind::prelude::*;
 
 use crate::plugins::engine::ActiveGameEngine;
 
@@ -38,7 +37,7 @@ impl DamageComponent {
             },
             Transform::from_translation(Vec3::new(
                 mob_center.x as f32,
-                (mob_center.y + mob.size.y + 10) as f32,
+                (mob_center.y + mob.size().y + 10) as f32,
                 100.0,
             )),
         )
@@ -62,7 +61,7 @@ impl DamageComponent {
             },
             Transform::from_translation(Vec3::new(
                 player_center.x as f32,
-                (player_center.y + player.size.y + 10) as f32,
+                (player_center.y + player.size().y + 10) as f32,
                 100.0,
             )),
         )
@@ -76,7 +75,7 @@ fn animation_system(
 ) {
     for (entity, mut transform, damage) in query.iter_mut() {
         transform.translation.y += 1.;
-        if active_engine.0.step_index >= damage.disappears_at_step {
+        if active_engine.0.step_index() >= &damage.disappears_at_step {
             commands.entity(entity).despawn();
         }
     }

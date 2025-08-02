@@ -1,0 +1,12 @@
+[package]
+name = "keind_time"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+
+[dependencies]
+serde = { workspace = true }
+web-time = { workspace = true, optional = true }
+
+keind = { path = "../keind" }

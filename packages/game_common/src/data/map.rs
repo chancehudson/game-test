@@ -3,14 +3,9 @@ use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::GameEngine;
-use crate::data::GameData;
-use crate::deserialize_vec2;
-use crate::entity::EngineEntity;
-use crate::entity::mob_spawn::MobSpawnEntity;
-use crate::entity::npc::NpcEntity;
-use crate::entity::platform::PlatformEntity;
-use crate::entity::portal::PortalEntity;
+use keind::prelude::*;
+
+use crate::prelude::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Platform {
@@ -49,6 +44,12 @@ impl DropTableData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PortalData {
+    pub position: IVec2,
+    pub to: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MapNpcData {
     pub npc_id: u64,
     pub position: IVec2,
@@ -65,48 +66,65 @@ pub struct MapData {
     pub background: String,
     #[serde(deserialize_with = "deserialize_vec2")]
     pub size: IVec2,
-    pub portals: Vec<PortalEntity>,
+    pub portals: Vec<PortalData>,
     pub npc: Vec<MapNpcData>,
     pub platforms: Vec<Platform>,
     #[serde(default)]
     pub mob_spawns: Vec<MobSpawnData>,
 }
 
-impl crate::EngineInit for MapData {
-    fn init(&self, game_data: &GameData, engine: &mut GameEngine) -> anyhow::Result<()> {
+impl MapData {
+    pub fn init(
+        &self,
+        game_data: &GameData,
+        engine: &mut GameEngine<KeindGameLogic>,
+    ) -> anyhow::Result<()> {
         // spawn the map components as needed
         for platform in &self.platforms {
-            let id = engine.generate_id();
-            engine.spawn_entity(
-                EngineEntity::Platform(PlatformEntity::new(
-                    id,
-                    platform.position.clone(),
-                    platform.size.clone(),
-                )),
+            let entity = RefPointer::new(
+                PlatformEntity::new(
+                    BaseEntityState {
+                        id: rand::random(),
+                        position: platform.position.clone(),
+                        size: platform.size.clone(),
+                        ..Default::default()
+                    },
+                    vec![],
+                )
+                .into(),
+            );
+            engine.register_event(
                 None,
-                true,
+                EngineEvent::SpawnEntity {
+                    entity,
+                    is_non_determinism: true,
+                },
             );
         }
         // mob spawns
         for spawn in &self.mob_spawns {
             let drop_table = game_data.mob_drop_table(spawn.mob_type)?;
-            let id = engine.generate_id();
-            engine.spawn_entity(
-                EngineEntity::MobSpawner(MobSpawnEntity::new_data(id, spawn.clone(), drop_table)),
+            let entity = RefPointer::new(
+                MobSpawnEntity::new_data(rand::random(), spawn.clone(), drop_table).into(),
+            );
+            engine.register_event(
                 None,
-                true,
+                EngineEvent::SpawnEntity {
+                    entity,
+                    is_non_determinism: true,
+                },
             );
         }
         // portal spawns
-        for portal in &self.portals {
-            let id = engine.generate_id();
-            let mut portal_clone = portal.clone();
-            if portal_clone.size.x == 0 {
-                portal_clone.size = IVec2::new(60, 60);
-            }
-            portal_clone.id = id;
-            portal_clone.from = self.name.clone();
-            engine.spawn_entity(EngineEntity::Portal(portal_clone), None, true);
+        for portal_data in &self.portals {
+            let portal = PortalEntity::new_data(rand::random(), self, portal_data);
+            engine.register_event(
+                None,
+                EngineEvent::SpawnEntity {
+                    entity: RefPointer::new(portal.into()),
+                    is_non_determinism: true,
+                },
+            );
         }
 
         for map_npc_data in &self.npc {
@@ -117,11 +135,13 @@ impl crate::EngineInit for MapData {
                 .clone();
             npc.announcements
                 .append(&mut map_npc_data.announcements.clone());
-            let id = engine.generate_id();
-            engine.spawn_entity(
-                EngineEntity::Npc(NpcEntity::new_data(id, map_npc_data.position, npc)),
+            let entity = NpcEntity::new_data(rand::random(), map_npc_data.position, npc);
+            engine.register_event(
                 None,
-                true,
+                EngineEvent::SpawnEntity {
+                    entity: RefPointer::new(entity.into()),
+                    is_non_determinism: true,
+                },
             );
         }
         Ok(())
