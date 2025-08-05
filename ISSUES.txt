@@ -1,3 +1,7 @@
 
 # tune frequency of mob spawner
 - game_common/src/entities/mob_spawner.rs 
+
+# game engine is stepping forward really far
+if the engine atttempts to step more than X steps request a resync from
+the server (attempt to step forward in a non-blocking way as well though)

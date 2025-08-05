@@ -2,6 +2,9 @@ use game_common::prelude::*;
 use keind::prelude::*;
 use zkpo::prelude::*;
 
+/// A program that runs the keind game engine
+/// in zk for some number of steps with a few
+/// entities present.
 fn main() -> anyhow::Result<()> {
     // TODO: take id as input to program
     // maybe export this as a lib
