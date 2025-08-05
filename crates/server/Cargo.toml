@@ -29,5 +29,5 @@ tokio-tungstenite = { version = "0.26.1", features = ["handshake", "native-tls"]
 
 db = { path = "../db" }
 game_common = { path = "../game_common", default-features = false }
-keind = { path = "../keind", default-features = false }
+keind = { path = "../keind" }
 keind_time = { path = "../keind_time" }
