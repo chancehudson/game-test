@@ -15,10 +15,10 @@ name = "exec_noop"
 name = "noop"
 
 [features]
-default = ["zkpo", "blake3", "sp1-sdk"]
+default = ["zkpo", "blake3", "sp1-sdk", "anyhow"]
 
 [dependencies]
-anyhow = { workspace = true }
+anyhow = { workspace = true, optional = true }
 bincode = { workspace = true }
 blake3 = { workspace = true, optional = true }
 
@@ -26,10 +26,10 @@ sp1-zkvm = "4"
 sp1-sdk = { version = "4", optional = true }
 
 game_common = { path = "../game_common" }
-keind = { path = "../keind" }
+keind = { path = "../keind", features = ["zk"] }
 
-zkpo = { version = "0", features = ["sp1"], optional = true }
-#zkpo = { path = "../../../zkpo", features = ["sp1"], optional = true }
+#zkpo = { version = "0", features = ["sp1"], optional = true }
+zkpo = { path = "../../../zkpo", features = ["sp1"], optional = true }
 
 [build-dependencies]
 anyhow = { workspace = true }

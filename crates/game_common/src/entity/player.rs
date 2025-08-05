@@ -8,7 +8,6 @@ use db::PlayerStats;
 
 use crate::prelude::*;
 use crate::system::weightless::WeightlessSystem;
-use keind::prelude::*;
 
 const DAMAGE_IFRAME_STEPS: u64 = 120;
 const KNOCKBACK_STEPS: u64 = 10;

@@ -10,7 +10,7 @@ bincode = "1.3.3"
 flume = "0.11.1"
 json5 = "0.4.1"
 nanoid = "0.4.0"
-rand = "0.9.0"
+rand = { version = "0.9.0", default-features = false }
 serde = { version = "1.0.217", features = ["derive", "rc"] }
 web-time = "1.1.0"
 tracy-client = { version = "=0.18.0" }

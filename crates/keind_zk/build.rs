@@ -5,7 +5,7 @@ use sp1_build::BuildArgs;
 fn main() -> anyhow::Result<()> {
     // if we're in a CI don't rebuild the elf files
     // use the committed ones
-    let is_ci = std::env::var("CI").is_err();
+    let is_ci = std::env::var("CI").is_ok();
     let target = std::env::var("CARGO_CFG_TARGET_OS")?;
     if target == "zkvm" || is_ci {
         return Ok(());
