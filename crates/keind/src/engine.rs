@@ -146,8 +146,7 @@ impl<G: GameLogic> GameEngine<G> {
 
     pub fn generate_id(&mut self) -> u128 {
         self.id_counter.1 += 1;
-        // TODO: switch entities to u64 ids
-        (self.id_counter.1 - 1) as u128
+        ((self.id_counter.0 as u128) << 64) + self.id_counter.1 as u128
     }
 
     /// Restart the id_counter to the genesis
@@ -226,7 +225,7 @@ impl<G: GameLogic> GameEngine<G> {
             .flatten()
     }
 
-    pub fn entities_by_type<T: SEEntity<G> + Send + Sync + 'static>(&self) -> Vec<&T> {
+    pub fn entities_by_type<T: SEEntity<G> + 'static>(&self) -> Vec<&T> {
         self.entities
             .iter()
             .filter_map(|(_id, entity)| entity.extract_ref::<T>())

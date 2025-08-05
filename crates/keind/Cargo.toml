@@ -8,6 +8,10 @@ homepage = "https://github.com/chancehudson/game-test/tree/main/packages/keind"
 
 [lib]
 
+[features]
+default = []
+zk = []
+
 [dependencies]
 anyhow = { workspace = true }
 bincode = { workspace = true }
