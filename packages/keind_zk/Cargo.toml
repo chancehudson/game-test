@@ -21,8 +21,8 @@ default = ["zkpo", "blake3", "sp1-sdk"]
 anyhow = { workspace = true }
 blake3 = { workspace = true, optional = true }
 
-#game_common = { path = "../game_common" }
-#keind = { path = "../keind" }
+game_common = { path = "../game_common" }
+keind = { path = "../keind" }
 
 zkpo = { version = "0", features = ["sp1"], optional = true }
 sp1-zkvm = "4"
