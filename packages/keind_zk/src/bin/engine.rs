@@ -8,6 +8,7 @@ pub fn main() {
     let engine_id = sp1_zkvm::io::read::<u128>();
 
     let mut engine = GameEngine::<KeindGameLogic>::default();
+    engine.trailing_state_len = 0;
 
     let platform = PlatformEntity::new(
         BaseEntityState {
@@ -44,4 +45,5 @@ pub fn main() {
         },
     );
     engine.step_to(&5);
+    let out = bincode::serialize(&engine);
 }

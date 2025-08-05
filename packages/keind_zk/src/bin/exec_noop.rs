@@ -1,14 +1,11 @@
 use zkpo::prelude::*;
 
-#[cfg(not(target_os = "zkvm"))]
 fn main() -> anyhow::Result<()> {
     let program = keind_zk::ZKNoopProgram;
-    println!("Initializing agent...");
-    let agent = ZKSPOneAgent::default();
-    println!("Executing...");
-    let out = agent.execute(&[], &program)?;
+    println!("Executing noop program in zk...");
+    let exe = program.execute(&[], None)?;
     println!("Generated argument of execution");
-    let out_data = agent.verify(&*out)?;
-    println!("Verified argument of execution with output data: {out_data:?}");
+    let out = program.agent().verify(&*exe)?;
+    println!("Verified argument of execution with output data: {out:?}");
     Ok(())
 }

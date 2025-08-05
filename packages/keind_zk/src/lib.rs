@@ -25,8 +25,8 @@ pub mod lib {
             Some("noop test program")
         }
 
-        fn agent(&self) -> Option<&dyn zkpo::ZKAgent> {
-            None
+        fn agent(&self) -> &dyn ZKAgent {
+            ZKSPOneAgent::singleton()
         }
     }
 
@@ -49,8 +49,8 @@ pub mod lib {
             Some("engine test program")
         }
 
-        fn agent(&self) -> Option<&dyn zkpo::ZKAgent> {
-            None
+        fn agent(&self) -> &dyn ZKAgent {
+            ZKSPOneAgent::singleton()
         }
     }
 }
