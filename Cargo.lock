@@ -5636,6 +5636,7 @@ name = "keind_zk"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "blake3",
  "game_common",
  "keind",
@@ -12120,9 +12121,9 @@ dependencies = [
 
 [[package]]
 name = "zkpo"
-version = "0.0.8"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d8145453cfd4c60966d4209b65ccf5f5e9e7dd47a80631f499d931f593ed451"
+checksum = "0f35ffb8e6ebd0e3e309032344f67736b6169965d18ae0a8bfe070dc66ae63a8"
 dependencies = [
  "anyhow",
  "bincode",
