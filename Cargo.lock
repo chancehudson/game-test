@@ -12120,7 +12120,9 @@ dependencies = [
 
 [[package]]
 name = "zkpo"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16ba8ba3c5682331d2388f5374fb3e5fedd64b2fbfd3ba2a3077d69b6f682357"
 dependencies = [
  "anyhow",
  "bincode",

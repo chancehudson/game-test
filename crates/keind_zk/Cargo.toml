@@ -31,8 +31,8 @@ sp1-sdk = { version = "4", optional = true }
 game_common = { path = "../game_common" }
 keind = { path = "../keind" }
 
-#zkpo = { version = "0", features = ["sp1"], optional = true }
-zkpo = { path = "../../../zkpo", features = ["sp1"], optional = true }
+zkpo = { version = "0", features = ["sp1"], optional = true }
+#zkpo = { path = "../../../zkpo", features = ["sp1"], optional = true }
 
 [build-dependencies]
 anyhow = { workspace = true }

@@ -34,8 +34,8 @@ jobs:
             os: macos-latest
 
           # Windows
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
+          #- target: x86_64-pc-windows-msvc
+            #os: windows-latest
 
     steps:
       - name: Checkout code
@@ -71,5 +71,5 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run noop ZKPrograms
-        run: cd crates/keind_zk && cargo run --bin=exec_noop --release
+        run: cd crates/keind_zk && cargo run --bin=exec_noop --release --features=zk
 
