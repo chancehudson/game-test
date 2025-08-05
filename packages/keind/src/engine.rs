@@ -13,10 +13,11 @@
 ///   - snapshot: the engine state is persisted in memory for rollback
 ///
 ///
-/// The engine contains two types of deterministic RNG.
-/// Output is deterministic independent of other RNG
-/// and engine state/history.
-///   - Per-step deterministic RNGs
+/// The engine contains two types of determinism.
+/// All determinism sources are independent of state
+/// and history. e.g. per step deterministic independent
+/// of all other variables.
+///   - Per-step global id counter
 ///   - Per-step, per-entity deterministic RNGs
 ///
 use std::collections::BTreeMap;
