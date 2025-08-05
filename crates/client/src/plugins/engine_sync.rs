@@ -56,12 +56,10 @@ fn display_fps(mut hud_info: ResMut<EngineSyncInfo>, active_game_engine: Res<Act
         && let elapsed_secs = now.duration_since(last_instant).as_secs_f32()
         && elapsed_secs >= FPS_SAMPLE_LEN_S
     {
-        assert!(
-            engine.step_index() < &hud_info.last_fps_step_index,
-            "fps counter time ran backward"
-        );
-        let elapsed_steps = (engine.step_index() - hud_info.last_fps_step_index) as f32;
-        hud_info.fps = (elapsed_secs / elapsed_steps).round();
+        if engine.step_index() < &hud_info.last_fps_step_index {
+            let elapsed_steps = (engine.step_index() - hud_info.last_fps_step_index) as f32;
+            hud_info.fps = (elapsed_secs / elapsed_steps).round();
+        }
         hud_info.last_fps_timestamp = Some(now);
         hud_info.last_fps_step_index = *engine.step_index();
     } else {
