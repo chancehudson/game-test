@@ -84,7 +84,7 @@ impl MapData {
             let entity = RefPointer::new(
                 PlatformEntity::new(
                     BaseEntityState {
-                        id: rand::random(),
+                        id: engine.generate_id(),
                         position: platform.position.clone(),
                         size: platform.size.clone(),
                         ..Default::default()
@@ -105,7 +105,7 @@ impl MapData {
         for spawn in &self.mob_spawns {
             let drop_table = game_data.mob_drop_table(spawn.mob_type)?;
             let entity = RefPointer::new(
-                MobSpawnEntity::new_data(rand::random(), spawn.clone(), drop_table).into(),
+                MobSpawnEntity::new_data(engine.generate_id(), spawn.clone(), drop_table).into(),
             );
             engine.register_event(
                 None,
@@ -117,7 +117,7 @@ impl MapData {
         }
         // portal spawns
         for portal_data in &self.portals {
-            let portal = PortalEntity::new_data(rand::random(), self, portal_data);
+            let portal = PortalEntity::new_data(engine.generate_id(), self, portal_data);
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {
@@ -135,7 +135,7 @@ impl MapData {
                 .clone();
             npc.announcements
                 .append(&mut map_npc_data.announcements.clone());
-            let entity = NpcEntity::new_data(rand::random(), map_npc_data.position, npc);
+            let entity = NpcEntity::new_data(engine.generate_id(), map_npc_data.position, npc);
             engine.register_event(
                 None,
                 EngineEvent::SpawnEntity {

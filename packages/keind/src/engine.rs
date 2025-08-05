@@ -6,13 +6,18 @@
 /// tick: a variable numbers of steps
 /// step: the smallest unit of time in the engine
 ///
-/// anatomy of a step
+/// Anatomy of a step:
+///   - engine events: engine events are process, entity/system addition/removal
+///   - modification: entities modify themselves and schedule entities for creation/removal
+///   - game events: game events are processed by the game logic
+///   - snapshot: the engine state is persisted in memory for rollback
 ///
-/// step:
-///   engine events: engine events are process, entity/system addition/removal
-///   modification: entities modify themselves and schedule entities for creation/removal
-///   game events: game events are processed by the game logic
-///   snapshot: the engine state is persisted in memory for rollback
+///
+/// The engine contains two types of deterministic RNG.
+/// Output is deterministic independent of other RNG
+/// and engine state/history.
+///   - Per-step deterministic RNGs
+///   - Per-step, per-entity deterministic RNGs
 ///
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -28,6 +33,16 @@ use crate::prelude::*;
 pub struct GameEngine<G: GameLogic> {
     /// A distinct identifier for this engine instance.
     pub id: u128,
+
+    /// A counter for deterministic unique ids.
+    ///
+    /// Not everything has to be a hashchain...
+    ///
+    /// A counter incremented by step. The Nth entity spawned
+    /// in each step will have a distinct id. e.g. replaying
+    /// entities spawning in a step generates id's that are
+    /// unique regardless of past steps.
+    id_counter: (u64, u64),
 
     /// The size of the space being simulated.
     size: IVec2,
@@ -97,7 +112,8 @@ impl<G: GameLogic> Default for GameEngine<G> {
         entities_by_step.insert(0, BTreeMap::default());
         Self {
             id: 0,
-            size: IVec2::new(1000, 1000),
+            id_counter: (0u64, 0u64),
+            size: IVec2::new(1000, 1000), // initialize a 1000x1000 2d space for entities
             step_index: 0,
             entities: BTreeMap::default(),
             empty_entities: BTreeMap::default(),
@@ -125,6 +141,18 @@ impl<G: GameLogic> GameEngine<G> {
 
     pub fn step_index(&self) -> &u64 {
         &self.step_index
+    }
+
+    pub fn generate_id(&mut self) -> u128 {
+        self.id_counter.1 += 1;
+        // TODO: switch entities to u64 ids
+        (self.id_counter.1 - 1) as u128
+    }
+
+    /// Restart the id_counter to the genesis
+    /// id for the current step.
+    pub fn restart_id_counter(&mut self) {
+        self.id_counter = (*self.step_index(), 0);
     }
 
     pub fn spawn_entity(&self, entity: RefPointer<G::Entity>) {
@@ -328,6 +356,7 @@ impl<G: GameLogic> GameEngine<G> {
         // record step change
         // this changes the behavior of e.g. `GameEngine<G>::entity_by_id`
         self.step_index += 1;
+        self.restart_id_counter();
 
         // record state for rewind
         if self.trailing_state_len != 0 {
@@ -468,6 +497,7 @@ impl<G: GameLogic> GameEngine<G> {
             out.size = self.size.clone();
             out.entities = entities.clone();
             out.inputs = inputs.clone();
+            out.restart_id_counter();
 
             out.step_index = *target_step_index;
             Ok(out)
@@ -506,12 +536,14 @@ impl<G: GameLogic> GameEngine<G> {
                 past_engine.integrate_events(events);
                 past_engine.step_to(&self.step_index);
 
+                // TODO: wtf is this manual copy
                 self.game_events_by_step = past_engine.game_events_by_step;
                 self.entities = past_engine.entities;
                 self.entities_by_step = past_engine.entities_by_step;
                 self.engine_events_by_step = past_engine.engine_events_by_step;
                 self.inputs_by_step = past_engine.inputs_by_step;
                 self.inputs = past_engine.inputs;
+                self.id_counter = past_engine.id_counter;
             } else {
                 panic!("failed to generate past engine");
             }
