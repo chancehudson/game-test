@@ -113,7 +113,7 @@ impl MapInstance {
         socket_id: String,
         player_record: &PlayerRecord,
         player_stats: &PlayerStats,
-        requested_spawn_pos: Option<IVec2>,
+        _requested_spawn_pos: Option<IVec2>,
     ) -> anyhow::Result<()> {
         let entity =
             PlayerEntity::new_with_ids(rand::random(), player_record.clone(), player_stats.clone());
@@ -300,7 +300,7 @@ impl MapInstance {
                     // we'll send this up to game.rs
                     self.game_events.send((*game_event).clone()).unwrap();
                 }
-                GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {}
+                GameEvent::PlayerAbilityExp(_player_entity_id, _ability, _amount) => {}
                 GameEvent::PlayerHealth(player_id, new_health) => {
                     PlayerRecord::set_health(&self.db, &player_id, *new_health)?;
                 }

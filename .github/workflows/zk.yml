@@ -71,5 +71,5 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run noop ZKPrograms
-        run: cd packages/keind_zk && cargo run --bin=exec_noop --release
+        run: cd crates/keind_zk && cargo run --bin=exec_noop --release
 

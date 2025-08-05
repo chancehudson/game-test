@@ -10,12 +10,15 @@ homepage = "https://github.com/chancehudson/game-test/tree/main/packages/keind_z
 
 [[bin]]
 name = "exec_noop"
+required-features = ["zk"]
 
 [[bin]]
 name = "noop"
+required-features = ["zk"]
 
 [features]
 default = ["zkpo", "blake3", "sp1-sdk", "anyhow"]
+zk = ["keind/zk"]
 
 [dependencies]
 anyhow = { workspace = true, optional = true }
@@ -26,7 +29,7 @@ sp1-zkvm = "4"
 sp1-sdk = { version = "4", optional = true }
 
 game_common = { path = "../game_common" }
-keind = { path = "../keind", features = ["zk"] }
+keind = { path = "../keind" }
 
 #zkpo = { version = "0", features = ["sp1"], optional = true }
 zkpo = { path = "../../../zkpo", features = ["sp1"], optional = true }
