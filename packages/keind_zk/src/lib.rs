@@ -5,9 +5,9 @@ pub mod lib {
     use sp1_sdk::{HashableKey, ProverClient};
     use zkpo::prelude::*;
 
-    pub struct ZKTestProgram;
+    pub struct ZKNoopProgram;
 
-    impl ZKProgram for ZKTestProgram {
+    impl ZKProgram for ZKNoopProgram {
         fn id(&self) -> &[u8; 32] {
             static HASH: OnceLock<[u8; 32]> = OnceLock::new();
             HASH.get_or_init(|| {
@@ -18,7 +18,7 @@ pub mod lib {
         }
 
         fn elf(&self) -> &[u8] {
-            include_bytes!("../bin/test")
+            include_bytes!("../elf/noop")
         }
 
         fn name(&self) -> Option<&str> {

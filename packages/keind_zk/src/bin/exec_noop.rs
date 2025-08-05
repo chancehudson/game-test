@@ -2,7 +2,7 @@ use zkpo::prelude::*;
 
 #[cfg(not(target_os = "zkvm"))]
 fn main() -> anyhow::Result<()> {
-    let program = keind_zk::ZKTestProgram;
+    let program = keind_zk::ZKNoopProgram;
     println!("Initializing agent...");
     let agent = ZKSPOneAgent::default();
     println!("Executing...");

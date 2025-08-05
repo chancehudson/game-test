@@ -9,7 +9,10 @@ homepage = "https://github.com/chancehudson/game-test/tree/main/packages/keind_z
 [lib]
 
 [[bin]]
-name = "test"
+name = "exec_noop"
+
+[[bin]]
+name = "noop"
 
 [features]
 default = ["zkpo", "blake3", "sp1-sdk"]
