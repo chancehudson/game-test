@@ -1,13 +1,13 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-// use bevy_math::IVec2;
-// use game_common::prelude::*;
+use game_common::prelude::*;
+use keind::prelude::*;
 
 pub fn main() {
-    let engine_seed = sp1_zkvm::io::read::<u64>();
+    let engine_id = sp1_zkvm::io::read::<u128>();
 
-    // let mut engine = SimpleGameEngine::new(IVec2 { x: 1000, y: 1000 }, engine_seed);
+    let mut engine = GameEngine::<KeindGameLogic>::default();
 
     // let platform = PlatformEntity::new(
     //     engine.generate_id(),

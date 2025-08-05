@@ -5637,6 +5637,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "blake3",
+ "game_common",
+ "keind",
  "sp1-build",
  "sp1-sdk",
  "sp1-zkvm",
