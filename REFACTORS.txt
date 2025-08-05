@@ -1,0 +1,3 @@
+# in progress changes (batching chores)
+
+- game\_common now re-export bevy\_meth::IVec2. Implementations should prefer that
