@@ -1,0 +1,3 @@
+
+# tune frequency of mob spawner
+- game_common/src/entities/mob_spawner.rs 
