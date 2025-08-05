@@ -8,7 +8,7 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
     // Add new zk binaries here
-    let zk_bins = vec!["test".into(), "engine".into()];
+    let zk_bins = vec!["noop".into(), "engine".into()];
 
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")?;
     let build_args = BuildArgs {
@@ -17,7 +17,7 @@ fn main() -> anyhow::Result<()> {
         no_default_features: true,
         output_directory: Some(
             PathBuf::from(manifest_dir)
-                .join("bin/")
+                .join("elf/")
                 .to_string_lossy()
                 .to_string(),
         ),
