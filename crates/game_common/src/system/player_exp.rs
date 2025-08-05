@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use db::AbilityExpRecord;
 use serde::Deserialize;
 use serde::Serialize;

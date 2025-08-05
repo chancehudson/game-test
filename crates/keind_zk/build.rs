@@ -17,6 +17,7 @@ fn main() -> anyhow::Result<()> {
     let build_args = BuildArgs {
         docker: false,
         binaries: zk_bins,
+        features: vec!["zk".into()],
         no_default_features: true,
         output_directory: Some(
             PathBuf::from(manifest_dir)

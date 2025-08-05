@@ -173,7 +173,7 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
             engine.spawn_entity(RefPointer::new(emoji.into()));
         }
 
-        if let Some((direction, until)) = self.knockback_until {
+        if let Some((_direction, until)) = self.knockback_until {
             if step_index >= &until {
                 next_self.knockback_until = None;
             }

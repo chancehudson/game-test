@@ -28,6 +28,6 @@ dashmap = "6.1.0"
 tokio-tungstenite = { version = "0.26.1", features = ["handshake", "native-tls"] }
 
 db = { path = "../db" }
-game_common = { path = "../game_common", default-features = false }
+game_common = { path = "../game_common" }
 keind = { path = "../keind" }
 keind_time = { path = "../keind_time" }

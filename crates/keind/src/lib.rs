@@ -28,8 +28,29 @@ pub trait KPoly {
     fn extract_mut<T: 'static>(&mut self) -> Option<&mut T>;
 }
 
+#[cfg(feature = "zk")]
 pub trait GameLogic: Clone + Serialize + for<'de> Deserialize<'de> + 'static {
     type Entity: entity::SEEntity<Self>
+        + KPoly
+        + Debug
+        + Clone
+        + Serialize
+        + for<'de> Deserialize<'de>; // Enum wrapping all possible entities
+    type System: KPoly + Debug + Clone + Serialize + for<'de> Deserialize<'de>; // Enum wrapping all possible systems
+    type Input: Default + Clone + Serialize + for<'de> Deserialize<'de>; // User ninput
+    type Event: Clone + Serialize + for<'de> Deserialize<'de>; // Game event, distinct from Engine event, which is internal to keind
+
+    fn handle_game_events(
+        engine: &engine::GameEngine<Self>,
+        game_events: &Vec<RefPointer<Self::Event>>,
+    );
+}
+
+#[cfg(not(feature = "zk"))]
+pub trait GameLogic: Clone + Serialize + for<'de> Deserialize<'de> + 'static {
+    type Entity: entity::SEEntity<Self>
+        + Send
+        + Sync
         + KPoly
         + Debug
         + Clone

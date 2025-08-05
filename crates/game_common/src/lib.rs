@@ -129,7 +129,7 @@ impl GameLogic for KeindGameLogic {
                         println!("WARNING: received player exp event for non-existent entity");
                     }
                 }
-                GameEvent::PlayerPickUpRequest(player_entity_id) => {
+                GameEvent::PlayerPickUpRequest(_player_entity_id) => {
                     // if let Some(player_entity) = engine.entities.get(player_entity_id).cloned() {
                     //     let game_events_sender = engine.game_events.0.clone();
                     //     // there are quirks with using entities_by_type in the default handler
