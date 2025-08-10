@@ -36,6 +36,7 @@ zkpo = { version = "0", features = ["sp1"], optional = true }
 
 [build-dependencies]
 anyhow = { workspace = true }
-sp1-build = "4"
 
+zkpo = { version = "0", features = ["sp1"] }
+#zkpo = { path = "../../../zkpo", features = ["sp1"] }
 
