@@ -7,6 +7,8 @@ mod entity;
 mod event;
 pub mod prelude;
 mod system;
+#[cfg(test)]
+mod test;
 
 /// In a zkvm we are truly single threaded, and have no use for atomics.
 /// We try to remove all atomics and thread support to improve performance.

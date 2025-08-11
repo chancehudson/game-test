@@ -116,11 +116,14 @@ fn step_game_engine(
     let engine = &mut active_game_engine.0;
     let target_step = sync_info.engine_time.expected_step_index();
     let game_events = if &target_step > engine.step_index() {
-        let steps = target_step - engine.step_index();
-        if steps >= 30 {
-            println!("skipping forward {} steps", steps / 2);
-            &engine.step_to(&(engine.step_index() + (steps / 2)))
-        } else if steps >= 10 {
+        let step_diff = target_step - engine.step_index();
+        if step_diff >= 30 {
+            // Arbitrarily bound the max fast forward to 600 steps
+            // (10 seconds of game execution)
+            let step_diff_bounded = step_diff.min(600);
+            println!("skipping forward {} steps", step_diff_bounded);
+            &engine.step_to(&(engine.step_index() + &step_diff))
+        } else if step_diff >= 10 {
             // execute a double step
             &vec![engine.step(), engine.step()].concat()
         } else {

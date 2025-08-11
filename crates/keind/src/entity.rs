@@ -148,7 +148,7 @@ macro_rules! engine_entity_enum {
                 }
             }
 
-            fn as_any(&self) -> &dyn Any {
+            fn as_any(&self) -> &dyn std::any::Any {
                 match self {
                     $(
                         $name::$variant_name(entity) => entity,
@@ -163,7 +163,7 @@ macro_rules! engine_entity_enum {
             fn extract_mut<T: 'static>(&mut self) -> Option<&mut T> {
                 match self {
                     $(
-                        $name::$variant_name(entity) => (entity as &mut dyn Any).downcast_mut::<T>(),
+                        $name::$variant_name(entity) => (entity as &mut dyn std::any::Any).downcast_mut::<T>(),
                     )*
                 }
             }
