@@ -65,23 +65,21 @@ keind::engine_entity_system_enum!(
     }
 );
 
-keind::engine_entity_enum!(
-    KeindGameLogic,
-    pub enum EngineEntity {
-        Emoji(EmojiEntity),
-        Item(ItemEntity),
-        Message(MessageEntity),
-        Mob(MobEntity),
-        MobDamage(MobDamageEntity),
-        MobSpawn(MobSpawnEntity),
-        Npc(NpcEntity),
-        Platform(PlatformEntity),
-        Player(PlayerEntity),
-        Portal(PortalEntity),
-        Rect(RectEntity),
-        Text(TextEntity),
-    }
-);
+#[derive(Debug, Clone, Serialize, Deserialize, EngineEntity)]
+pub enum EngineEntity {
+    Emoji(EmojiEntity),
+    Item(ItemEntity),
+    Message(MessageEntity),
+    Mob(MobEntity),
+    MobDamage(MobDamageEntity),
+    MobSpawn(MobSpawnEntity),
+    Npc(NpcEntity),
+    Platform(PlatformEntity),
+    Player(PlayerEntity),
+    Portal(PortalEntity),
+    Rect(RectEntity),
+    Text(TextEntity),
+}
 
 /// A wrapper containing the game logic structures
 /// exposed to the game by the engine
