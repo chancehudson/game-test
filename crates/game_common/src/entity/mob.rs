@@ -1,4 +1,5 @@
 use bevy_math::IVec2;
+use db::AbilityExpRecord;
 use rand::Rng;
 
 use db::Ability;
@@ -187,11 +188,19 @@ impl SEEntity<KeindGameLogic> for MobEntity {
                 );
                 next_self.received_damage_this_step.push(damage_amount);
                 if damage_amount > 0 {
-                    engine.register_game_event(GameEvent::PlayerAbilityExp(
-                        entity.player_creator_id().unwrap(),
-                        entity.ability.clone(),
-                        damage_amount,
-                    ));
+                    engine.spawn_system(
+                        player_entity_id,
+                        RefPointer::new(
+                            PlayerExpSystem {
+                                record: AbilityExpRecord {
+                                    player_id: player_entity.player_id.clone(),
+                                    amount: damage_amount,
+                                    ability: entity.ability.clone(),
+                                },
+                            }
+                            .into(),
+                        ),
+                    );
                 }
                 if next_self.current_health <= damage_amount {
                     next_self.is_dead = true;

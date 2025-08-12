@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
+use db::AbilityExpRecord;
 use db::PlayerInventory;
 use db::PlayerRecord;
 use db::PlayerStats;
@@ -300,7 +301,25 @@ impl MapInstance {
                     // we'll send this up to game.rs
                     self.game_events.send((*game_event).clone()).unwrap();
                 }
-                GameEvent::PlayerAbilityExp(_player_entity_id, _ability, _amount) => {}
+                GameEvent::PlayerAbilityExp(player_entity_id, ability, _amount) => {
+                    if let Some(player) = self
+                        .engine
+                        .entity_by_id::<PlayerEntity>(player_entity_id, Some(latest_step))
+                    {
+                        // instead of incrementing we should read the latest known exp value
+                        // and write that to the database
+                        // TODO: de-duplicate writes. e.g. if there are many PlayerAbilityExp
+                        // events for the same ability there will be duplicate writes
+                        let stats = (*player.stats_ptr).clone();
+                        if let Some(exp_record) = stats.ability_exp.get(ability) {
+                            exp_record.write(&self.db)?;
+                        } else {
+                            unreachable!(
+                                "attempting to record experience for ability {ability:?} which does not exist on player entity"
+                            );
+                        }
+                    }
+                }
                 GameEvent::PlayerHealth(player_id, new_health) => {
                     PlayerRecord::set_health(&self.db, &player_id, *new_health)?;
                 }

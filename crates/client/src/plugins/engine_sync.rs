@@ -5,7 +5,6 @@ use bevy_egui::egui::Color32;
 use bevy_egui::egui::RichText;
 use bevy_egui::{EguiContextPass, EguiContexts, egui};
 
-use game_common::prelude::*;
 use keind::prelude::*;
 use keind_time::GameEngineTime;
 

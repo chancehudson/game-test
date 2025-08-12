@@ -1,4 +1,5 @@
 use bevy_math::IVec2;
+use db::AbilityExpRecord;
 use keind::prelude::*;
 use rand::Rng;
 
@@ -114,11 +115,19 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                     );
                     next_self.received_damage_this_step = (true, damage_amount);
                     if damage_amount > 0 {
-                        engine.register_game_event(GameEvent::PlayerAbilityExp(
+                        engine.spawn_system(
                             self.id(),
-                            Ability::Health,
-                            damage_amount,
-                        ));
+                            RefPointer::new(
+                                PlayerExpSystem {
+                                    record: AbilityExpRecord {
+                                        player_id: self.player_id.clone(),
+                                        amount: damage_amount,
+                                        ability: Ability::Health,
+                                    },
+                                }
+                                .into(),
+                            ),
+                        );
                     }
                     if next_self.record.current_health <= damage_amount {
                         next_self.record.current_health = 0;

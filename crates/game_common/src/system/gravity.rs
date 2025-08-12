@@ -8,7 +8,7 @@ use crate::prelude::*;
 /// Only mutate velocity, not position.
 /// Preserve upward momentum.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct GravitySystem {}
+pub struct GravitySystem;
 
 impl EEntitySystem<KeindGameLogic> for GravitySystem {
     fn prestep(

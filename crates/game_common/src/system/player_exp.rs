@@ -16,10 +16,17 @@ pub struct PlayerExpSystem {
 impl EEntitySystem<KeindGameLogic> for PlayerExpSystem {
     fn step(
         &self,
-        _engine: &GameEngine<KeindGameLogic>,
-        _entity: &EngineEntity,
+        engine: &GameEngine<KeindGameLogic>,
+        entity: &EngineEntity,
         next_entity: &mut EngineEntity,
     ) -> Option<Self> {
+        // notify our game implementation of an exp event
+        engine.register_game_event(GameEvent::PlayerAbilityExp(
+            entity.id(),
+            self.record.ability.clone(),
+            self.record.amount,
+        ));
+
         // update the stats pointer on a player entity
         let player_entity = next_entity
             .extract_mut::<PlayerEntity>()

@@ -104,30 +104,7 @@ impl GameLogic for KeindGameLogic {
                 } => {
                     engine.remove_entity(*entity_id);
                 }
-                GameEvent::PlayerAbilityExp(player_entity_id, ability, amount) => {
-                    if let Some(player_entity) =
-                        engine.entity_by_id::<PlayerEntity>(&player_entity_id, None)
-                    {
-                        engine.register_event(
-                            None,
-                            EngineEvent::SpawnSystem {
-                                entity_id: *player_entity_id,
-                                system_ptr: RefPointer::from(EngineEntitySystem::from(
-                                    PlayerExpSystem {
-                                        record: AbilityExpRecord {
-                                            player_id: player_entity.player_id.clone(),
-                                            amount: *amount,
-                                            ability: ability.clone(),
-                                        },
-                                    },
-                                )),
-                                is_non_determinism: false,
-                            },
-                        );
-                    } else {
-                        println!("WARNING: received player exp event for non-existent entity");
-                    }
-                }
+                GameEvent::PlayerAbilityExp(_player_entity_id, _ability, _amount) => {}
                 GameEvent::PlayerPickUpRequest(player_entity_id) => {
                     if let Some(player_entity) =
                         engine.entity_by_id::<PlayerEntity>(player_entity_id, None)

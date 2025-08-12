@@ -123,6 +123,17 @@ impl AbilityExpRecord {
         write.commit()?;
         Ok(new_record)
     }
+
+    /// Take an exp record and overwrite any existing record in the db
+    pub fn write(&self, db: &redb::Database) -> Result<()> {
+        let write = db.begin_write()?;
+        let mut ability_exp_table = write.open_table(ABILITY_EXP_TABLE)?;
+        let key = Self::key(&self.player_id, &self.ability)?;
+        ability_exp_table.insert(key, self.clone())?;
+        drop(ability_exp_table);
+        write.commit()?;
+        Ok(())
+    }
 }
 
 impl redb::Value for AbilityExpRecord {
