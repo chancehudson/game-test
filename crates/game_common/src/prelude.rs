@@ -1,8 +1,6 @@
 pub use std::any::Any;
 pub use std::any::TypeId;
 
-pub use bevy_math::IVec2;
-
 pub use crate::AnimationData;
 pub use crate::STEP_DELAY;
 pub use crate::STEP_LEN_S;

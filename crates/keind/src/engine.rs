@@ -414,14 +414,11 @@ impl<G: GameLogic> GameEngine<G> {
     }
 
     pub fn step_hash(&self, step_index: &u64) -> Result<blake3::Hash> {
-        let step_index = if step_index == &0 {
+        if step_index == &0 {
             println!(
                 "WARNING: Calculating a hash for step 0 is nonsensical, there cannot be any entities"
             );
-            &1
-        } else {
-            step_index
-        };
+        }
         // hash of all entities
         if let Some(entities) = self.entities_by_step.get(step_index) {
             let serialized = bincode::serialize(entities)?;
@@ -451,7 +448,7 @@ impl<G: GameLogic> GameEngine<G> {
         {
             let mut out = Self::default();
 
-            // get all future events that areis_non_determinism
+            // get all future events that are is_non_determinism
             out.engine_events_by_step = self
                 .engine_events_by_step
                 .range(target_step_index..)
@@ -467,12 +464,17 @@ impl<G: GameLogic> GameEngine<G> {
                 .collect::<BTreeMap<_, _>>();
 
             if rewindable {
+                // engine events are emitted when the step occurs
+                // so we don't include the events at the target step
                 out.engine_events_by_step.extend(
                     self.engine_events_by_step
                         .range(..target_step_index)
                         .into_iter()
                         .map(|(k, v)| (*k, v.clone())),
                 );
+                // game events and historical entities/inputs
+                // happen at the beginning of a step, so we
+                // include values from target step
                 out.game_events_by_step = self
                     .game_events_by_step
                     .range(..=target_step_index)
@@ -493,9 +495,9 @@ impl<G: GameLogic> GameEngine<G> {
             out.size = self.size.clone();
             out.entities = entities.clone();
             out.inputs = inputs.clone();
+            out.step_index = *target_step_index;
             out.restart_id_counter();
 
-            out.step_index = *target_step_index;
             Ok(out)
         } else {
             anyhow::bail!("WARNING: step index {target_step_index} is too far in the past")
@@ -578,6 +580,3 @@ impl<G: GameLogic> GameEngine<G> {
         all_events
     }
 }
-
-#[cfg(test)]
-mod tests {}
