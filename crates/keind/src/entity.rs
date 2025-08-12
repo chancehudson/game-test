@@ -140,9 +140,9 @@ macro_rules! entity_struct {
         #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
         $vis struct $name {
             #[serde(default)]
-            pub state: keind::prelude::BaseEntityState,
+            pub state: $crate::prelude::BaseEntityState,
             #[serde(default)]
-            pub systems: Vec<$crate::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>>,
+            pub systems: Vec<$crate::RefPointer<<$game_logic as $crate::prelude::GameLogic>::System>>,
             $(
                 $(#[$field_attr])*
                 $field_vis $field_name: $field_type,
@@ -151,7 +151,7 @@ macro_rules! entity_struct {
 
 
         impl $name {
-            pub fn new(state: keind::prelude::BaseEntityState, systems: Vec<$crate::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>>) -> Self {
+            pub fn new(state: $crate::prelude::BaseEntityState, systems: Vec<$crate::RefPointer<<$game_logic as $crate::prelude::GameLogic>::System>>) -> Self {
                 Self {
                     state,
                     systems,
@@ -160,26 +160,26 @@ macro_rules! entity_struct {
             }
         }
 
-        impl keind::prelude::EEntity<$game_logic> for $name {
-            fn systems(&self) -> &Vec<$crate::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>> {
+        impl $crate::prelude::EEntity<$game_logic> for $name {
+            fn systems(&self) -> &Vec<$crate::RefPointer<<$game_logic as $crate::prelude::GameLogic>::System>> {
                 &self.systems
             }
 
-            fn systems_mut(&mut self) -> &mut Vec<$crate::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>> {
+            fn systems_mut(&mut self) -> &mut Vec<$crate::RefPointer<<$game_logic as $crate::prelude::GameLogic>::System>> {
                 &mut self.systems
             }
 
-            fn state(&self) -> &keind::prelude::BaseEntityState {
+            fn state(&self) -> &$crate::prelude::BaseEntityState {
                 &self.state
             }
 
-            fn state_mut(&mut self) -> &mut keind::prelude::BaseEntityState {
+            fn state_mut(&mut self) -> &mut $crate::prelude::BaseEntityState {
                 &mut self.state
             }
 
-            fn step_systems(&self, engine: &keind::prelude::GameEngine<$game_logic>, next_self_maybe: &mut Option<EngineEntity>) {
-                type EngineEntity = <$game_logic as keind::prelude::GameLogic>::Entity;
-                type EngineSystem = <$game_logic as keind::prelude::GameLogic>::System;
+            fn step_systems(&self, engine: &$crate::prelude::GameEngine<$game_logic>, next_self_maybe: &mut Option<EngineEntity>) {
+                type EngineEntity = <$game_logic as $crate::prelude::GameLogic>::Entity;
+                type EngineSystem = <$game_logic as $crate::prelude::GameLogic>::System;
                 let mut next_systems: Vec<$crate::RefPointer<EngineSystem>> = Vec::new();
                 let entity_ptr = engine
                     .entity_by_id_untyped(&self.id(), None)
