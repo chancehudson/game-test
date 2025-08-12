@@ -91,12 +91,10 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                     next_self.state.velocity.y += 100;
                     engine.spawn_system(
                         self.id(),
-                        RefPointer::new(
-                            InvincibleSystem {
-                                until_step: Some(step_index + DAMAGE_IFRAME_STEPS),
-                            }
-                            .into(),
-                        ),
+                        InvincibleSystem {
+                            until_step: Some(step_index + DAMAGE_IFRAME_STEPS),
+                        }
+                        .into(),
                     );
                     // engine.spawn_system(
                     //     self.id(),
@@ -117,16 +115,14 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                     if damage_amount > 0 {
                         engine.spawn_system(
                             self.id(),
-                            RefPointer::new(
-                                PlayerExpSystem {
-                                    record: AbilityExpRecord {
-                                        player_id: self.player_id.clone(),
-                                        amount: damage_amount,
-                                        ability: Ability::Health,
-                                    },
-                                }
-                                .into(),
-                            ),
+                            PlayerExpSystem {
+                                record: AbilityExpRecord {
+                                    player_id: self.player_id.clone(),
+                                    amount: damage_amount,
+                                    ability: Ability::Health,
+                                },
+                            }
+                            .into(),
                         );
                     }
                     if next_self.record.current_health <= damage_amount {
@@ -180,7 +176,7 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                     ),
                 ],
             );
-            engine.spawn_entity(RefPointer::new(emoji.into()));
+            engine.spawn_entity(emoji.into());
         }
 
         if let Some((_direction, until)) = self.knockback_until {
@@ -231,12 +227,10 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
             next_self.state.velocity.y += 340;
             engine.spawn_system(
                 self.id(),
-                RefPointer::new(
-                    WeightlessSystem {
-                        until_step: Some(step_index + 2),
-                    }
-                    .into(),
-                ),
+                WeightlessSystem {
+                    until_step: Some(step_index + 2),
+                }
+                .into(),
             );
         }
         if jump_down {
@@ -275,8 +269,8 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
             let projectile = EngineEntity::from(projectile);
             let damage =
                 MobDamageEntity::new_with_entity(rng.random(), &projectile, Ability::Strength);
-            engine.spawn_entity(RefPointer::new(projectile));
-            engine.spawn_entity(RefPointer::new(damage.into()));
+            engine.spawn_entity(projectile);
+            engine.spawn_entity(damage.into());
         }
     }
 }

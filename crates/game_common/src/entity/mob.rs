@@ -190,16 +190,14 @@ impl SEEntity<KeindGameLogic> for MobEntity {
                 if damage_amount > 0 {
                     engine.spawn_system(
                         player_entity_id,
-                        RefPointer::new(
-                            PlayerExpSystem {
-                                record: AbilityExpRecord {
-                                    player_id: player_entity.player_id.clone(),
-                                    amount: damage_amount,
-                                    ability: entity.ability.clone(),
-                                },
-                            }
-                            .into(),
-                        ),
+                        PlayerExpSystem {
+                            record: AbilityExpRecord {
+                                player_id: player_entity.player_id.clone(),
+                                amount: damage_amount,
+                                ability: entity.ability.clone(),
+                            },
+                        }
+                        .into(),
                     );
                 }
                 if next_self.current_health <= damage_amount {
@@ -212,7 +210,7 @@ impl SEEntity<KeindGameLogic> for MobEntity {
                         .collect::<Vec<_>>()
                     {
                         // drop an item
-                        engine.spawn_entity(RefPointer::new(
+                        engine.spawn_entity(
                             ItemEntity::new_item(
                                 rng.random(),
                                 self.center() + IVec2::new(x_offset, 0),
@@ -222,7 +220,7 @@ impl SEEntity<KeindGameLogic> for MobEntity {
                                 step_index,
                             )
                             .into(),
-                        ));
+                        );
                         x_offset += 10;
                     }
                     break;

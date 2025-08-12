@@ -69,7 +69,7 @@ impl SEEntity<KeindGameLogic> for MobSpawnEntity {
             mob_entity.drop_table = self.drop_table.clone();
             mob_entity.current_health = 10;
             mob_entity.mob_type = self.spawn_data.mob_type;
-            engine.spawn_entity(RefPointer::new(mob_entity.into()));
+            engine.spawn_entity(mob_entity.into());
         }
         next_self.last_spawn_step = *step_index;
     }

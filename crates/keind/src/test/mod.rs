@@ -93,7 +93,7 @@ fn should_reset_id_counter() -> Result<()> {
                 },
                 vec![RefPointer::new(TestSystem.into())],
             );
-            engine.spawn_entity(RefPointer::new(entity.into()));
+            engine.spawn_entity(entity.into());
         }
         ids_by_step.insert(*engine.step_index(), ids);
         engine.step();
@@ -139,7 +139,7 @@ fn should_rewind_replay() -> Result<()> {
                 },
                 vec![RefPointer::new(TestSystem.into())],
             );
-            engine.spawn_entity(RefPointer::new(entity.into()));
+            engine.spawn_entity(entity.into());
         }
         engine.step();
     }
@@ -163,7 +163,7 @@ fn should_rewind_replay() -> Result<()> {
                 },
                 vec![RefPointer::new(TestSystem.into())],
             );
-            old_engine.spawn_entity(RefPointer::new(entity.into()));
+            old_engine.spawn_entity(entity.into());
         }
         old_engine.step();
     }

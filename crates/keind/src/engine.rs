@@ -155,11 +155,11 @@ impl<G: GameLogic> GameEngine<G> {
         self.id_counter = (*self.step_index(), 0);
     }
 
-    pub fn spawn_entity(&self, entity: RefPointer<G::Entity>) {
+    pub fn spawn_entity(&self, entity: G::Entity) {
         self.register_event(
             Some(self.step_index),
             EngineEvent::SpawnEntity {
-                entity,
+                entity: RefPointer::new(entity),
                 is_non_determinism: false,
             },
         );
@@ -179,12 +179,12 @@ impl<G: GameLogic> GameEngine<G> {
         );
     }
 
-    pub fn spawn_system(&self, entity_id: u128, system_ptr: RefPointer<G::System>) {
+    pub fn spawn_system(&self, entity_id: u128, system: G::System) {
         self.register_event(
             Some(self.step_index),
             EngineEvent::SpawnSystem {
                 entity_id,
-                system_ptr,
+                system_ptr: RefPointer::new(system),
                 is_non_determinism: false,
             },
         );
