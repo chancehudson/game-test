@@ -8,7 +8,37 @@ use crate::prelude::*;
 
 /// Move an entity over a single step
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct AtomicMoveSystem {}
+pub struct AtomicMoveSystem {
+    /// lower and upper speed limit
+    speed_limit: Option<(IVec2, IVec2)>,
+}
+
+impl AtomicMoveSystem {
+    pub fn new_with_speed_limit(
+        lower_x_maybe: Option<i32>,
+        lower_y_maybe: Option<i32>,
+        upper_x_maybe: Option<i32>,
+        upper_y_maybe: Option<i32>,
+    ) -> Self {
+        let (default_lower, default_upper) = Self::default_speed_limit();
+        Self {
+            speed_limit: Some((
+                IVec2::new(
+                    lower_x_maybe.unwrap_or(default_lower.x),
+                    lower_y_maybe.unwrap_or(default_lower.y),
+                ),
+                IVec2::new(
+                    upper_x_maybe.unwrap_or(default_upper.x),
+                    upper_y_maybe.unwrap_or(default_upper.y),
+                ),
+            )),
+        }
+    }
+
+    pub fn default_speed_limit() -> (IVec2, IVec2) {
+        (IVec2::new(-250, -350), IVec2::new(250, 700))
+    }
+}
 
 impl EEntitySystem<KeindGameLogic> for AtomicMoveSystem {
     fn prestep(
@@ -28,8 +58,8 @@ impl EEntitySystem<KeindGameLogic> for AtomicMoveSystem {
     where
         Self: Sized,
     {
-        let lower_speed_limit = IVec2::new(-250, -350);
-        let upper_speed_limit = IVec2::new(250, 700);
+        let (lower_speed_limit, upper_speed_limit) =
+            self.speed_limit.unwrap_or(Self::default_speed_limit());
 
         // clamp next velocity
         next_entity.state_mut().velocity = next_entity

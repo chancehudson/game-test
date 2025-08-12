@@ -257,7 +257,10 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
                         }
                         .into(),
                     ),
-                    RefPointer::new(AtomicMoveSystem::default().into()),
+                    RefPointer::new(
+                        AtomicMoveSystem::new_with_speed_limit(Some(-800), None, Some(800), None)
+                            .into(),
+                    ),
                 ],
             );
             let projectile = EngineEntity::from(projectile);
