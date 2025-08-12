@@ -462,6 +462,22 @@ impl<G: GameLogic> GameEngine<G> {
                     )
                 })
                 .collect::<BTreeMap<_, _>>();
+            out.game_events_by_step.insert(
+                *target_step_index,
+                self.game_events_by_step
+                    .get(target_step_index)
+                    .cloned()
+                    .unwrap_or_default(),
+            );
+            out.entities_by_step
+                .insert(*target_step_index, entities.clone());
+            out.inputs_by_step.insert(
+                *target_step_index,
+                self.inputs_by_step
+                    .get(target_step_index)
+                    .cloned()
+                    .unwrap_or_default(),
+            );
 
             if rewindable {
                 // engine events are emitted when the step occurs
@@ -472,24 +488,21 @@ impl<G: GameLogic> GameEngine<G> {
                         .into_iter()
                         .map(|(k, v)| (*k, v.clone())),
                 );
-                // game events and historical entities/inputs
-                // happen at the beginning of a step, so we
-                // include values from target step
-                out.game_events_by_step = self
-                    .game_events_by_step
-                    .range(..=target_step_index)
-                    .map(|(k, v)| (*k, v.clone()))
-                    .collect::<BTreeMap<_, _>>();
-                out.entities_by_step = self
-                    .entities_by_step
-                    .range(..=target_step_index)
-                    .map(|(si, data)| (*si, data.clone()))
-                    .collect::<BTreeMap<_, _>>();
-                out.inputs_by_step = self
-                    .inputs_by_step
-                    .range(..=target_step_index)
-                    .map(|(k, v)| (*k, v.clone()))
-                    .collect::<BTreeMap<_, _>>();
+                out.game_events_by_step.extend(
+                    self.game_events_by_step
+                        .range(..target_step_index)
+                        .map(|(k, v)| (*k, v.clone())),
+                );
+                out.entities_by_step.extend(
+                    self.entities_by_step
+                        .range(..target_step_index)
+                        .map(|(si, data)| (*si, data.clone())),
+                );
+                out.inputs_by_step.extend(
+                    self.inputs_by_step
+                        .range(..target_step_index)
+                        .map(|(k, v)| (*k, v.clone())),
+                );
             }
             out.id = self.id;
             out.size = self.size.clone();
@@ -497,6 +510,9 @@ impl<G: GameLogic> GameEngine<G> {
             out.inputs = inputs.clone();
             out.step_index = *target_step_index;
             out.restart_id_counter();
+
+            let game_events = out.game_events_by_step.get(target_step_index).unwrap();
+            G::handle_game_events(&out, game_events);
 
             Ok(out)
         } else {
