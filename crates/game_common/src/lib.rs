@@ -89,7 +89,10 @@ impl GameLogic for KeindGameLogic {
     type Event = GameEvent;
     type Input = EntityInput;
 
-    fn handle_game_events(engine: &GameEngine<Self>, game_events: &Vec<RefPointer<Self::Event>>) {
+    fn handle_game_events(
+        engine: &mut GameEngine<Self>,
+        game_events: &Vec<RefPointer<Self::Event>>,
+    ) {
         for event in game_events {
             match &**event {
                 GameEvent::PlayerEnterPortal {
@@ -125,44 +128,37 @@ impl GameLogic for KeindGameLogic {
                         println!("WARNING: received player exp event for non-existent entity");
                     }
                 }
-                GameEvent::PlayerPickUpRequest(_player_entity_id) => {
-                    // if let Some(player_entity) = engine.entities.get(player_entity_id).cloned() {
-                    //     let game_events_sender = engine.game_events.0.clone();
-                    //     // there are quirks with using entities_by_type in the default handler
-                    //     // see GameEngine::step
-                    //     for item in engine
-                    //         .entities_by_type::<ItemEntity>()
-                    //         .cloned()
-                    //         .collect::<Vec<_>>()
-                    //     {
-                    //         if engine.entity_by_id_untyped(&item.id, None).is_none() {
-                    //             continue;
-                    //         }
-                    //         if item.rect().intersect(player_entity.rect()).is_empty() {
-                    //             continue;
-                    //         }
-                    //         // otherwise pick up the item
-                    //         engine.entities.remove(&item.id);
-                    //
-                    //         // mark user as having object
-                    //         game_events_sender
-                    //             .send(GameEvent::PlayerPickUp(
-                    //                 player_entity
-                    //                     .extract_ref::<PlayerEntity>()
-                    //                     .unwrap()
-                    //                     .player_id
-                    //                     .clone(),
-                    //                 item.item_type,
-                    //                 item.count,
-                    //             ))
-                    //             .unwrap();
-                    //         return;
-                    //     }
-                    // }
+                GameEvent::PlayerPickUpRequest(player_entity_id) => {
+                    if let Some(player_entity) =
+                        engine.entity_by_id::<PlayerEntity>(player_entity_id, None)
+                    {
+                        let mut item_id_maybe = None;
+                        for item in engine.entities_by_type::<ItemEntity>() {
+                            // if the player doesn't intersect the item ignore it
+                            if item.rect().intersect(player_entity.rect()).is_empty() {
+                                continue;
+                            }
+                            // otherwise pick up the item
+                            // mark the item for removal
+                            item_id_maybe = Some(item.id());
+
+                            // register an event that will be handled by an external
+                            // observer
+                            engine.register_game_event(GameEvent::PlayerPickUp(
+                                player_entity.player_id.clone(),
+                                item.item_type,
+                                item.count,
+                            ));
+                            break;
+                        }
+                        // remove the item immediately so if other pick up requests
+                        // occured this step they don't pick up the same item
+                        if let Some(item_id) = item_id_maybe {
+                            engine.remove_entity_immediate(&item_id);
+                        }
+                    }
                 }
-                GameEvent::PlayerPickUp(_, _, _) => {
-                    // update the inventory
-                }
+                GameEvent::PlayerPickUp(_, _, _) => {}
                 GameEvent::PlayerHealth(_, _) => {}
                 GameEvent::Message(_, _) => {}
             }

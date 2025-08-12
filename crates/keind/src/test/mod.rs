@@ -67,7 +67,11 @@ impl GameLogic for TestGameLogic {
     type Event = GameEvent;
     type Input = EntityInput;
 
-    fn handle_game_events(engine: &GameEngine<Self>, game_events: &Vec<RefPointer<Self::Event>>) {}
+    fn handle_game_events(
+        engine: &mut GameEngine<Self>,
+        game_events: &Vec<RefPointer<Self::Event>>,
+    ) {
+    }
 }
 
 #[test]

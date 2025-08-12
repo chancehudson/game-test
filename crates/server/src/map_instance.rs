@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bevy_math::IVec2;
+use anyhow::Result;
 
 use db::PlayerInventory;
 use db::PlayerRecord;
@@ -61,7 +61,7 @@ impl MapInstance {
         network_server: Arc<network::Server>,
         db: Arc<redb::Database>,
         game_events: flume::Sender<GameEvent>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         Ok(Self {
             pending_actions: flume::unbounded(),
             pending_events: flume::unbounded(),
@@ -77,7 +77,7 @@ impl MapInstance {
         })
     }
 
-    pub async fn spawn_item(&mut self, player_id: &str, item: (u64, u32)) -> anyhow::Result<()> {
+    pub async fn spawn_item(&mut self, player_id: &str, item: (u64, u32)) -> Result<()> {
         if let Some(player_engine) = self.player_engines.get(player_id) {
             if let Some(entity) = self
                 .engine
@@ -114,7 +114,7 @@ impl MapInstance {
         player_record: &PlayerRecord,
         player_stats: &PlayerStats,
         _requested_spawn_pos: Option<IVec2>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let entity =
             PlayerEntity::new_with_ids(rand::random(), player_record.clone(), player_stats.clone());
         let player = RemotePlayerEngine {
@@ -148,7 +148,7 @@ impl MapInstance {
         Ok(())
     }
 
-    pub async fn remove_player(&mut self, player_id: &str) -> anyhow::Result<()> {
+    pub async fn remove_player(&mut self, player_id: &str) -> Result<()> {
         if let Some(player) = self.player_engines.remove(player_id) {
             let event = EngineEvent::RemoveEntity {
                 entity_id: player.entity_id,
@@ -168,7 +168,7 @@ impl MapInstance {
     }
 
     /// Reload fully reload the players engine instance without respawning them
-    pub async fn reload_player_engine(&mut self, player_id: &str) -> anyhow::Result<()> {
+    pub async fn reload_player_engine(&mut self, player_id: &str) -> Result<()> {
         if let Some(player) = self.player_engines.get_mut(player_id) {
             println!("player {player_id} requested engine reload");
             // engine resync
@@ -188,7 +188,7 @@ impl MapInstance {
             event,
             step_index,
         }: &RemoteEngineEvent,
-    ) -> anyhow::Result<Option<(u64, EngineEvent<KeindGameLogic>)>> {
+    ) -> Result<Option<(u64, EngineEvent<KeindGameLogic>)>> {
         // discard events too far back
         if step_index < self.engine.step_index()
             && self.engine.step_index() - step_index >= self.engine.trailing_state_len
@@ -228,7 +228,7 @@ impl MapInstance {
     pub async fn process_remote_events(
         &mut self,
         remote_events: Vec<RemoteEngineEvent>,
-    ) -> anyhow::Result<BTreeMap<u64, Vec<EngineEvent<KeindGameLogic>>>> {
+    ) -> Result<BTreeMap<u64, Vec<EngineEvent<KeindGameLogic>>>> {
         let mut events: BTreeMap<u64, Vec<_>> = BTreeMap::new();
 
         for remote_event in remote_events {
@@ -243,7 +243,7 @@ impl MapInstance {
         Ok(events)
     }
 
-    pub async fn tick(&mut self) -> anyhow::Result<()> {
+    pub async fn tick(&mut self) -> Result<()> {
         // integrate any events we've received since last tick
         let pending_actions = self.pending_actions.1.drain().collect::<Vec<_>>();
         let pending_events = self.pending_events.1.drain().collect::<Vec<_>>();
@@ -385,7 +385,7 @@ impl MapInstance {
     }
 
     /// Remove players that have disconnected or are otherwise in an incosistent state.
-    pub async fn purge_players(&mut self) -> anyhow::Result<()> {
+    pub async fn purge_players(&mut self) -> Result<()> {
         // remove player entities that have disconnected
         let mut removal_events = vec![];
         for (player_id, player) in &self.player_engines {

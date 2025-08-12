@@ -60,6 +60,7 @@ impl SEEntity<KeindGameLogic> for PlayerEntity {
         let input = engine.input_for_entity(&self.id());
         next_self.received_damage_this_step = (false, 0);
         if self.is_dead() {
+            next_self.state_mut().velocity.x = 0;
             if input.respawn {
                 let new_health = self.stats_ptr.max_health();
                 engine.register_game_event(GameEvent::PlayerHealth(

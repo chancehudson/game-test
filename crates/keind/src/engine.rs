@@ -165,6 +165,10 @@ impl<G: GameLogic> GameEngine<G> {
         );
     }
 
+    pub fn remove_entity_immediate(&mut self, entity_id: &u128) {
+        self.entities.remove(entity_id);
+    }
+
     pub fn remove_entity(&self, entity_id: u128) {
         self.register_event(
             Some(self.step_index),
@@ -511,8 +515,12 @@ impl<G: GameLogic> GameEngine<G> {
             out.step_index = *target_step_index;
             out.restart_id_counter();
 
-            let game_events = out.game_events_by_step.get(target_step_index).unwrap();
-            G::handle_game_events(&out, game_events);
+            let game_events = out
+                .game_events_by_step
+                .get(target_step_index)
+                .cloned()
+                .unwrap_or_default();
+            G::handle_game_events(&mut out, &game_events);
 
             Ok(out)
         } else {

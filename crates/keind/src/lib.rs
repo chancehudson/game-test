@@ -43,7 +43,7 @@ pub trait GameLogic: Clone + Serialize + for<'de> Deserialize<'de> + 'static {
     type Event: Clone + Serialize + for<'de> Deserialize<'de>; // Game event, distinct from Engine event, which is internal to keind
 
     fn handle_game_events(
-        engine: &engine::GameEngine<Self>,
+        engine: &mut engine::GameEngine<Self>,
         game_events: &Vec<RefPointer<Self::Event>>,
     );
 }
@@ -63,7 +63,7 @@ pub trait GameLogic: Clone + Serialize + for<'de> Deserialize<'de> + 'static {
     type Event: Clone + Serialize + for<'de> Deserialize<'de>; // Game event, distinct from Engine event, which is internal to keind
 
     fn handle_game_events(
-        engine: &engine::GameEngine<Self>,
+        engine: &mut engine::GameEngine<Self>,
         game_events: &Vec<RefPointer<Self::Event>>,
     );
 }
