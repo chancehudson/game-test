@@ -8,13 +8,13 @@ use syn::Fields;
 use syn::Ident;
 use syn::parse_macro_input;
 
-pub fn derive_engine_entity(input: TokenStream) -> TokenStream {
+pub fn derive_entity_system(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let enum_name = &input.ident;
 
     let variants = match &input.data {
         Data::Enum(data_enum) => &data_enum.variants,
-        _ => panic!("EngineEntity can only be derived for enums"),
+        _ => panic!("EntitySystem can only be derived for enums"),
     };
 
     let mut variant_names = Vec::new();
@@ -31,7 +31,6 @@ pub fn derive_engine_entity(input: TokenStream) -> TokenStream {
         variant_names.push(variant_name);
         variant_types.push(variant_type);
     }
-
     let crate_name = match crate_name("keind") {
         Ok(FoundCrate::Itself) => quote! { crate },
         Ok(FoundCrate::Name(name)) => {
@@ -82,78 +81,30 @@ pub fn derive_engine_entity(input: TokenStream) -> TokenStream {
             }
         )*
 
-        impl<GL> #crate_name::prelude::SEEntity<GL> for #enum_name
+        impl<GL> #crate_name::prelude::EEntitySystem<GL> for #enum_name
         where
             GL: #crate_name::prelude::GameLogic,
             #(
-                #variant_types: #crate_name::prelude::SEEntity<GL>,
+                #variant_types: #crate_name::prelude::EEntitySystem<GL>,
             )*
         {
-            fn prestep(&self, engine: &#crate_name::prelude::GameEngine<GL>) -> bool {
+            fn prestep(&self, engine: &#crate_name::prelude::GameEngine<GL>, entity: &<GL as #crate_name::prelude::GameLogic>::Entity) -> bool {
                 match self {
                     #(
-                        #enum_name::#variant_names(entity) => entity.prestep(engine),
+                        #enum_name::#variant_names(system) => system.prestep(engine, entity),
                     )*
                 }
             }
 
-            fn step(&self, engine: &#crate_name::prelude::GameEngine<GL>, next_self: &mut Self) {
+            fn step(
+                &self,
+                engine: &#crate_name::prelude::GameEngine<GL>,
+                entity: &<GL as #crate_name::prelude::GameLogic>::Entity,
+                next_entity: &mut GL::Entity
+            ) -> ::std::option::Option<Self> {
                 match self {
                     #(
-                        #enum_name::#variant_names(entity) => entity.step(engine, match *next_self {
-                            #enum_name::#variant_names(ref mut next_self) => next_self,
-                            _ => ::std::panic!("received a mismatched next_self in engine entity wrapper step"),
-                        }),
-                    )*
-                }
-            }
-        }
-
-        impl<GL> #crate_name::prelude::EEntity<GL> for #enum_name
-        where
-            GL: #crate_name::prelude::GameLogic,
-            #(
-                #variant_types: #crate_name::prelude::EEntity<GL>,
-            )*
-        {
-            fn systems(&self) -> &::std::vec::Vec<#crate_name::prelude::RefPointer<GL::System>> {
-                match self {
-                    #(
-                        #enum_name::#variant_names(entity) => entity.systems(),
-                    )*
-                }
-            }
-
-            fn systems_mut(&mut self) -> &mut ::std::vec::Vec<#crate_name::prelude::RefPointer<GL::System>> {
-                match self {
-                    #(
-                        #enum_name::#variant_names(entity) => entity.systems_mut(),
-                    )*
-                }
-            }
-
-            fn state(&self) -> &#crate_name::prelude::BaseEntityState {
-                match self {
-                    #(
-                        #enum_name::#variant_names(entity) => entity.state(),
-                    )*
-                }
-            }
-
-            fn state_mut(&mut self) -> &mut #crate_name::prelude::BaseEntityState {
-                match self {
-                    #(
-                        #enum_name::#variant_names(entity) => entity.state_mut(),
-                    )*
-                }
-            }
-
-            fn step_systems(&self, engine: &#crate_name::prelude::GameEngine<GL>, next_self_maybe: &mut ::std::option::Option<<GL as #crate_name::GameLogic>::Entity>) {
-                match self {
-                    #(
-                        #enum_name::#variant_names(entity) => {
-                            entity.step_systems(engine, next_self_maybe);
-                        },
+                        #enum_name::#variant_names(system) => system.step(engine, entity, next_entity).map(|v| #enum_name::from(v)),
                     )*
                 }
             }

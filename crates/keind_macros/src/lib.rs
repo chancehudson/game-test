@@ -1,4 +1,5 @@
 mod engine_entity;
+mod entity_system;
 
 use proc_macro::TokenStream;
 
@@ -8,4 +9,9 @@ use proc_macro::TokenStream;
 #[proc_macro_derive(EngineEntity)]
 pub fn derive_engine_entity(input: TokenStream) -> TokenStream {
     engine_entity::derive_engine_entity(input)
+}
+
+#[proc_macro_derive(EntitySystem)]
+pub fn derive_entity_system(input: TokenStream) -> TokenStream {
+    entity_system::derive_entity_system(input)
 }

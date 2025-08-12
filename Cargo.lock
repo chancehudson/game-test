@@ -5625,6 +5625,7 @@ dependencies = [
 name = "keind_macros"
 version = "0.1.0"
 dependencies = [
+ "proc-macro-crate 3.3.0",
  "quote",
  "syn 2.0.104",
 ]
