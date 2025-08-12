@@ -13,6 +13,6 @@ pub use crate::event::EventNonDeterminism;
 
 pub use crate::system::EEntitySystem;
 
-pub use crate::engine_entity_enum;
-pub use crate::engine_entity_system_enum;
 pub use crate::entity_struct;
+
+pub use keind_macros::*;

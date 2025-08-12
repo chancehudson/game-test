@@ -23,5 +23,4 @@ rand_xoshiro = { workspace = true }
 once_cell = { workspace = true }
 flume = { workspace = true }
 
-serde_json = "1.0.140"
-
+keind_macros = { path = "../keind_macros" }

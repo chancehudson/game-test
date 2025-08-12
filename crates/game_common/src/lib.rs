@@ -1,10 +1,9 @@
-use bevy_math::IVec2;
-use keind::prelude::*;
 use serde::Deserialize;
 use serde::Serialize;
 
 use db::Ability;
 use db::AbilityExpRecord;
+use keind::prelude::*;
 
 pub mod prelude;
 
@@ -52,41 +51,38 @@ pub enum GameEvent {
     PlayerPickUp(String, u64, u32),
 }
 
-keind::engine_entity_system_enum!(
-    KeindGameLogic,
-    pub enum EngineEntitySystem {
-        Attach(AttachSystem),
-        Disappear(DisappearSystem),
-        PlayerExp(PlayerExpSystem),
-        Gravity(GravitySystem),
-        AtomicMove(AtomicMoveSystem),
-        Weightless(WeightlessSystem),
-        Invincible(InvincibleSystem),
-    }
-);
+#[derive(EntitySystem, Debug, Clone, Serialize, Deserialize)]
+pub enum EngineEntitySystem {
+    Attach(AttachSystem),
+    Disappear(DisappearSystem),
+    PlayerExp(PlayerExpSystem),
+    Gravity(GravitySystem),
+    AtomicMove(AtomicMoveSystem),
+    Weightless(WeightlessSystem),
+    Invincible(InvincibleSystem),
+}
 
-keind::engine_entity_enum!(
-    KeindGameLogic,
-    pub enum EngineEntity {
-        Emoji(EmojiEntity),
-        Item(ItemEntity),
-        Message(MessageEntity),
-        Mob(MobEntity),
-        MobDamage(MobDamageEntity),
-        MobSpawn(MobSpawnEntity),
-        Npc(NpcEntity),
-        Platform(PlatformEntity),
-        Player(PlayerEntity),
-        Portal(PortalEntity),
-        Rect(RectEntity),
-        Text(TextEntity),
-    }
-);
+#[derive(EngineEntity, Debug, Clone, Serialize, Deserialize)]
+pub enum EngineEntity {
+    Emoji(EmojiEntity),
+    Item(ItemEntity),
+    Message(MessageEntity),
+    Mob(MobEntity),
+    MobDamage(MobDamageEntity),
+    MobSpawn(MobSpawnEntity),
+    Npc(NpcEntity),
+    Platform(PlatformEntity),
+    Player(PlayerEntity),
+    Portal(PortalEntity),
+    Rect(RectEntity),
+    Text(TextEntity),
+}
 
 /// A wrapper containing the game logic structures
 /// exposed to the game by the engine
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct KeindGameLogic {}
+pub struct KeindGameLogic;
+
 impl GameLogic for KeindGameLogic {
     type Entity = EngineEntity;
     type System = EngineEntitySystem;

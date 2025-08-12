@@ -12,7 +12,6 @@
 ///   - game events: game events are processed by the game logic
 ///   - snapshot: the engine state is persisted in memory for rollback
 ///
-///
 /// The engine contains two types of determinism.
 /// All determinism sources are independent of state
 /// and history. e.g. per step deterministic independent
@@ -23,6 +22,7 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
+use anyhow::Result;
 use bevy_math::IVec2;
 use serde::Deserialize;
 use serde::Serialize;
@@ -413,7 +413,7 @@ impl<G: GameLogic> GameEngine<G> {
         }
     }
 
-    pub fn step_hash(&self, step_index: &u64) -> anyhow::Result<blake3::Hash> {
+    pub fn step_hash(&self, step_index: &u64) -> Result<blake3::Hash> {
         let step_index = if step_index == &0 {
             println!(
                 "WARNING: Calculating a hash for step 0 is nonsensical, there cannot be any entities"
@@ -445,11 +445,7 @@ impl<G: GameLogic> GameEngine<G> {
 
     /// Retrieve an engine at the _end_ of `target_step_index`.
     /// is_non_determinism events occur independently on the engine state. e.g. a player logging on
-    pub fn engine_at_step(
-        &self,
-        target_step_index: &u64,
-        rewindable: bool,
-    ) -> anyhow::Result<Self> {
+    pub fn engine_at_step(&self, target_step_index: &u64, rewindable: bool) -> Result<Self> {
         if let Some(entities) = self.entities_by_step.get(target_step_index)
             && let Some(inputs) = self.inputs_by_step.get(target_step_index)
         {
@@ -565,6 +561,7 @@ impl<G: GameLogic> GameEngine<G> {
                         "requested entities for an unknown step {step_index}, current step {}",
                         self.step_index
                     );
+                    #[cfg(not(debug_assertions))]
                     &self.empty_entities
                 }
             }

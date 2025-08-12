@@ -121,129 +121,6 @@ pub trait EEntity<G: GameLogic + 'static>: Debug + Any + Clone {
     fn step_systems(&self, engine: &GameEngine<G>, next_self_maybe: &mut Option<G::Entity>);
 }
 
-#[macro_export]
-macro_rules! engine_entity_enum {
-    (
-        $game_logic:ident,
-        $vis:vis enum $name:ident {
-            $(
-                $variant_name:ident($variant_type:ty)
-            ),* $(,)?
-        }
-    ) => {
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-        $vis enum $name {
-            $(
-                $variant_name($variant_type),
-            )*
-        }
-
-        impl KPoly for $name {
-            /// Retrieve a runtime TypeId for an instance.
-            fn type_id(&self) -> std::any::TypeId {
-                match self {
-                    $(
-                        $name::$variant_name(_) => std::any::TypeId::of::<$variant_type>(),
-                    )*
-                }
-            }
-
-            fn as_any(&self) -> &dyn Any {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => entity,
-                    )*
-                }
-            }
-
-            fn extract_ref<T: 'static>(&self) -> Option<&T> {
-                self.as_any().downcast_ref::<T>()
-            }
-
-            fn extract_mut<T: 'static>(&mut self) -> Option<&mut T> {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => (entity as &mut dyn Any).downcast_mut::<T>(),
-                    )*
-                }
-            }
-        }
-
-        $(
-            impl From<$variant_type> for $name {
-                fn from(value: $variant_type) -> Self {
-                    $name::$variant_name(value)
-                }
-            }
-        )*
-
-        impl $crate::prelude::SEEntity<$game_logic> for $name {
-            fn prestep(&self, engine: &$crate::prelude::GameEngine<$game_logic>) -> bool {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => entity.prestep(engine),
-                    )*
-                }
-            }
-
-            fn step(&self, engine: &$crate::prelude::GameEngine<$game_logic>, next_self: &mut Self) {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => entity.step(engine, match *next_self {
-                            $name::$variant_name(ref mut next_self) => next_self,
-                            _ => panic!("received a mismatched next_self in engine entity wrapper step"),
-                        }),
-                    )*
-                }
-            }
-        }
-
-        impl $crate::prelude::EEntity<$game_logic> for $name {
-            fn systems(&self) -> &Vec<keind::prelude::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>> {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => entity.systems(),
-                    )*
-                }
-            }
-
-            fn systems_mut(&mut self) -> &mut Vec<keind::prelude::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>> {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => entity.systems_mut(),
-                    )*
-                }
-            }
-
-            fn state(&self) -> &keind::prelude::BaseEntityState {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => entity.state(),
-                    )*
-                }
-            }
-
-            fn state_mut(&mut self) -> &mut keind::prelude::BaseEntityState {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => entity.state_mut(),
-                    )*
-                }
-            }
-
-            fn step_systems(&self, engine: &keind::prelude::GameEngine<$game_logic>, next_self_maybe: &mut Option<$name>) {
-                match self {
-                    $(
-                        $name::$variant_name(entity) => {
-                            entity.step_systems(engine, next_self_maybe);
-                        },
-                    )*
-                }
-            }
-        }
-    };
-}
-
 /// Properties that all engine entities have. This macro is optional, you may
 /// implement SEEntity explicitly elsewhere.
 #[macro_export]
@@ -263,9 +140,9 @@ macro_rules! entity_struct {
         #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
         $vis struct $name {
             #[serde(default)]
-            pub state: keind::prelude::BaseEntityState,
+            pub state: $crate::prelude::BaseEntityState,
             #[serde(default)]
-            pub systems: Vec<$crate::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>>,
+            pub systems: Vec<$crate::RefPointer<<$game_logic as $crate::prelude::GameLogic>::System>>,
             $(
                 $(#[$field_attr])*
                 $field_vis $field_name: $field_type,
@@ -274,7 +151,7 @@ macro_rules! entity_struct {
 
 
         impl $name {
-            pub fn new(state: keind::prelude::BaseEntityState, systems: Vec<$crate::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>>) -> Self {
+            pub fn new(state: $crate::prelude::BaseEntityState, systems: Vec<$crate::RefPointer<<$game_logic as $crate::prelude::GameLogic>::System>>) -> Self {
                 Self {
                     state,
                     systems,
@@ -283,26 +160,26 @@ macro_rules! entity_struct {
             }
         }
 
-        impl keind::prelude::EEntity<$game_logic> for $name {
-            fn systems(&self) -> &Vec<$crate::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>> {
+        impl $crate::prelude::EEntity<$game_logic> for $name {
+            fn systems(&self) -> &Vec<$crate::RefPointer<<$game_logic as $crate::prelude::GameLogic>::System>> {
                 &self.systems
             }
 
-            fn systems_mut(&mut self) -> &mut Vec<$crate::RefPointer<<$game_logic as keind::prelude::GameLogic>::System>> {
+            fn systems_mut(&mut self) -> &mut Vec<$crate::RefPointer<<$game_logic as $crate::prelude::GameLogic>::System>> {
                 &mut self.systems
             }
 
-            fn state(&self) -> &keind::prelude::BaseEntityState {
+            fn state(&self) -> &$crate::prelude::BaseEntityState {
                 &self.state
             }
 
-            fn state_mut(&mut self) -> &mut keind::prelude::BaseEntityState {
+            fn state_mut(&mut self) -> &mut $crate::prelude::BaseEntityState {
                 &mut self.state
             }
 
-            fn step_systems(&self, engine: &keind::prelude::GameEngine<$game_logic>, next_self_maybe: &mut Option<EngineEntity>) {
-                type EngineEntity = <$game_logic as keind::prelude::GameLogic>::Entity;
-                type EngineSystem = <$game_logic as keind::prelude::GameLogic>::System;
+            fn step_systems(&self, engine: &$crate::prelude::GameEngine<$game_logic>, next_self_maybe: &mut Option<EngineEntity>) {
+                type EngineEntity = <$game_logic as $crate::prelude::GameLogic>::Entity;
+                type EngineSystem = <$game_logic as $crate::prelude::GameLogic>::System;
                 let mut next_systems: Vec<$crate::RefPointer<EngineSystem>> = Vec::new();
                 let entity_ptr = engine
                     .entity_by_id_untyped(&self.id(), None)
